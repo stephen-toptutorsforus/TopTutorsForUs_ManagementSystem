@@ -24,19 +24,31 @@ Two consequences worth knowing before touching anything:
   the two databases is only meaningful if the names line up, and it leaves open
   the option of moving data across rather than re-seeding.
 
-### Done
+### Done — the schema and the correctness core
 
-- Prisma schema — 30 tables, 11 native enums
-- Migration, including the four guarantees Prisma cannot express: two GiST
-  `EXCLUDE` constraints, the append-only rules on `audit_event`, and two partial
-  unique indexes. Verified as byte-identical to the Python database's.
+- Prisma schema: 30 tables, 11 native enums.
+- Migration, including the four guarantees Prisma cannot express. Verified
+  byte-identical to the Python database's, and exercised against direct inserts
+  by `tests/db/guarantees.test.ts` — a rule the writer can talk its way around
+  is not a guarantee.
+- `src/lib/time.ts` — civil dates and times, DST edge policy, the Prisma
+  boundary.
+- `src/lib/recurrence.ts` — rule expansion, pure, shared by preview and
+  generation.
+- `src/lib/availability.ts` — the three layers and the organization's bounds.
+- `src/lib/conflicts.ts` — the four kinds, and a series that clashes with
+  itself.
+
+116 tests: 65 pure and 51 against a database. On top of those, two differential
+runs against the Python service — 29,200 civil-time resolutions and 27,090
+recurrence rules — with zero mismatches. See [tools/](tools/).
 
 ### Next
 
-- Civil-time handling, recurrence expansion, conflict detection, availability
-  resolution — ported with their tests, since this is where the correctness of
-  the product lives.
-- Then policies and scoping, then routes and screens.
+- Permissions, principals and tenant scoping — mechanical, and the shape of
+  every query below it.
+- Booking, session operations, queries, audit.
+- Routes and screens.
 
 ## Requirements
 

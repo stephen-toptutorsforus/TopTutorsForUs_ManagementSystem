@@ -313,3 +313,38 @@ export function daysBetween(from: CivilDate, to: CivilDate): number {
 export function compareCivilDates(a: CivilDate, b: CivilDate): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
+
+// --- The Prisma boundary -----------------------------------------------------
+//
+// `@db.Date` and `@db.Time` columns come back as JavaScript `Date` objects with
+// the missing half filled in — a date at UTC midnight, or a time on
+// 1970-01-01. Those are not dates and times, they are instants pretending, and
+// reading `.getHours()` on one silently applies the *server's* zone.
+//
+// These four functions are the only place that representation is handled, so
+// the rest of the code works in the civil types above and cannot make that
+// mistake by accident.
+
+/** A `@db.Date` column as a civil date. */
+export function dateFromDb(value: Date): CivilDate {
+  return ensureUtc(value).toISOString().slice(0, 10);
+}
+
+/** A civil date as a value for a `@db.Date` column. */
+export function dateToDb(day: CivilDate): Date {
+  parseCivil(day, "00:00");
+  return new Date(`${day}T00:00:00.000Z`);
+}
+
+/** A `@db.Time` column as a civil time. */
+export function timeFromDb(value: Date): CivilTime {
+  return ensureUtc(value).toISOString().slice(11, 16);
+}
+
+/** A civil time as a value for a `@db.Time` column. */
+export function timeToDb(timeOfDay: CivilTime): Date {
+  const match = CIVIL_TIME.exec(timeOfDay);
+  if (!match) throw new CivilFormatError(`not a time: ${JSON.stringify(timeOfDay)}`);
+  const seconds = match[3] ?? "00";
+  return new Date(`1970-01-01T${match[1]}:${match[2]}:${seconds}.000Z`);
+}
