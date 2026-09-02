@@ -4,6 +4,13 @@ Multi-tenant tutoring operations: people and roles, instructor availability,
 standalone and recurring session booking, a calendar, attendance, an audit
 trail. Next.js · TypeScript · Prisma · PostgreSQL.
 
+[`docs/brief.md`](docs/brief.md) is the founding brief — the domain model,
+the required workflows, the five phases, the definition of done. It says what
+to build; this file says how to build it here. Read it before starting a
+module, and when a decision looks like it needs inventing, check there first.
+Behavioural parity is with Pearl's *workflows*, never its source, branding,
+text or visual assets.
+
 ## This is a port in progress
 
 `c:\task\toptutorsforus_service` (Python / FastAPI / SQLAlchemy / Jinja) is the
