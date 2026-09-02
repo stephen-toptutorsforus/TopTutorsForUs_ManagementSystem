@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
 
 import type { PrismaClient } from "@/generated/prisma/client";
+import type { Role, UserStatus } from "@/generated/prisma/enums";
 import { clientFor } from "@/lib/db";
 
 config();
@@ -85,7 +86,13 @@ export async function makeOrganization(
 export async function makeUser(
   db: PrismaClient,
   organizationId: bigint,
-  overrides: { first?: string; last?: string; email?: string | null } = {},
+  overrides: {
+    first?: string;
+    last?: string;
+    email?: string | null;
+    roles?: Role[];
+    status?: UserStatus;
+  } = {},
 ) {
   return db.user.create({
     data: {
@@ -94,7 +101,10 @@ export async function makeUser(
       email: overrides.email === undefined ? `${newRef("who")}@example.test` : overrides.email,
       firstName: overrides.first ?? "Imani",
       lastName: overrides.last ?? "Okafor",
-      status: "ACTIVE",
+      status: overrides.status ?? "ACTIVE",
+      roles: {
+        create: (overrides.roles ?? []).map((role) => ({ organizationId, role })),
+      },
     },
   });
 }
