@@ -1,0 +1,1023 @@
+// TopTutorsForUs — operations platform.
+//
+// Ported from the SQLAlchemy models in `toptutorsforus_service`. Table and
+// column names are deliberately identical to that schema: while the port is in
+// progress the Python service is the oracle, and a diff between the two
+// databases is only meaningful if the names line up. It also leaves the door
+// open to moving data across rather than re-seeding.
+//
+// Three things Prisma cannot express, added by hand in the migration SQL:
+//
+//   1. The two GiST EXCLUDE constraints that make instructor and room
+//      double-booking impossible. These are where the guarantee actually
+//      lives — a check in application code leaves a race window open between
+//      the check and the insert.
+//   2. The append-only rules on `audit_event`.
+//   3. The two partial unique indexes (an email may be null; an unbounded role
+//      is held once).
+//
+// See prisma/migrations/*/migration.sql.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Enumerations -----------------------------------------------------------
+//
+// Native Postgres enums rather than free strings: an invalid status becomes an
+// error at the moment of the bad write, not a mystery row found by a report
+// months later. Member names are TypeScript-idiomatic; the stored values are
+// the lowercase ones the URLs and the JSON API already use, so a link like
+// `?status=scheduled` keeps working and the two services agree on the wire.
+
+enum Role {
+  ADMIN          @map("admin")
+  REGIONAL_ADMIN @map("regional_admin")
+  INSTRUCTOR     @map("instructor")
+  STUDENT        @map("student")
+  PARENT         @map("parent")
+  PAYER          @map("payer")
+
+  @@map("role")
+}
+
+enum GuardianRelationship {
+  COACH    @map("coach")
+  OBSERVER @map("observer")
+  PARENT   @map("parent")
+  TEACHER  @map("teacher")
+
+  @@map("guardian_relationship")
+}
+
+enum UserStatus {
+  INVITED        @map("invited")
+  PENDING_INVITE @map("pending_invite")
+  ACTIVE         @map("active")
+  BOUNCED        @map("bounced")
+  DISABLED       @map("disabled")
+
+  @@map("user_status")
+}
+
+enum DeliveryType {
+  ADVANCED_CLASSROOM @map("advanced_classroom")
+  EXTERNAL_LINK      @map("external_link")
+  IN_PERSON          @map("in_person")
+
+  @@map("delivery_type")
+}
+
+enum SessionStatus {
+  REQUESTED   @map("requested")
+  REJECTED    @map("rejected")
+  SCHEDULED   @map("scheduled")
+  RESCHEDULED @map("rescheduled")
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+  CANCELLED   @map("cancelled")
+  MISSED      @map("missed")
+
+  @@map("session_status")
+}
+
+enum RecurrenceFrequency {
+  DAILY  @map("daily")
+  WEEKLY @map("weekly")
+
+  @@map("recurrence_frequency")
+}
+
+enum RecurrenceEndMode {
+  COUNT @map("count")
+  UNTIL @map("until")
+
+  @@map("recurrence_end_mode")
+}
+
+enum ParticipantRole {
+  INSTRUCTOR @map("instructor")
+  STUDENT    @map("student")
+  OBSERVER   @map("observer")
+
+  @@map("participant_role")
+}
+
+enum AttendanceStatus {
+  UNMARKED   @map("unmarked")
+  PRESENT    @map("present")
+  LATE       @map("late")
+  LEFT_EARLY @map("left_early")
+  INCOMPLETE @map("incomplete")
+  ABSENT     @map("absent")
+  EXCUSED    @map("excused")
+
+  @@map("attendance_status")
+}
+
+enum AttendanceSource {
+  MANUAL    @map("manual")
+  BULK      @map("bulk")
+  CLASSROOM @map("classroom")
+  SYSTEM    @map("system")
+
+  @@map("attendance_source")
+}
+
+enum AuditCategory {
+  SESSION      @map("session")
+  SERIES       @map("series")
+  ATTENDANCE   @map("attendance")
+  USER         @map("user")
+  PERMISSION   @map("permission")
+  AVAILABILITY @map("availability")
+  CREDIT       @map("credit")
+  EXPORT       @map("export")
+
+  @@map("audit_category")
+}
+
+// --- Tenant root ------------------------------------------------------------
+
+model Organization {
+  id           BigInt    @id @default(autoincrement())
+  ref          String    @unique @db.VarChar(24)
+  name         String    @db.VarChar(160)
+  slug         String    @unique @db.VarChar(64)
+  country      String    @default("US") @db.VarChar(2)
+  timezone     String    @default("UTC") @db.VarChar(64)
+  currency     String    @default("USD") @db.VarChar(3)
+  logoUrl      String?   @map("logo_url") @db.VarChar(500)
+  supportEmail String?   @map("support_email") @db.VarChar(320)
+  supportPhone String?   @map("support_phone") @db.VarChar(32)
+  features     Json      @db.JsonB
+  settings     Json      @db.JsonB
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  availability           OrganizationAvailability[]
+  offDays                OffDay[]
+  users                  User[]
+  userRoles              UserRole[]
+  guardianStudents       GuardianStudent[]
+  instructorStudents     InstructorStudent[]
+  payerAssignments       PayerAssignment[]
+  regions                Region[]
+  districts              District[]
+  schools                School[]
+  programs               Program[]
+  subjects               Subject[]
+  subjectSpecs           SubjectSpecification[]
+  grades                 Grade[]
+  locations              Location[]
+  groups                 Group[]
+  groupMembers           GroupMember[]
+  userPrograms           UserProgram[]
+  userSchools            UserSchool[]
+  userDistricts          UserDistrict[]
+  userRegions            UserRegion[]
+  instructorSubjects     InstructorSubject[]
+  availabilityRules      AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
+  timeOff                TimeOff[]
+  series                 SessionSeries[]
+  sessions               SessionOccurrence[]
+  participants           SessionParticipant[]
+  auditEvents            AuditEvent[]
+
+  @@map("organization")
+}
+
+/// Organization-wide opening hours — the outer bound on every booking.
+/// Instructor availability narrows this; it can never widen it.
+model OrganizationAvailability {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  weekday        String   @db.VarChar(3)
+  startTime      DateTime @map("start_time") @db.Time(6)
+  endTime        DateTime @map("end_time") @db.Time(6)
+  isOpen         Boolean  @default(true) @map("is_open")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("organization_availability")
+}
+
+/// A closure. Organization-wide when `schoolId` is null, otherwise per school.
+model OffDay {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  schoolId       BigInt?  @map("school_id")
+  day            DateTime @db.Date
+  label          String   @db.VarChar(120)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  school       School?      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([schoolId])
+  @@map("off_day")
+}
+
+// --- People -----------------------------------------------------------------
+
+/// A person. Email is unique *within* an organization, not globally, so the same
+/// person can hold accounts at two tenants without either seeing the other.
+/// That uniqueness is a partial index over the rows that have an address —
+/// added by hand in the migration, since a student created by a guardian has no
+/// address until the guardian sets one.
+model User {
+  id             BigInt     @id @default(autoincrement())
+  ref            String     @unique @db.VarChar(24)
+  organizationId BigInt     @map("organization_id")
+  email          String?    @db.VarChar(320)
+  firstName      String     @map("first_name") @db.VarChar(80)
+  lastName       String     @map("last_name") @db.VarChar(80)
+  phone          String?    @db.VarChar(32)
+  /// Argon2id. Null for somebody invited who has never set one.
+  passwordHash   String?    @map("password_hash") @db.VarChar(255)
+  status         UserStatus @default(INVITED)
+  timezone       String?    @db.VarChar(64)
+  grade          String?    @db.VarChar(32)
+  lastLoginAt    DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  archivedAt     DateTime?  @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  roles                  UserRole[]
+  guardianOf             GuardianStudent[]       @relation("GuardianLink")
+  guardedBy              GuardianStudent[]       @relation("StudentGuardians")
+  teaches                InstructorStudent[]     @relation("InstructorLink")
+  taughtBy               InstructorStudent[]     @relation("StudentInstructors")
+  paysFor                PayerAssignment[]       @relation("PayerLink")
+  paidFor                PayerAssignment[]       @relation("StudentPayers")
+  programs               UserProgram[]
+  schools                UserSchool[]
+  districts              UserDistrict[]
+  regions                UserRegion[]
+  subjectsTaught         InstructorSubject[]
+  availabilityRules      AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
+  timeOff                TimeOff[]
+  groupMemberships       GroupMember[]
+
+  seriesDefaultFor   SessionSeries[]      @relation("SeriesDefaultInstructor")
+  seriesCreated      SessionSeries[]      @relation("SeriesCreatedBy")
+  sessionsInstructed SessionOccurrence[]  @relation("SessionInstructor")
+  sessionsCreated    SessionOccurrence[]  @relation("SessionCreatedBy")
+  sessionsCancelled  SessionOccurrence[]  @relation("SessionCancelledBy")
+  participations     SessionParticipant[] @relation("ParticipantUser")
+  attendanceMarked   SessionParticipant[] @relation("AttendanceMarkedBy")
+
+  @@index([organizationId])
+  @@index([organizationId, status], map: "ix_user_org_status")
+  @@map("user_account")
+}
+
+/// One role grant. Roles are rows, not a column: the product requires several
+/// per person — a parent who also tutors, an admin who instructs — and a single
+/// column forces a duplicate account that splits their history.
+/// A regional administrator's scope rides on the grant.
+model UserRole {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  userId         BigInt   @map("user_id")
+  role           Role
+  regionId       BigInt?  @map("region_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region       Region?      @relation(fields: [regionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, role, regionId], map: "uq_user_role")
+  @@index([organizationId])
+  @@index([userId])
+  @@map("user_role")
+}
+
+/// Guardian-to-student, many-to-many: several children, several guardians.
+model GuardianStudent {
+  id               BigInt               @id @default(autoincrement())
+  organizationId   BigInt               @map("organization_id")
+  guardianId       BigInt               @map("guardian_id")
+  studentId        BigInt               @map("student_id")
+  isPrimary        Boolean              @default(false) @map("is_primary")
+  relationshipKind GuardianRelationship @default(PARENT) @map("relationship")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  guardian     User         @relation("GuardianLink", fields: [guardianId], references: [id], onDelete: Cascade)
+  student      User         @relation("StudentGuardians", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, studentId], map: "uq_guardian_student")
+  @@index([organizationId])
+  @@index([guardianId])
+  @@index([studentId])
+  @@map("guardian_student")
+}
+
+/// An assignment. Under `assigned_users_only` this table is the eligibility list
+/// for booking, in both directions.
+model InstructorStudent {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  instructorId   BigInt    @map("instructor_id")
+  studentId      BigInt    @map("student_id")
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructor   User         @relation("InstructorLink", fields: [instructorId], references: [id], onDelete: Cascade)
+  student      User         @relation("StudentInstructors", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, studentId], map: "uq_instructor_student")
+  @@index([organizationId])
+  @@index([instructorId])
+  @@index([studentId])
+  @@map("instructor_student")
+}
+
+/// Who pays for a student. Modelled now so credits and invoicing later attach to
+/// a relationship that already exists rather than inventing one.
+model PayerAssignment {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  payerId        BigInt   @map("payer_id")
+  studentId      BigInt   @map("student_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  payer        User         @relation("PayerLink", fields: [payerId], references: [id], onDelete: Cascade)
+  student      User         @relation("StudentPayers", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([payerId, studentId], map: "uq_payer_student")
+  @@index([organizationId])
+  @@index([payerId])
+  @@index([studentId])
+  @@map("payer_assignment")
+}
+
+// --- Structure --------------------------------------------------------------
+//
+// The vocabulary a tenant books against. Every table is tenant-owned and
+// tenant-configured; nothing ships with a customer's programs or grade names
+// baked in. Uniqueness is always scoped to the organization, so two tenants may
+// both have a program named "Reading Support" without colliding.
+
+model Region {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  name           String    @db.VarChar(120)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  districts    District[]
+  programs     Program[]
+  userRoles    UserRole[]
+  userRegions  UserRegion[]
+
+  @@unique([organizationId, name], map: "uq_region_org_name")
+  @@index([organizationId])
+  @@map("region")
+}
+
+model District {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  regionId       BigInt?   @map("region_id")
+  name           String    @db.VarChar(120)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  region        Region?        @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  schools       School[]
+  userDistricts UserDistrict[]
+
+  @@unique([organizationId, name], map: "uq_district_org_name")
+  @@index([organizationId])
+  @@index([regionId])
+  @@map("district")
+}
+
+model School {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  districtId     BigInt?   @map("district_id")
+  name           String    @db.VarChar(160)
+  timezone       String?   @db.VarChar(64)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  district     District?    @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  locations    Location[]
+  offDays      OffDay[]
+  userSchools  UserSchool[]
+
+  @@unique([organizationId, name], map: "uq_school_org_name")
+  @@index([organizationId])
+  @@index([districtId])
+  @@map("school")
+}
+
+model Program {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  regionId       BigInt?   @map("region_id")
+  name           String    @db.VarChar(160)
+  description    String?
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  region       Region?             @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  groups       Group[]
+  userPrograms UserProgram[]
+  series       SessionSeries[]
+  sessions     SessionOccurrence[]
+
+  @@unique([organizationId, name], map: "uq_program_org_name")
+  @@index([organizationId])
+  @@index([regionId])
+  @@map("program")
+}
+
+model Subject {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  name           String    @db.VarChar(120)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  specifications     SubjectSpecification[]
+  instructorSubjects InstructorSubject[]
+  series             SessionSeries[]
+  sessions           SessionOccurrence[]
+
+  @@unique([organizationId, name], map: "uq_subject_org_name")
+  @@index([organizationId])
+  @@map("subject")
+}
+
+model SubjectSpecification {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  subjectId      BigInt    @map("subject_id")
+  name           String    @db.VarChar(120)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, name], map: "uq_subject_spec_name")
+  @@index([organizationId])
+  @@index([subjectId])
+  @@map("subject_specification")
+}
+
+/// Grade labels are tenant vocabulary — "Year 7" and "7th Grade" are both valid
+/// and neither is hard-coded. `sortOrder` keeps them in curriculum order rather
+/// than alphabetical.
+model Grade {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  name           String    @db.VarChar(64)
+  sortOrder      Int       @default(0) @map("sort_order")
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructorSubjects InstructorSubject[]
+  series             SessionSeries[]
+  sessions           SessionOccurrence[]
+
+  @@unique([organizationId, name], map: "uq_grade_org_name")
+  @@index([organizationId])
+  @@map("grade")
+}
+
+/// A physical place an in-person session can occupy. Bookable exactly once at a
+/// time — room double-booking is one of the four conflict checks, and the one
+/// the database refuses outright.
+model Location {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  schoolId       BigInt?   @map("school_id")
+  name           String    @db.VarChar(160)
+  address        String?
+  capacity       Int?
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  school       School?             @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  series       SessionSeries[]
+  sessions     SessionOccurrence[]
+
+  @@unique([organizationId, name], map: "uq_location_org_name")
+  @@index([organizationId])
+  @@index([schoolId])
+  @@map("location")
+}
+
+/// A named cohort. Booking a group expands it to its members at booking time and
+/// materialises them as participants, so a later membership change does not
+/// silently rewrite the attendance denominator of a session already held.
+model Group {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  programId      BigInt?   @map("program_id")
+  name           String    @db.VarChar(160)
+  capacity       Int?
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  program      Program?            @relation(fields: [programId], references: [id], onDelete: SetNull)
+  members      GroupMember[]
+  series       SessionSeries[]
+  sessions     SessionOccurrence[]
+
+  @@unique([organizationId, name], map: "uq_group_org_name")
+  @@index([organizationId])
+  @@index([programId])
+  @@map("student_group")
+}
+
+model GroupMember {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  groupId        BigInt   @map("group_id")
+  userId         BigInt   @map("user_id")
+  memberRole     String   @default("student") @map("member_role") @db.VarChar(16)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  group        Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId, memberRole], map: "uq_group_member")
+  @@index([organizationId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_member")
+}
+
+model UserProgram {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  userId         BigInt   @map("user_id")
+  programId      BigInt   @map("program_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program      Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId], map: "uq_user_program")
+  @@index([organizationId])
+  @@index([userId])
+  @@index([programId])
+  @@map("user_program")
+}
+
+model UserSchool {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  userId         BigInt   @map("user_id")
+  schoolId       BigInt   @map("school_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId], map: "uq_user_school")
+  @@index([organizationId])
+  @@index([userId])
+  @@index([schoolId])
+  @@map("user_school")
+}
+
+/// Written alongside `UserSchool` when somebody is attached to a school, so that
+/// attaching a school really does attach the district it sits in rather than
+/// only appearing to.
+model UserDistrict {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  userId         BigInt   @map("user_id")
+  districtId     BigInt   @map("district_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  district     District     @relation(fields: [districtId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, districtId], map: "uq_user_district")
+  @@index([organizationId])
+  @@index([userId])
+  @@index([districtId])
+  @@map("user_district")
+}
+
+model UserRegion {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  userId         BigInt   @map("user_id")
+  regionId       BigInt   @map("region_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region       Region       @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, regionId], map: "uq_user_region")
+  @@index([organizationId])
+  @@index([userId])
+  @@index([regionId])
+  @@map("user_region")
+}
+
+/// What an instructor teaches, and to which grades. Restricts the instructor
+/// finder so a parent is never offered somebody who does not cover the subject.
+model InstructorSubject {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  instructorId   BigInt   @map("instructor_id")
+  subjectId      BigInt   @map("subject_id")
+  gradeId        BigInt?  @map("grade_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructor   User         @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  grade        Grade?       @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, subjectId, gradeId], map: "uq_instructor_subject")
+  @@index([organizationId])
+  @@index([instructorId])
+  @@index([subjectId])
+  @@index([gradeId])
+  @@map("instructor_subject")
+}
+
+// --- Availability -----------------------------------------------------------
+//
+// Expressed in wall-clock time plus an IANA zone, never as instants.
+// "Tuesdays 16:00-18:00 in Europe/Lisbon" is a stable statement; the same rule
+// stored as UTC instants drifts by an hour twice a year and quietly starts
+// refusing legitimate bookings after a DST change.
+//
+// Three layers, resolved narrowest last: the weekly rule, a dated exception
+// that replaces or removes it, and time off that blocks whatever it covers.
+
+model AvailabilityRule {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  instructorId   BigInt    @map("instructor_id")
+  weekday        String    @db.VarChar(3)
+  startTime      DateTime  @map("start_time") @db.Time(6)
+  endTime        DateTime  @map("end_time") @db.Time(6)
+  /// The zone the wall-clock times are stated in; falls back to the
+  /// organization's when null.
+  timezone       String?   @db.VarChar(64)
+  effectiveFrom  DateTime? @map("effective_from") @db.Date
+  effectiveUntil DateTime? @map("effective_until") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructor   User         @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, weekday, startTime, endTime], map: "uq_availability_rule")
+  @@index([organizationId])
+  @@index([instructorId])
+  @@index([organizationId, instructorId, weekday], map: "ix_availability_rule_instructor")
+  @@map("availability_rule")
+}
+
+/// A single date that overrides the weekly pattern. `isAvailable = false` with
+/// no times removes the day entirely; with times it replaces that day's windows
+/// — the usual "I can only do mornings this Friday".
+model AvailabilityException {
+  id             BigInt    @id @default(autoincrement())
+  ref            String    @unique @db.VarChar(24)
+  organizationId BigInt    @map("organization_id")
+  instructorId   BigInt    @map("instructor_id")
+  day            DateTime  @db.Date
+  isAvailable    Boolean   @default(false) @map("is_available")
+  startTime      DateTime? @map("start_time") @db.Time(6)
+  endTime        DateTime? @map("end_time") @db.Time(6)
+  timezone       String?   @db.VarChar(64)
+  note           String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructor   User         @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([instructorId])
+  @@index([organizationId, instructorId, day], map: "ix_availability_exception_day")
+  @@map("availability_exception")
+}
+
+/// A blocked instant range. Unlike the rules above this is stored in UTC,
+/// because "away from 14:00 on the 3rd until 09:00 on the 8th" is a span of real
+/// time, not a repeating wall-clock statement.
+model TimeOff {
+  id             BigInt   @id @default(autoincrement())
+  ref            String   @unique @db.VarChar(24)
+  organizationId BigInt   @map("organization_id")
+  instructorId   BigInt   @map("instructor_id")
+  startsAt       DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt         DateTime @map("ends_at") @db.Timestamptz(6)
+  reason         String?  @db.VarChar(160)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instructor   User         @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([instructorId])
+  @@index([organizationId, instructorId, startsAt, endsAt], map: "ix_time_off_range")
+  @@map("time_off")
+}
+
+// --- Sessions ---------------------------------------------------------------
+//
+// Occurrences are materialised rows, not computed on read. A virtual series
+// would force the calendar, the grid, exports, attendance and billing each to
+// grow its own expander, and they would drift. Materialising them means one
+// occurrence can be edited, cancelled or rescheduled without the series knowing
+// — which is the behaviour the product requires.
+
+/// The recurrence rule and the defaults its occurrences are generated from. The
+/// series holds *defaults*: once generated, an occurrence's own columns are
+/// authoritative and the series is not a live template it reads through.
+model SessionSeries {
+  id                     BigInt              @id @default(autoincrement())
+  ref                    String              @unique @db.VarChar(24)
+  organizationId         BigInt              @map("organization_id")
+  title                  String              @db.VarChar(200)
+  description            String?
+  deliveryType           DeliveryType        @map("delivery_type")
+  defaultDurationMinutes Int                 @map("default_duration_minutes")
+  /// The zone the recurrence walks its civil dates in. Never derived at read
+  /// time — a series booked in one zone keeps its wall-clock time for ever.
+  timezone               String              @db.VarChar(64)
+  frequency              RecurrenceFrequency
+  intervalN              Int                 @default(1) @map("interval_n")
+  /// ISO weekday names for a weekly rule, e.g. ["mon", "wed"].
+  weekdays               Json                @db.JsonB
+  startDate              DateTime            @map("start_date") @db.Date
+  startTime              DateTime            @map("start_time") @db.Time(6)
+  endMode                RecurrenceEndMode   @map("end_mode")
+  occurrenceCount        Int?                @map("occurrence_count")
+  untilDate              DateTime?           @map("until_date") @db.Date
+  defaultInstructorId    BigInt?             @map("default_instructor_id")
+  groupId                BigInt?             @map("group_id")
+  programId              BigInt?             @map("program_id")
+  subjectId              BigInt?             @map("subject_id")
+  gradeId                BigInt?             @map("grade_id")
+  locationId             BigInt?             @map("location_id")
+  /// Free text, and deliberately not a substitute for `locationId`: only the
+  /// foreign key can carry the room exclusion constraint, because two people
+  /// typing the same building differently are not the same room to a database.
+  locationDetail         String?             @map("location_detail") @db.VarChar(500)
+  meetingUrl             String?             @map("meeting_url") @db.VarChar(1000)
+  billable               Boolean             @default(true)
+  classroomConfig        Json                @map("classroom_config") @db.JsonB
+  createdById            BigInt?             @map("created_by_id")
+  archivedAt             DateTime?           @map("archived_at") @db.Timestamptz(6)
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  defaultInstructor User?        @relation("SeriesDefaultInstructor", fields: [defaultInstructorId], references: [id], onDelete: SetNull)
+  group             Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  program           Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  subject           Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  grade             Grade?       @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  location          Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy         User?        @relation("SeriesCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  occurrences SessionOccurrence[]
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt], map: "ix_series_org_created")
+  @@index([defaultInstructorId])
+  @@map("session_series")
+}
+
+/// A single bookable session. Stands alone when `seriesId` is null.
+///
+/// It owns its own schedule: `scheduledStart` and `scheduledEnd` are columns
+/// here, not derived from the series rule, so editing one cannot touch another.
+/// `detachedFromSeries` records that a later series-wide edit must skip it.
+///
+/// Scheduled time and actual time are different facts. Reports need both, and
+/// overwriting one with the other destroys the comparison the product exists to
+/// show.
+model SessionOccurrence {
+  id                 BigInt        @id @default(autoincrement())
+  ref                String        @unique @db.VarChar(24)
+  organizationId     BigInt        @map("organization_id")
+  seriesId           BigInt?       @map("series_id")
+  /// Position within the series, 1-based, so the interface can say "3 of 12"
+  /// without counting rows or leaking a database id.
+  seriesIndex        Int?          @map("series_index")
+  detachedFromSeries Boolean       @default(false) @map("detached_from_series")
+  title              String        @db.VarChar(200)
+  description        String?
+  deliveryType       DeliveryType  @map("delivery_type")
+  meetingUrl         String?       @map("meeting_url") @db.VarChar(1000)
+  locationId         BigInt?       @map("location_id")
+  locationDetail     String?       @map("location_detail") @db.VarChar(500)
+  scheduledStart     DateTime      @map("scheduled_start") @db.Timestamptz(6)
+  scheduledEnd       DateTime      @map("scheduled_end") @db.Timestamptz(6)
+  actualStart        DateTime?     @map("actual_start") @db.Timestamptz(6)
+  actualEnd          DateTime?     @map("actual_end") @db.Timestamptz(6)
+  /// An occurrence keeps the zone it was booked in even if the organization
+  /// later changes its own.
+  timezone           String        @db.VarChar(64)
+  status             SessionStatus @default(SCHEDULED)
+  instructorId       BigInt?       @map("instructor_id")
+  groupId            BigInt?       @map("group_id")
+  programId          BigInt?       @map("program_id")
+  subjectId          BigInt?       @map("subject_id")
+  gradeId            BigInt?       @map("grade_id")
+  billable           Boolean       @default(true)
+  /// Carried now so the grid columns the product requires exist from the start
+  /// rather than being bolted on. Nothing writes them yet.
+  paymentState       String        @default("unpaid") @map("payment_state") @db.VarChar(24)
+  invoiceRef         String?       @map("invoice_ref") @db.VarChar(24)
+  cancellationReason String?       @map("cancellation_reason") @db.VarChar(64)
+  cancellationNote   String?       @map("cancellation_note")
+  cancelledAt        DateTime?     @map("cancelled_at") @db.Timestamptz(6)
+  cancelledById      BigInt?       @map("cancelled_by_id")
+  missedReason       String?       @map("missed_reason") @db.VarChar(64)
+  rescheduleReason   String?       @map("reschedule_reason")
+  /// True when an authorised administrator booked over a detected conflict. The
+  /// override is also written to the audit trail; this column makes it
+  /// filterable.
+  conflictOverridden Boolean       @default(false) @map("conflict_overridden")
+  createdById        BigInt?       @map("created_by_id")
+  archivedAt         DateTime?     @map("archived_at") @db.Timestamptz(6)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  series       SessionSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  location     Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  instructor   User?          @relation("SessionInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  group        Group?         @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  program      Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  subject      Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  grade        Grade?         @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  cancelledBy  User?          @relation("SessionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  createdBy    User?          @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  participants SessionParticipant[]
+
+  @@unique([seriesId, seriesIndex], map: "uq_session_series_index")
+  @@index([organizationId])
+  @@index([organizationId, scheduledStart, scheduledEnd], map: "ix_session_org_window")
+  @@index([organizationId, status], map: "ix_session_org_status")
+  @@index([seriesId, seriesIndex], map: "ix_session_series_index")
+  @@index([seriesId])
+  @@index([instructorId])
+  @@index([locationId])
+  @@index([programId])
+  @@map("session_occurrence")
+}
+
+/// One person's place in one session, and their attendance record.
+///
+/// Rows are created at booking time for the whole expected roster, so the
+/// attendance denominator is "everyone who was expected", not "whoever turned
+/// up". A student added to a group next month does not retroactively appear in
+/// last month's session.
+model SessionParticipant {
+  id              BigInt            @id @default(autoincrement())
+  organizationId  BigInt            @map("organization_id")
+  sessionId       BigInt            @map("session_id")
+  userId          BigInt            @map("user_id")
+  role            ParticipantRole
+  attendance      AttendanceStatus  @default(UNMARKED)
+  joinedAt        DateTime?         @map("joined_at") @db.Timestamptz(6)
+  leftAt          DateTime?         @map("left_at") @db.Timestamptz(6)
+  /// Recorded rather than derived from joined/left, because a participant may
+  /// join and leave several times and the total is what matters.
+  attendedMinutes Int?              @map("attended_minutes")
+  markedById      BigInt?           @map("marked_by_id")
+  markedAt        DateTime?         @map("marked_at") @db.Timestamptz(6)
+  markedSource    AttendanceSource? @map("marked_source")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session      SessionOccurrence @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User              @relation("ParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+  markedBy     User?             @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, userId, role], map: "uq_session_participant")
+  @@index([organizationId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([organizationId, userId, sessionId], map: "ix_participant_user_session")
+  @@map("session_participant")
+}
+
+// --- Audit ------------------------------------------------------------------
+
+/// One recorded change. No `updatedAt`: these rows never change, and the
+/// migration adds rules that make UPDATE and DELETE do nothing at all.
+///
+/// `changes` holds `{"field": {"from": ..., "to": ...}}` for scheduling and
+/// status fields and nothing else. Note bodies, message text, addresses and
+/// meeting URLs never enter it — an audit trail that becomes a second,
+/// less-protected copy of the data it exists to protect is worse than none.
+model AuditEvent {
+  id             BigInt        @id @default(autoincrement())
+  ref            String        @unique @db.VarChar(24)
+  organizationId BigInt        @map("organization_id")
+  category       AuditCategory
+  /// A verb phrase in the domain's own words, e.g. "session.rescheduled".
+  action         String        @db.VarChar(64)
+  entityType     String        @map("entity_type") @db.VarChar(48)
+  entityId       BigInt        @map("entity_id")
+  /// The public ref of the entity, so a viewer never has to see a database id.
+  entityRef      String?       @map("entity_ref") @db.VarChar(24)
+  /// Deliberately *not* a foreign key. An audit event is a historical fact, and
+  /// a referential action that rewrites an append-only row is a contradiction —
+  /// one that made anybody who had ever acted undeletable.
+  actorId        BigInt?       @map("actor_id")
+  /// Copied, not joined: the trail must still read correctly after the actor's
+  /// roles change or their account is archived.
+  actorRole      String?       @map("actor_role") @db.VarChar(32)
+  actorLabel     String?       @map("actor_label") @db.VarChar(160)
+  changes        Json          @db.JsonB
+  /// A short, non-identifying explanation, e.g. "conflict override".
+  note           String?       @db.VarChar(240)
+  ipAddress      String?       @map("ip_address") @db.VarChar(45)
+  userAgent      String?       @map("user_agent") @db.VarChar(240)
+  occurredAt     DateTime      @map("occurred_at") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId, occurredAt], map: "ix_audit_subject")
+  @@index([organizationId, actorId, occurredAt], map: "ix_audit_actor")
+  @@index([actorId])
+  @@map("audit_event")
+}

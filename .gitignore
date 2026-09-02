@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+next-env.d.ts
+src/generated/
+.env
+.env.local
+*.tsbuildinfo
+.DS_Store
+
+# Local documentation. Not part of the product.
+docs/
