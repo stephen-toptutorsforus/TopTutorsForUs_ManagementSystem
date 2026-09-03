@@ -81,6 +81,26 @@ export const PRESENCE_ONLY_FIELDS: ReadonlySet<string> = new Set([
   "reschedule_reason",
 ]);
 
+/**
+ * Fields whose value is a domain enum.
+ *
+ * Prisma's generated enums use TypeScript-idiomatic member names — `SCHEDULED`,
+ * `IN_PROGRESS` — while the column, the URLs, the JSON API and the Python
+ * service's own trail all use the lowercase wire values. A snapshot taken off a
+ * Prisma row therefore has to be converted, or the same change reads as
+ * `"SCHEDULED"` here and `"scheduled"` there and the two trails stop being
+ * comparable. Every enum in the schema maps its members to the lowercased
+ * member name, so the conversion is a rule rather than a table.
+ */
+const WIRE_VALUED_FIELDS: ReadonlySet<string> = new Set([
+  "status",
+  "delivery_type",
+  "attendance",
+  "participant_role",
+  "role",
+  "user_status",
+]);
+
 const REDACTED = "«redacted»";
 const PRESENT = "«provided»";
 
@@ -225,7 +245,12 @@ function snakeCase(name: string): string {
  */
 export function snapshot(row: Record<string, unknown>, fields: readonly string[]): Snapshot {
   const captured: Snapshot = {};
-  for (const field of fields) captured[snakeCase(field)] = row[field] ?? null;
+  for (const field of fields) {
+    const key = snakeCase(field);
+    const value = row[field] ?? null;
+    captured[key] =
+      WIRE_VALUED_FIELDS.has(key) && typeof value === "string" ? value.toLowerCase() : value;
+  }
   return captured;
 }
 
