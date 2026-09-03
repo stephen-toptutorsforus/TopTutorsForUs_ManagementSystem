@@ -1,0 +1,1469 @@
+/* TopTutorsForUs design system.
+ *
+ * Original work: a slate-and-teal palette, one type scale, and a small set of
+ * components. No third-party framework, no build step — the whole system is
+ * this file, which keeps it auditable and keeps the page fast on the school
+ * laptops and phones this runs on.
+ *
+ * Three rules the rest of the file follows:
+ *
+ * 1. Colour never carries meaning alone. Every status badge pairs a hue with an
+ *    icon glyph and a word, so it survives greyscale printing, colour
+ *    blindness, and a bad projector.
+ * 2. Focus is always visible. `:focus-visible` gets a 3px ring that is never
+ *    removed, because keyboard navigation is how a lot of this product is
+ *    actually used.
+ * 3. Every interactive target is at least 44px in its smallest dimension.
+ */
+
+:root {
+  /* Neutrals */
+  --ink-900: #10161d;
+  --ink-700: #2c3946;
+  --ink-500: #55677a;
+  --ink-400: #7b8b9c;
+  --ink-200: #d5dde5;
+  --ink-100: #e9eef3;
+  --ink-050: #f5f8fa;
+  --paper: #ffffff;
+
+  /* Brand: deep teal, chosen for 4.5:1+ on paper at every weight used */
+  --brand-700: #0d5c58;
+  --brand-600: #10716c;
+  --brand-500: #14867f;
+  --brand-100: #dcf0ee;
+
+  /* Status tones. Text pairs are all >= 4.5:1 on their own surface. */
+  --good-text: #14603a;
+  --good-surface: #dff3e7;
+  --warn-text: #7a4a08;
+  --warn-surface: #fbeed6;
+  --bad-text: #8a2020;
+  --bad-surface: #fbe2e2;
+  --info-text: #1c4f80;
+  --info-surface: #dfeaf7;
+  --live-text: #6a2a86;
+  --live-surface: #f0e2f8;
+  --pending-text: #4a4470;
+  --pending-surface: #e6e4f4;
+  --moved-text: #8a3d16;
+  --moved-surface: #fbe6da;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgba(16, 22, 29, 0.06), 0 4px 12px rgba(16, 22, 29, 0.05);
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --mono: "Cascadia Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --sidebar-width: 244px;
+  --sidebar-rail: 62px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink-900: #eef3f7;
+    --ink-700: #cbd6e0;
+    --ink-500: #9aabbc;
+    --ink-400: #7e8fa1;
+    --ink-200: #33414f;
+    --ink-100: #26313c;
+    --ink-050: #1b242d;
+    --paper: #141c24;
+    --brand-700: #6fd3ca;
+    --brand-600: #57c4bb;
+    --brand-500: #3fb3aa;
+    --brand-100: #17352f;
+    --good-text: #8fe0b4;
+    --good-surface: #14312a;
+    --warn-text: #f0c982;
+    --warn-surface: #3a2e18;
+    --bad-text: #f5a3a3;
+    --bad-surface: #3a1f20;
+    --info-text: #9dc6ef;
+    --info-surface: #1c2c3f;
+    --live-text: #d5aeea;
+    --live-surface: #2e2038;
+    --pending-text: #bdb8e6;
+    --pending-surface: #262340;
+    --moved-text: #f2ab84;
+    --moved-surface: #3a2318;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* No image is allowed to be wider than what holds it. A logo dropped in at its
+   intrinsic size would otherwise spill out of the sidebar and across the page. */
+img { max-width: 100%; height: auto; }
+
+/* `hidden` means hidden, whatever else a class says.
+   The browser hides `[hidden]` from its own stylesheet, which any author rule
+   outranks — so a class that sets `display` un-hides every element it touches
+   that is also marked hidden, silently. `.availability-busy { display: flex }`
+   did exactly that, and the booking page's "Updating availability…" line was
+   visible from the moment it loaded and never went away. Stated once, globally,
+   because the next `display` rule would have had the same bug latent in it. */
+[hidden] { display: none !important; }
+
+/* The shell owns the viewport and scrolls inside itself, so the document has
+   nothing left to scroll. Sizing `.shell` alone was not enough: a grid item
+   that outgrows its row spills out visibly, and that overflow lands on the
+   document, which is where the second scrollbar was coming from. Saying it here
+   removes the possibility rather than relying on every descendant to behave.
+
+   Height on `html` and `body` as well, because a percentage height needs a
+   parent that has one — and `100%` of the real viewport beats `100vh`, which on
+   mobile browsers counts the space behind the address bar. */
+html, body { height: 100%; }
+
+body {
+  overflow: hidden;
+  margin: 0;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-900);
+  background: var(--ink-050);
+  -webkit-text-size-adjust: 100%;
+}
+
+h1, h2, h3 { line-height: 1.25; margin: 0 0 0.5rem; font-weight: 650; }
+h1 { font-size: 1.5rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p { margin: 0 0 0.75rem; }
+
+a { color: var(--brand-600); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--brand-700); }
+
+:focus-visible {
+  outline: 3px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--brand-700);
+  color: #fff;
+  border-radius: 0 0 var(--radius) 0;
+}
+.skip-link:focus { left: 0; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+/* --- Shell --------------------------------------------------------------- */
+
+/* The shell is exactly the window, and the content column scrolls inside it —
+   so the document itself never scrolls and there is no page-level scrollbar
+   competing with the ones inside the page. */
+.shell { display: grid; grid-template-columns: var(--sidebar-width) 1fr; height: 100%; }
+/* Both tracks, not just the rail: naming one column leaves `.main` with no
+   column to sit in, so it wraps into an implicit row under the sidebar and
+   takes the rail's width. Collapsing narrows the sidebar; it does not remove
+   the page. */
+.shell.is-collapsed { grid-template-columns: var(--sidebar-rail) 1fr; }
+
+/* The sidebar stays put while the page scrolls under it. `sticky` rather than
+   `fixed`: a fixed element leaves the grid, so its column would collapse and
+   the main content would slide underneath it. Sticky keeps the track and pins
+   the box inside it.
+
+   Its own height is the viewport, and it scrolls internally — otherwise a long
+   nav on a short screen would put the sign-out button somewhere unreachable. */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--paper);
+  border-right: 1px solid var(--ink-200);
+  padding: 0.9rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.brand {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
+  padding: 0.35rem 0.45rem 0.8rem;
+  margin-bottom: 0.1rem;
+  border-bottom: 1px solid var(--ink-200);
+  font-weight: 700; font-size: 1.02rem;
+  color: var(--ink-900); text-decoration: none;
+}
+/* Sized by width, not height: the constraint in a sidebar is horizontal, so a
+   width cap is what keeps the wordmark inside the column at any column width.
+   The intrinsic width/height stay on the <img> so the row does not reflow once
+   the file loads. */
+.brand-logo { display: block; width: 100%; max-width: 124px; height: auto; }
+/* The monogram only appears in the collapsed rail, where a wordmark four times
+   wider than it is tall has nowhere to go. */
+.brand-mark {
+  display: none;
+  width: 30px; height: 30px; flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--brand-600); color: #fff;
+  font-size: 0.85rem; font-weight: 700;
+}
+.brand-tagline {
+  display: block;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav a,
+.nav-group > summary,
+.nav-pending {
+  display: flex; align-items: center; gap: 0.65rem;
+  min-height: 42px; padding: 0 0.6rem; margin: 0;
+  border-radius: var(--radius);
+  color: var(--ink-700); text-decoration: none;
+  font-weight: 500; font-size: 0.92rem;
+}
+.nav a:hover,
+.nav-group > summary:hover { background: var(--ink-100); color: var(--ink-900); }
+.nav a[aria-current="page"] {
+  background: var(--brand-100);
+  color: var(--brand-700);
+  font-weight: 650;
+  box-shadow: inset 3px 0 0 var(--brand-600);
+}
+.nav .icon {
+  flex: none; width: 1.2rem; text-align: center;
+  font-size: 0.98rem; opacity: 0.9;
+}
+.nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Expandable sections. <details> gives open/close and keyboard operation for
+   free; only the marker and the chevron need styling. */
+.nav-group { border-radius: var(--radius); }
+.nav-group > summary { cursor: pointer; list-style: none; }
+.nav-group > summary::-webkit-details-marker { display: none; }
+.nav-chevron {
+  margin-left: auto; flex: none;
+  color: var(--ink-400); font-size: 1rem;
+  transition: transform 120ms ease;
+}
+.nav-group[open] > summary { color: var(--ink-900); font-weight: 650; }
+.nav-group[open] .nav-chevron { transform: rotate(90deg); }
+.nav-group[open] > summary {
+  border: 1px solid var(--brand-500);
+  border-radius: var(--radius);
+}
+/* Children are indented plain text. The indent already says they belong to the
+   section above, so they carry no icons and no connector rule. */
+.nav-children { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; }
+.nav-children a,
+.nav-children .nav-pending {
+  min-height: 36px; padding-left: 2.45rem; font-size: 0.89rem;
+}
+.nav-children a[aria-current="page"] {
+  background: var(--ink-100);
+  color: var(--brand-700);
+  font-weight: 650;
+  box-shadow: inset 3px 0 0 var(--brand-600);
+}
+
+.nav-divider {
+  height: 0; margin: 0.5rem 0.35rem;
+  border: 0; border-top: 1px solid var(--ink-200);
+}
+
+/* A section that exists in the product's shape but not yet in the build. Inert
+   on purpose: it is not a link, is not focusable, and says which phase it is. */
+.nav-pending { color: var(--ink-400); cursor: default; }
+.nav-pending .tag { margin-left: auto; font-size: 0.68rem; }
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding-top: 0.6rem; border-top: 1px solid var(--ink-200);
+}
+.whoami { margin: 0; padding: 0 0.6rem; font-size: 0.82rem; color: var(--ink-500); }
+.whoami strong {
+  display: block; color: var(--ink-900); font-size: 0.9rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav-signout { width: 100%; }
+
+.sidebar-collapse {
+  align-self: flex-start;
+  display: grid; place-items: center;
+  width: 38px; height: 38px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: none; color: var(--ink-500);
+  font-size: 1.1rem; cursor: pointer;
+}
+.sidebar-collapse:hover { background: var(--ink-100); color: var(--ink-900); }
+
+/* Collapsed rail: icons only. Labels are removed from the accessibility tree
+   too, because the icon glyphs alone would read as punctuation — the title
+   attribute added by the toggle carries the name instead. */
+.shell.is-collapsed .brand-logo,
+.shell.is-collapsed .brand-tagline,
+.shell.is-collapsed .nav-label,
+.shell.is-collapsed .nav-chevron,
+.shell.is-collapsed .nav-pending .tag,
+.shell.is-collapsed .whoami,
+.shell.is-collapsed .nav-signout { display: none; }
+.shell.is-collapsed .sidebar { padding: 0.9rem 0.35rem; align-items: center; }
+.shell.is-collapsed .brand { align-items: center; padding-inline: 0; }
+.shell.is-collapsed .brand-mark { display: grid; }
+.shell.is-collapsed .nav { width: 100%; }
+.shell.is-collapsed .nav a,
+.shell.is-collapsed .nav-group > summary,
+.shell.is-collapsed .nav-pending { justify-content: center; padding-inline: 0; }
+.shell.is-collapsed .nav-children { display: none; }
+.shell.is-collapsed .nav-divider { width: 60%; margin-inline: auto; }
+.shell.is-collapsed .sidebar-collapse { align-self: center; }
+.shell.is-collapsed .sidebar-collapse span { transform: rotate(180deg); }
+
+/* `min-height: 0` because a grid item defaults to `auto`, which refuses to
+   shrink below its content and would push the overflow back onto the document. */
+.main { min-width: 0; min-height: 0; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
+/* A page that fills the window instead of running past it: the head and toolbar
+   take what they need and one child — the calendar grid — takes the rest. */
+.main-fill { display: flex; flex-direction: column; padding-bottom: 1.5rem; overflow: hidden; }
+.main-fill > .cal-grid-card { flex: 1 1 auto; min-height: 0; display: flex; }
+.page-head {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  align-items: flex-start; justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+.page-head .subtitle { color: var(--ink-500); margin: 0; }
+
+/* --- Cards and surfaces -------------------------------------------------- */
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.1rem;
+}
+.card > h2:first-child, .card > h3:first-child { margin-top: 0; }
+.card-grid { display: grid; gap: 1.1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+.stat { display: flex; flex-direction: column; gap: 0.15rem; }
+.stat .value { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; }
+.stat .label { color: var(--ink-500); font-size: 0.85rem; }
+
+.definition { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 0.4rem 1rem; margin: 0; }
+.definition dt { color: var(--ink-500); font-size: 0.85rem; }
+.definition dd { margin: 0; }
+
+/* --- Badges: hue + glyph + word, never hue alone ------------------------- */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge .glyph { font-size: 0.85em; line-height: 1; }
+.badge-good { background: var(--good-surface); color: var(--good-text); border-color: var(--good-text); }
+.badge-warn { background: var(--warn-surface); color: var(--warn-text); border-color: var(--warn-text); }
+.badge-bad { background: var(--bad-surface); color: var(--bad-text); border-color: var(--bad-text); }
+.badge-info { background: var(--info-surface); color: var(--info-text); border-color: var(--info-text); }
+.badge-live { background: var(--live-surface); color: var(--live-text); border-color: var(--live-text); }
+.badge-pending { background: var(--pending-surface); color: var(--pending-text); border-color: var(--pending-text); }
+.badge-moved { background: var(--moved-surface); color: var(--moved-text); border-color: var(--moved-text); }
+.badge-muted { background: var(--ink-100); color: var(--ink-500); border-color: var(--ink-400); }
+
+.tag {
+  display: inline-block; padding: 0.1rem 0.45rem;
+  background: var(--ink-100); color: var(--ink-700);
+  border-radius: var(--radius); font-size: 0.78rem;
+}
+
+/* --- Buttons ------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  min-height: 44px; padding: 0 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink-200);
+  background: var(--paper); color: var(--ink-900);
+  font: inherit; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+}
+.btn:hover { background: var(--ink-100); }
+.btn-primary { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+.btn-primary:hover { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
+.btn-danger { background: var(--bad-surface); border-color: var(--bad-text); color: var(--bad-text); }
+.btn-small { min-height: 34px; padding: 0 0.65rem; font-size: 0.85rem; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* These were fourteen inline `style` attributes, every one of them silently
+   dropped: `style-src 'self'` forbids inline styles, so the widths and spacing
+   they asked for were never applied on any page. Written as rules about where
+   an element sits rather than as utility classes, so the next form inside a
+   disclosure gets the spacing without anyone remembering to ask for it. */
+
+/* A row of buttons following something — a table, a fieldset — needs air above
+   it. Not when it is the first thing in its container, which is why this is not
+   simply a margin on `.btn-row`. */
+* + .btn-row, * + .choice-row { margin-top: 0.9rem; }
+
+/* The forms inside the session detail page's disclosures. The summary is the
+   heading; the form should not start flush against it. */
+details > form { margin-top: 0.8rem; }
+
+.btn-block { width: 100%; }
+
+/* A control that should take its content's width rather than the full row —
+   inside a `.btn-row`, a full-width select pushes every button onto its own
+   line. */
+.field-auto { width: auto; }
+.field-short { max-width: 280px; }
+
+/* A form acting as a row of controls, with its own content following. */
+.form-actions { margin-bottom: 1rem; }
+
+.section-gap { margin-top: 1.1rem; }
+
+/* --- Forms --------------------------------------------------------------- */
+
+.field { margin-bottom: 1rem; }
+.field > label, .fieldset-legend {
+  display: block; margin-bottom: 0.3rem;
+  font-weight: 600; font-size: 0.88rem; color: var(--ink-700);
+}
+.field .hint { display: block; margin-top: 0.25rem; font-size: 0.82rem; color: var(--ink-500); }
+.field .error { display: block; margin-top: 0.25rem; font-size: 0.85rem; color: var(--bad-text); font-weight: 600; }
+
+input[type="text"], input[type="email"], input[type="password"], input[type="date"],
+input[type="time"], input[type="number"], input[type="url"], input[type="search"],
+input[type="tel"],
+select, textarea {
+  width: 100%; min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ink-400);
+  border-radius: var(--radius);
+  background: var(--paper); color: var(--ink-900);
+  font: inherit;
+}
+textarea { min-height: 96px; resize: vertical; }
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bad-text); border-width: 2px; }
+
+fieldset { border: 1px solid var(--ink-200); border-radius: var(--radius); padding: 0.85rem 1rem; margin: 0 0 1rem; }
+legend { padding: 0 0.35rem; font-weight: 600; font-size: 0.88rem; color: var(--ink-700); }
+
+.form-row { display: grid; gap: 0 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+/* One track of a three-column `.form-row`, for a field that stands on its own
+   row but should still line up with the ones above it. The arithmetic is the
+   grid's: three columns share the width left after two 1rem gaps.
+
+   Only the control is narrowed. The label and the help text keep the full
+   width, because the help text is a sentence and a third of a row would set it
+   four words to a line. */
+.field-third > input,
+.field-third > select {
+  width: calc((100% - 2rem) / 3);
+  /* The same floor the grid's tracks have, so the two stay in step as the
+     window narrows and neither collapses before the other. */
+  min-width: 180px;
+}
+
+.choice-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.choice {
+  position: relative; display: inline-flex; align-items: center;
+  min-height: 44px; min-width: 52px; padding: 0 0.85rem;
+  border: 1px solid var(--ink-400); border-radius: var(--radius);
+  background: var(--paper); cursor: pointer; font-weight: 600; font-size: 0.9rem;
+}
+.choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.choice:has(input:checked) { background: var(--brand-100); border-color: var(--brand-600); color: var(--brand-700); }
+.choice:has(input:focus-visible) { outline: 3px solid var(--brand-500); outline-offset: 2px; }
+
+/* --- Tables -------------------------------------------------------------- */
+
+/* Sideways only. Naming one axis `auto` computes the other from `visible` to
+   `auto` as well, and the horizontal scrollbar then takes ~15px of height off
+   the box — which overflows it vertically and raises a second scrollbar for the
+   height of the first. Pinning the vertical axis is what stops that. */
+.table-wrap {
+  overflow-x: auto; overflow-y: hidden;
+  border: 1px solid var(--ink-200); border-radius: var(--radius-lg);
+  background: var(--paper);
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { padding: 0.6rem 0.75rem; text-align: left; vertical-align: top; }
+thead th {
+  position: sticky; top: 0;
+  background: var(--ink-050);
+  border-bottom: 1px solid var(--ink-200);
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-500); font-weight: 700; white-space: nowrap;
+}
+tbody tr + tr td { border-top: 1px solid var(--ink-100); }
+tbody tr:hover td { background: var(--ink-050); }
+td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Narrow screens: each row becomes a stacked card, with the column name shown
+   from the cell's data-label so no header context is lost. */
+@media (max-width: 720px) {
+  .shell,
+  .shell.is-collapsed { grid-template-columns: 1fr; }
+  html, body { height: auto; }
+  body { overflow: visible; }
+  .shell { height: auto; min-height: 100vh; }
+  .main, .main-fill { overflow: visible; }
+  .main-fill > .cal-grid-card { display: block; }
+  :where(.main-fill) .cal-timegrid-scroll { max-height: 70vh; }
+  .sidebar {
+    position: static; height: auto; overflow: visible;
+    flex-direction: row; flex-wrap: wrap; align-items: center;
+    border-right: 0; border-bottom: 1px solid var(--ink-200);
+  }
+  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav-group { flex: 1 1 100%; }
+  .sidebar-footer { flex-direction: row; flex-wrap: wrap; align-items: center; margin: 0; border: 0; }
+  .sidebar-collapse { display: none; }
+  .main { padding: 1rem; }
+
+  .table-wrap { border: 0; background: none; }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { position: absolute; left: -9999px; }
+  tbody tr {
+    background: var(--paper); border: 1px solid var(--ink-200);
+    border-radius: var(--radius-lg); margin-bottom: 0.75rem; padding: 0.35rem 0.5rem;
+  }
+  tbody tr + tr td { border-top: 0; }
+  td { display: flex; gap: 0.75rem; justify-content: space-between; padding: 0.35rem 0.25rem; }
+  td::before {
+    content: attr(data-label);
+    font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--ink-500); flex: none;
+  }
+}
+
+/* --- Calendar ------------------------------------------------------------
+ *
+ * Four views share one toolbar. The status filter is a native <details>
+ * disclosure holding real checkboxes, so it opens, closes, and tabs correctly
+ * with no script — and each option shows a colour swatch AND a glyph AND a
+ * word, so the filter stays usable without colour vision.
+ *
+ * `.filtermenu` is deliberately not prefixed `cal-`: the directory's role
+ * filter is the same control, and a class named after the first screen to want
+ * it is the reason a second screen ends up with a copy instead.
+ */
+
+.cal-toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  align-items: center; justify-content: space-between;
+  padding: 0.75rem; margin-bottom: 0.9rem;
+  background: var(--paper); border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+}
+.cal-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.cal-toolbar .field { margin: 0; }
+/* Fixed width rather than flex-grow: a search box that stretches to fill the
+   row changes size every time the toolbar's other contents do. */
+.cal-search { flex: 0 0 260px; max-width: 100%; }
+.cal-book { flex: none; margin-left: auto; }
+
+.filtermenu { position: relative; }
+.filtermenu > summary {
+  display: flex; align-items: center; gap: 0.5rem;
+  min-height: 44px; padding: 0 0.75rem;
+  border: 1px solid var(--ink-400); border-radius: var(--radius);
+  background: var(--paper); cursor: pointer; font-weight: 600; font-size: 0.9rem;
+  list-style: none;
+}
+.filtermenu > summary::-webkit-details-marker { display: none; }
+.filtermenu > summary::after { content: "▾"; color: var(--ink-500); }
+.filtermenu[open] > summary { border-color: var(--brand-600); }
+.filtermenu-count { white-space: nowrap; }
+
+.filtermenu-swatches { display: inline-flex; gap: 2px; }
+.filtermenu-swatch {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 700; border: 1px solid;
+}
+
+.filtermenu-panel {
+  position: absolute; z-index: 20; top: calc(100% + 4px); left: 0;
+  min-width: 240px; padding: 0.6rem;
+  background: var(--paper); border: 1px solid var(--ink-200);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.filtermenu-panel fieldset { border: 0; padding: 0; margin: 0; }
+.filtermenu-option {
+  display: flex; align-items: center; gap: 0.55rem;
+  min-height: 40px; padding: 0 0.3rem; border-radius: var(--radius);
+  cursor: pointer; font-size: 0.9rem;
+}
+.filtermenu-option:hover { background: var(--ink-050); }
+.filtermenu-option input { width: 18px; height: 18px; min-height: 0; flex: none; }
+/* The swatch trails the label, so the eye reads the word first. */
+.filtermenu-label { flex: 1 1 auto; }
+.filtermenu-actions {
+  display: flex; gap: 0.5rem; align-items: center;
+  margin: 0.4rem 0 0.2rem; padding-top: 0.5rem;
+  border-top: 1px solid var(--ink-200); font-size: 0.85rem;
+}
+.filtermenu-actions span { color: var(--ink-400); }
+
+.cal-bar {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  align-items: center; justify-content: space-between; margin-bottom: 0.9rem;
+}
+.cal-nav { display: flex; align-items: center; gap: 0.4rem; }
+.cal-nav .btn { min-width: 40px; }
+/* Centred between the arrows, with a floor wide enough that stepping from
+   "March 2026" to "May 2026" does not shift the buttons either side of it. */
+.cal-heading {
+  margin: 0; padding: 0 0.35rem;
+  min-width: 13ch; text-align: center;
+  font-size: 1.05rem; white-space: nowrap;
+}
+
+.cal-views {
+  display: inline-flex; padding: 3px;
+  background: var(--ink-100); border-radius: 999px;
+}
+.cal-view {
+  display: inline-flex; align-items: center;
+  min-height: 38px; padding: 0 0.9rem; border-radius: 999px;
+  color: var(--ink-700); text-decoration: none; font-weight: 600; font-size: 0.88rem;
+}
+.cal-view:hover { color: var(--ink-900); }
+/* Today is an action, not a view, so it is set off from the four that are —
+   a divider rather than a different shape, since it sits in the same group. It
+   holds this place in every view; only its availability changes. */
+.cal-view-today {
+  margin-left: 3px; padding-left: 0.95rem;
+  border-left: 1px solid var(--ink-200);
+  border-radius: 0 999px 999px 0;
+}
+/* A <button> when it is unavailable, so it must be told to look like its
+   sibling links rather than like a form control. */
+button.cal-view {
+  border: 0; background: none; cursor: pointer;
+  font-family: inherit;
+}
+button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
+.cal-view.is-disabled {
+  color: var(--ink-400); cursor: not-allowed;
+}
+.cal-view.is-disabled:hover { color: var(--ink-400); }
+.cal-view.is-current {
+  background: var(--paper); color: var(--brand-700);
+  box-shadow: var(--shadow);
+}
+
+/* Events, shared by the month and week layouts. */
+.cal-event {
+  display: flex; align-items: center; gap: 0.35rem;
+  margin-top: 3px; padding: 0.2rem 0.35rem;
+  border-radius: 6px; border-left: 3px solid var(--brand-600);
+  background: var(--ink-050); color: var(--ink-900);
+  font-size: 0.78rem; text-decoration: none; line-height: 1.3;
+}
+.cal-event:hover { background: var(--brand-100); color: var(--ink-900); }
+.cal-time { font-variant-numeric: tabular-nums; color: var(--ink-500); flex: none; }
+.cal-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-flag {
+  margin-left: auto; flex: none;
+  display: inline-grid; place-items: center;
+  width: 16px; height: 16px; border-radius: 4px;
+  font-size: 0.65rem; font-weight: 700; border: 1px solid;
+}
+.cal-event.is-scheduled { border-left-color: var(--info-text); }
+.cal-event.is-rescheduled { border-left-color: var(--moved-text); }
+.cal-event.is-in_progress { border-left-color: var(--live-text); }
+.cal-event.is-completed { border-left-color: var(--good-text); }
+.cal-event.is-missed { border-left-color: var(--warn-text); }
+.cal-event.is-requested { border-left-color: var(--pending-text); border-left-style: dashed; }
+.cal-event.is-cancelled,
+.cal-event.is-rejected {
+  border-left-color: var(--ink-400);
+  text-decoration: line-through;
+  color: var(--ink-500);
+}
+
+.cal-more {
+  display: block; margin-top: 4px; padding: 0.15rem 0.35rem;
+  font-size: 0.76rem; font-weight: 600; color: var(--brand-700);
+}
+
+/* Month grid */
+.cal-month {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px;
+  background: var(--ink-200); border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.cal-dow {
+  background: var(--ink-050); padding: 0.5rem; text-align: center;
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-500);
+}
+.cal-cell { background: var(--paper); min-height: 116px; padding: 0.35rem; min-width: 0; }
+.cal-cell.is-outside { background: var(--ink-050); }
+.cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--brand-600); }
+.cal-daynum { margin: 0 0 0.15rem; text-align: right; }
+.cal-daynum a {
+  display: inline-block; min-width: 24px; padding: 0.05rem 0.25rem;
+  font-size: 0.8rem; font-weight: 700; color: var(--ink-500);
+  text-decoration: none; border-radius: 5px;
+}
+.cal-daynum a:hover { background: var(--ink-100); color: var(--ink-900); }
+.cal-cell.is-today .cal-daynum a { color: var(--brand-700); }
+
+/* Week columns */
+
+/* Day agenda */
+
+/* List view */
+.cal-list-day {
+  display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline;
+  margin: 1.1rem 0 0.5rem;
+}
+.cal-list-day:first-child { margin-top: 0; }
+
+@media (max-width: 900px) {
+}
+
+@media (max-width: 720px) {
+  /* The month grid degrades to a day-by-day agenda: seven columns of
+     three-character events is not a calendar anybody can read on a phone. */
+  .cal-month { display: block; border: 0; background: none; }
+  .cal-dow { display: none; }
+  .cal-cell { border-radius: var(--radius); margin-bottom: 0.4rem; min-height: 0; }
+  .cal-cell.is-outside { display: none; }
+  .cal-daynum { text-align: left; }
+  .filtermenu { flex: 1 1 100%; }
+  .filtermenu-panel { position: static; box-shadow: none; }
+  .cal-search { flex: 1 1 100%; }
+  .cal-book { width: 100%; margin-left: 0; }
+}
+
+/* --- Session booking ------------------------------------------------------
+ *
+ * One long form in a single card, in the order a person fills it in: what kind
+ * of session, what it is called, when, who teaches it, who attends. The
+ * availability matrix sits between the instructor field and the student fields
+ * because that is where the question "who could actually take this?" arises.
+ */
+
+.booking-card { padding: 1.25rem 1.4rem 1.5rem; }
+.booking-row-type {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
+}
+.booking-row-type .field { flex: 1 1 320px; margin-bottom: 1rem; }
+
+/* --- Day grid (booking) ---------------------------------------------------
+ *
+ * Instructors down the side, start times across the top. The table is a real
+ * table because that is what it is: two headed axes and a value at each
+ * intersection. Availability is never carried by the green alone — each cell
+ * also holds a visually-hidden "available"/"not available", so the grid reads
+ * correctly aloud and survives greyscale.
+ */
+
+.daygrid-scroll {
+  /* Sideways only — see `.table-wrap`. The grid is exactly as tall as its rows,
+     so the vertical scrollbar it used to show was never anything but the space
+     the horizontal one took. */
+  overflow-x: auto; overflow-y: hidden;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+  background: var(--paper);
+  margin-bottom: 0.5rem;
+}
+.daygrid { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.daygrid th, .daygrid td { border: 1px solid var(--ink-200); }
+.daygrid thead th {
+  position: sticky; top: 0;
+  padding: 0.5rem 0.65rem;
+  background: var(--ink-050); color: var(--ink-700);
+  font-weight: 650; white-space: nowrap;
+  min-width: 74px; text-align: center;
+}
+/* The name column stays put while the hours scroll under it — a row of green
+   with the name scrolled off says nothing. */
+.daygrid .daygrid-who {
+  position: sticky; left: 0; z-index: 2;
+  min-width: 250px; max-width: 250px;
+  padding: 0.5rem 0.65rem;
+  background: var(--paper); text-align: left; font-weight: 500;
+}
+.daygrid thead .daygrid-who { z-index: 3; background: var(--ink-050); }
+.daygrid tbody .daygrid-who { display: flex; align-items: center; gap: 0.6rem; }
+.daygrid-person { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+.daygrid-name {
+  min-width: 0; max-width: 176px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink-900);
+}
+/* The glyph inside each cell is what carries the answer; the fill only makes it
+   quick to scan. Reading the table must not depend on telling two greens
+   apart. */
+.daygrid tbody td {
+  height: 44px; background: var(--paper);
+  text-align: center; color: var(--ink-400);
+}
+.daygrid tbody td.is-free { background: var(--good-surface); color: var(--good-text); }
+
+
+/* --- The live availability region -----------------------------------------
+ *
+ * The wrapper stays put and only its contents are replaced, so nothing here can
+ * depend on a node that a refresh removes.
+ */
+
+.availability { position: relative; }
+
+.availability-busy {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem; color: var(--ink-500);
+}
+
+.spinner {
+  width: 13px; height: 13px; flex: none;
+  border: 2px solid var(--ink-200);
+  border-top-color: var(--brand-600);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.availability-error .btn { margin-top: 0.5rem; }
+
+/* A heading that names the date and the zone it is showing them in. Quieter
+   than the heading, because it qualifies it rather than competing with it. */
+.subhead-note {
+  margin-left: 0.5rem;
+  font-weight: 500; text-transform: none; letter-spacing: 0;
+  color: var(--ink-400);
+}
+
+.chosen-instructor {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--ink-200); border-radius: var(--radius);
+  background: var(--paper);
+}
+.chosen-instructor-who {
+  display: flex; flex-direction: column; gap: 0.1rem;
+  flex: 1 1 auto; min-width: 0;
+}
+.chosen-instructor-who > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar-lg { width: 40px; height: 40px; font-size: 0.85rem; }
+.hint-link { font-size: 0.8rem; }
+
+/* One row, so the columns can be wider and the times readable in them. */
+.daygrid-suggest .daygrid-who { min-width: 180px; max-width: 180px; }
+.daygrid-suggest tbody td { padding: 0.25rem; }
+
+.timecell {
+  display: block; width: 100%;
+  padding: 0.35rem 0.2rem;
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: none; color: var(--good-text);
+  font: inherit; font-weight: 650; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+button.timecell { cursor: pointer; }
+button.timecell:hover { background: var(--brand-100); border-color: var(--brand-500); }
+/* Unavailable is a span, never a button: nothing to tab to, nothing to press,
+   no dead control that looks like it should do something. */
+.timecell.is-out { color: var(--ink-400); font-weight: 500; }
+
+
+/* --- Week and day: the time grid -----------------------------------------
+ *
+ * Dates across, time down. One grid, not a grid of grids, so every column
+ * shares the same rows.
+ *
+ * `style-src 'self'` forbids inline styles, so a session's position cannot be
+ * written onto it as a percentage. Instead every position resolves to one of a
+ * countable set of classes — a column, a row, a span, a lane — declared here
+ * once. That is why timegrid.py caps spans and lanes: an unbounded number of
+ * positions would need an unbounded stylesheet.
+ */
+
+.cal-grid-card { padding: 0; overflow: hidden; }
+.cal-timegrid-scroll { overflow: auto; flex: 1 1 auto; min-height: 0; width: 100%; }
+/* Off the filling layout — a printed page, or a future embed — it still needs a
+   ceiling, or the grid would simply be as tall as a day. */
+:not(.main-fill) > .cal-grid-card .cal-timegrid-scroll { max-height: 74vh; }
+
+.cal-timegrid {
+  --tg-slot: 26px;
+  --tg-gutter: 72px;
+  display: grid;
+  grid-template-columns: var(--tg-gutter) repeat(7, minmax(122px, 1fr));
+  grid-template-rows: auto;          /* the header; slot rows are implicit */
+  grid-auto-rows: var(--tg-slot);
+  position: relative;
+  min-width: 720px;
+}
+.cal-timegrid.is-single { grid-template-columns: var(--tg-gutter) 1fr; min-width: 0; }
+
+/* The header stays visible while the hours scroll under it. */
+.tg-corner,
+.tg-dayhead {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--ink-050);
+  border-bottom: 1px solid var(--ink-200);
+}
+.tg-corner { grid-area: 1 / 1; z-index: 4; border-right: 1px solid var(--ink-200); }
+.tg-dayhead {
+  grid-row: 1; margin: 0; padding: 0.5rem 0.4rem;
+  text-align: center; font-size: 0.82rem; font-weight: 650;
+}
+.tg-dayhead a { color: var(--ink-700); text-decoration: none; display: block; }
+.tg-dayhead a:hover { color: var(--brand-700); }
+.tg-dow { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); }
+.tg-dom { display: block; font-size: 1.15rem; line-height: 1.2; }
+.tg-dayhead.is-today .tg-dom {
+  display: inline-grid; place-items: center;
+  min-width: 30px; height: 30px; border-radius: 50%;
+  background: var(--brand-600); color: #fff;
+}
+
+/* Hour labels sit in the gutter, lifted so each reads as the line it marks. */
+.tg-time {
+  grid-column: 1; z-index: 2;
+  padding-right: 0.5rem;
+  transform: translateY(-0.55em);
+  text-align: right; font-size: 0.74rem; color: var(--ink-500);
+  background: var(--paper);
+}
+.tg-line {
+  grid-column: 2 / -1;
+  border-top: 1px solid var(--ink-100);
+}
+.tg-line.is-hour { border-top-color: var(--ink-200); }
+
+.tg-colrule {
+  grid-row: 2 / -1; z-index: 0;
+  border-left: 1px solid var(--ink-100);
+}
+.tg-colrule.is-today { background: var(--brand-100); opacity: 0.4; }
+
+/* A session. Absolute within its own cell is not needed — it is a grid item
+   spanning the rows it occupies, and lanes split it across the column when two
+   overlap. */
+.tg-event {
+  z-index: 2;
+  overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px;
+  margin: 1px 3px;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--brand-600);
+  background: var(--brand-100); color: var(--ink-900);
+  font-size: 0.76rem; line-height: 1.25; text-decoration: none;
+}
+.tg-event:hover { background: var(--paper); box-shadow: var(--shadow); color: var(--ink-900); }
+.tg-event-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tg-event-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-event-who { color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-event-flag { position: absolute; top: 3px; right: 4px; font-size: 0.68rem; }
+.tg-event { position: relative; }
+
+.tg-event.is-cancelled, .tg-event.is-rejected { opacity: 0.62; text-decoration: line-through; }
+.tg-event.is-completed { border-left-color: var(--good-text); background: var(--good-surface); }
+.tg-event.is-missed { border-left-color: var(--bad-text); background: var(--bad-surface); }
+.tg-event.is-requested { border-left-color: var(--pending-text); background: var(--pending-surface); }
+.tg-event.is-rescheduled { border-left-color: var(--moved-text); background: var(--moved-surface); }
+
+@media (max-width: 720px) {
+  .cal-timegrid { --tg-gutter: 54px; min-width: 640px; }
+}
+
+/* Which day column a cell belongs to. */
+.tg-dayhead.c1, .tg-event.c1 { grid-column: 2; }
+.tg-dayhead.c2, .tg-event.c2 { grid-column: 3; }
+.tg-dayhead.c3, .tg-event.c3 { grid-column: 4; }
+.tg-dayhead.c4, .tg-event.c4 { grid-column: 5; }
+.tg-dayhead.c5, .tg-event.c5 { grid-column: 6; }
+.tg-dayhead.c6, .tg-event.c6 { grid-column: 7; }
+.tg-dayhead.c7, .tg-event.c7 { grid-column: 8; }
+
+/* Which half-hour a session starts at, offset past the header row. */
+.r1 { grid-row-start: 2; }
+.r2 { grid-row-start: 3; }
+.r3 { grid-row-start: 4; }
+.r4 { grid-row-start: 5; }
+.r5 { grid-row-start: 6; }
+.r6 { grid-row-start: 7; }
+.r7 { grid-row-start: 8; }
+.r8 { grid-row-start: 9; }
+.r9 { grid-row-start: 10; }
+.r10 { grid-row-start: 11; }
+.r11 { grid-row-start: 12; }
+.r12 { grid-row-start: 13; }
+.r13 { grid-row-start: 14; }
+.r14 { grid-row-start: 15; }
+.r15 { grid-row-start: 16; }
+.r16 { grid-row-start: 17; }
+.r17 { grid-row-start: 18; }
+.r18 { grid-row-start: 19; }
+.r19 { grid-row-start: 20; }
+.r20 { grid-row-start: 21; }
+.r21 { grid-row-start: 22; }
+.r22 { grid-row-start: 23; }
+.r23 { grid-row-start: 24; }
+.r24 { grid-row-start: 25; }
+.r25 { grid-row-start: 26; }
+.r26 { grid-row-start: 27; }
+.r27 { grid-row-start: 28; }
+.r28 { grid-row-start: 29; }
+.r29 { grid-row-start: 30; }
+.r30 { grid-row-start: 31; }
+.r31 { grid-row-start: 32; }
+.r32 { grid-row-start: 33; }
+.r33 { grid-row-start: 34; }
+.r34 { grid-row-start: 35; }
+.r35 { grid-row-start: 36; }
+.r36 { grid-row-start: 37; }
+.r37 { grid-row-start: 38; }
+.r38 { grid-row-start: 39; }
+.r39 { grid-row-start: 40; }
+.r40 { grid-row-start: 41; }
+.r41 { grid-row-start: 42; }
+.r42 { grid-row-start: 43; }
+.r43 { grid-row-start: 44; }
+.r44 { grid-row-start: 45; }
+.r45 { grid-row-start: 46; }
+.r46 { grid-row-start: 47; }
+.r47 { grid-row-start: 48; }
+.r48 { grid-row-start: 49; }
+
+/* How many half-hours it covers. */
+.s1 { grid-row-end: span 1; }
+.s2 { grid-row-end: span 2; }
+.s3 { grid-row-end: span 3; }
+.s4 { grid-row-end: span 4; }
+.s5 { grid-row-end: span 5; }
+.s6 { grid-row-end: span 6; }
+.s7 { grid-row-end: span 7; }
+.s8 { grid-row-end: span 8; }
+.s9 { grid-row-end: span 9; }
+.s10 { grid-row-end: span 10; }
+.s11 { grid-row-end: span 11; }
+.s12 { grid-row-end: span 12; }
+.s13 { grid-row-end: span 13; }
+.s14 { grid-row-end: span 14; }
+.s15 { grid-row-end: span 15; }
+.s16 { grid-row-end: span 16; }
+
+/* Overlapping sessions share the column rather than hiding each other. */
+.lane-1-of-1 { width: calc(100.0000% - 6px); margin-left: calc(0.0000% + 3px); }
+.lane-1-of-2 { width: calc(50.0000% - 6px); margin-left: calc(0.0000% + 3px); }
+.lane-2-of-2 { width: calc(50.0000% - 6px); margin-left: calc(50.0000% + 3px); }
+.lane-1-of-3 { width: calc(33.3333% - 6px); margin-left: calc(0.0000% + 3px); }
+.lane-2-of-3 { width: calc(33.3333% - 6px); margin-left: calc(33.3333% + 3px); }
+.lane-3-of-3 { width: calc(33.3333% - 6px); margin-left: calc(66.6667% + 3px); }
+.lane-1-of-4 { width: calc(25.0000% - 6px); margin-left: calc(0.0000% + 3px); }
+.lane-2-of-4 { width: calc(25.0000% - 6px); margin-left: calc(25.0000% + 3px); }
+.lane-3-of-4 { width: calc(25.0000% - 6px); margin-left: calc(50.0000% + 3px); }
+.lane-4-of-4 { width: calc(25.0000% - 6px); margin-left: calc(75.0000% + 3px); }
+
+/* --- People directory ----------------------------------------------------- */
+
+/* Filters and the create actions share a line. The actions sit outside the
+   search form, so they are laid out beside it rather than within it. */
+.people-toolbar {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  align-items: flex-end; justify-content: space-between;
+}
+.people-filters {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
+  flex: 1 1 420px; margin: 0;
+}
+.people-filters .field { margin: 0; min-width: 150px; flex: 1 1 150px; }
+.people-filters .field.grow { flex: 3 1 240px; }
+.people-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* Ten columns is wider than most screens; the wrapper scrolls rather than the
+   page, and the two columns that identify the row stay put while it does. */
+.people-table { min-width: 1180px; }
+.people-table th, .people-table td { vertical-align: top; }
+.people-avatar { width: 46px; padding-right: 0; }
+.people-name { font-weight: 600; white-space: nowrap; }
+.people-table .tag { margin: 0 0.2rem 0.2rem 0; }
+.stacked { list-style: none; margin: 0; padding: 0; }
+.stacked li { white-space: nowrap; }
+.stacked .hint { margin-right: 0.25rem; }
+
+/* A control that exists but is not available. Never a link, so it cannot be
+   followed, and never silently inert, so it cannot look broken. */
+.btn.is-disabled,
+.btn:disabled {
+  color: var(--ink-400); border-color: var(--ink-200);
+  background: var(--ink-050); cursor: not-allowed;
+}
+
+/* A control the browser or the form has judged invalid, but only once it has
+   been left — turning a field red while somebody is still typing in it is
+   telling them off for not having finished. */
+.field input.is-invalid,
+.field select.is-invalid {
+  border-color: var(--bad-text);
+  box-shadow: inset 0 0 0 1px var(--bad-text);
+}
+.field-error {
+  display: block; margin-top: 0.25rem;
+  font-size: 0.83rem; font-weight: 600; color: var(--bad-text);
+}
+
+/* --- Confirmation step ---------------------------------------------------- */
+
+.confirm-title { margin: 0 0 0.85rem; font-size: 1.02rem; }
+.confirm-list {
+  display: grid; grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 0.4rem 1rem; margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ink-200); border-radius: var(--radius);
+  background: var(--ink-050);
+}
+.confirm-list dt { color: var(--ink-500); font-size: 0.85rem; font-weight: 600; }
+.confirm-list dd { margin: 0; color: var(--ink-900); }
+
+/* --- Modals ---------------------------------------------------------------
+ *
+ * Opened by the fragment in the URL and closed by clearing it, so the form is
+ * reachable, submittable and dismissable with no script at all. A <dialog>
+ * would need `showModal()` to be visible, which makes it a form nobody can
+ * reach when the script does not run.
+ *
+ * The script adds what CSS cannot: moving focus in, and Escape to close.
+ */
+
+.modal { display: none; }
+.modal:target { display: grid; }
+.modal:target {
+  position: fixed; inset: 0; z-index: 60;
+  place-items: center;
+  padding: 1.5rem;
+}
+/* The scrim is a link, so clicking away closes the modal without a script. */
+.modal-scrim {
+  position: fixed; inset: 0;
+  background: rgba(16, 22, 29, 0.45);
+}
+.modal-card {
+  position: relative;
+  width: min(720px, 100%); max-height: 86vh; overflow-y: auto;
+  padding: 1.25rem 1.4rem 1.4rem;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: 0 12px 40px rgba(16, 22, 29, 0.28);
+}
+.modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: 0.25rem;
+}
+.modal-head h2 { margin: 0; }
+.modal-close {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; flex: none; margin: -0.35rem -0.4rem 0 0;
+  border-radius: var(--radius);
+  color: var(--ink-500); text-decoration: none; font-size: 1.5rem; line-height: 1;
+}
+.modal-close:hover { background: var(--ink-100); color: var(--ink-900); }
+.modal-actions {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end;
+  margin-top: 1rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--ink-200);
+}
+
+/* --- Stepped form --------------------------------------------------------- */
+
+.steps {
+  list-style: none; display: flex; gap: 0.5rem;
+  margin: 0 0 1rem; padding: 0 0 0.85rem;
+  border-bottom: 1px solid var(--ink-200);
+}
+.step {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  color: var(--ink-500); font-size: 0.86rem; font-weight: 600;
+}
+.step + .step { margin-left: 0.5rem; }
+.step span {
+  display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--ink-100); color: var(--ink-500);
+  font-size: 0.78rem;
+}
+.step.is-current { color: var(--ink-900); }
+.step.is-current span { background: var(--brand-600); color: #fff; }
+
+/* A paragraph of guidance that belongs to the fields under it rather than to
+   the one above, so it is set apart from the ordinary field hints. */
+.hint-block {
+  margin: 1.1rem 0 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--ink-200);
+  background: var(--ink-050);
+  color: var(--ink-700); font-size: 0.86rem;
+}
+
+/* A search box with its icon inside the field rather than beside it. The icon
+   is decorative — the label above names the field — so it is hidden from
+   assistive technology and the padding keeps the text clear of it. */
+.search-field { position: relative; }
+.search-field .search-icon {
+  position: absolute; left: 0.7rem; top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-400); font-size: 1.05rem; line-height: 1;
+  pointer-events: none;
+}
+.search-field input { padding-left: 2.1rem; }
+
+/* --- Small form helpers -------------------------------------------------- */
+
+/* A hint that belongs to the control above it but reads as a bound, not a
+   description — so it sits at the end of the row rather than the start. */
+.hint-end { text-align: right; }
+
+/* Chosen people, one chip each. The list is what grows as students are added,
+   which is why the control above it can stay a plain one-line dropdown. Empty,
+   it takes no space at all rather than leaving a gap under the select. */
+.chips {
+  list-style: none; margin: 0.5rem 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+}
+.chips:empty { display: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  min-height: 32px; padding: 0 0.3rem 0 0.7rem;
+  border: 1px solid var(--ink-200); border-radius: 999px;
+  background: var(--brand-100); color: var(--brand-700);
+  font-size: 0.86rem; font-weight: 600;
+}
+.chip-remove {
+  display: grid; place-items: center;
+  width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: none; color: var(--brand-700);
+  font-size: 1.05rem; line-height: 1; cursor: pointer;
+}
+.chip-remove:hover { background: var(--paper); color: var(--ink-900); }
+
+.booking-subhead {
+  margin: 1.6rem 0 0.35rem;
+  font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-500);
+}
+
+.booking-actions {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  justify-content: flex-end; margin-bottom: 2rem;
+}
+
+/* A switch that is a real checkbox underneath, so it keeps native keyboard
+   behaviour and is announced as a checkbox rather than as a decorative div. */
+.switch {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  min-height: 44px; margin-bottom: 1rem; cursor: pointer; font-weight: 600;
+}
+.switch input {
+  position: absolute; opacity: 0;
+  width: 44px; height: 26px; margin: 0; cursor: pointer;
+}
+.switch-track {
+  position: relative; flex: none;
+  width: 44px; height: 26px; border-radius: 999px;
+  background: var(--ink-200); border: 1px solid var(--ink-400);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.switch-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--paper); box-shadow: 0 1px 2px rgba(16, 22, 29, 0.35);
+  transition: transform 120ms ease;
+}
+.switch input:checked + .switch-track {
+  background: var(--brand-600); border-color: var(--brand-700);
+}
+.switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
+.switch input:focus-visible + .switch-track {
+  outline: 3px solid var(--brand-500); outline-offset: 2px;
+}
+/* The state is also spelled out, so the switch does not rely on position and
+   colour alone. */
+.switch-label::after { content: " — off"; font-weight: 500; color: var(--ink-500); }
+.switch input:checked ~ .switch-label::after { content: " — on"; }
+
+/* Availability matrix */
+.matrix-list {
+  border: 1px solid var(--ink-200); border-radius: var(--radius-lg);
+  overflow: hidden; background: var(--paper);
+}
+.matrix-row {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ink-100);
+}
+.matrix-row:first-child { border-top: 0; }
+.matrix-row.is-closed { background: var(--ink-050); }
+.matrix-date {
+  flex: none; width: 68px; display: flex; flex-direction: column;
+  line-height: 1.2; text-align: center;
+  padding-right: 0.75rem; border-right: 1px solid var(--ink-200);
+}
+.matrix-date .dow {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-500);
+}
+.matrix-date .dom { font-size: 0.92rem; font-weight: 650; }
+
+.matrix-people { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.avatar {
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--ink-100); color: var(--ink-700);
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+  border: 1px solid var(--ink-200);
+}
+.matrix-count { margin: 0; flex: none; font-size: 0.85rem; font-weight: 600; }
+.matrix-count .hint { display: block; font-weight: 500; }
+.matrix-row .btn { flex: none; }
+
+.matrix-more {
+  display: flex; justify-content: center; width: 100%;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .matrix-row { flex-wrap: wrap; }
+  .matrix-date {
+    flex-direction: row; gap: 0.4rem; width: auto;
+    border-right: 0; padding-right: 0; text-align: left;
+  }
+  .matrix-count { width: 100%; }
+  .matrix-row .btn { width: 100%; }
+  .booking-actions .btn { flex: 1 1 100%; }
+}
+
+/* --- Notices and empty states ------------------------------------------- */
+
+.notice {
+  display: flex; gap: 0.6rem; align-items: flex-start;
+  padding: 0.75rem 0.9rem; border-radius: var(--radius);
+  border: 1px solid; margin-bottom: 1rem;
+}
+.notice-info { background: var(--info-surface); color: var(--info-text); border-color: var(--info-text); }
+.notice-warn { background: var(--warn-surface); color: var(--warn-text); border-color: var(--warn-text); }
+.notice-bad { background: var(--bad-surface); color: var(--bad-text); border-color: var(--bad-text); }
+.notice-good { background: var(--good-surface); color: var(--good-text); border-color: var(--good-text); }
+.notice ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+
+.empty { text-align: center; padding: 2.5rem 1rem; color: var(--ink-500); }
+.empty .glyph { font-size: 1.75rem; display: block; margin-bottom: 0.5rem; opacity: 0.6; }
+.empty h3 { color: var(--ink-700); }
+
+/* --- Filters ------------------------------------------------------------- */
+
+.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
+.filters .field { margin: 0; min-width: 150px; flex: 1 1 150px; }
+.filters .field.grow { flex: 3 1 240px; }
+
+.pagination { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin-top: 1rem; flex-wrap: wrap; }
+.pagination .count { color: var(--ink-500); font-size: 0.88rem; }
+
+/* The shape of what is about to be written, before it is written. */
+.preview-summary {
+  display: grid; grid-template-columns: minmax(90px, auto) 1fr;
+  gap: 0.3rem 1rem; margin: 0 0 1rem;
+}
+.preview-summary dt { color: var(--ink-500); font-size: 0.85rem; font-weight: 600; }
+.preview-summary dd { margin: 0; }
+
+/* --- Preview list (recurrence) ------------------------------------------ */
+
+.preview-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.preview-item {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  padding: 0.5rem 0.65rem; border: 1px solid var(--ink-200);
+  border-radius: var(--radius); background: var(--paper);
+}
+.preview-item .idx {
+  flex: none; width: 1.9rem; height: 1.9rem; display: grid; place-items: center;
+  border-radius: 50%; background: var(--ink-100); color: var(--ink-700);
+  font-size: 0.78rem; font-weight: 700;
+}
+.preview-item.has-conflict { border-color: var(--warn-text); background: var(--warn-surface); }
+.preview-item.is-blocked { border-color: var(--bad-text); background: var(--bad-surface); }
+.preview-item .why { flex-basis: 100%; font-size: 0.83rem; }
+
+/* --- Timeline (audit) ---------------------------------------------------- */
+
+.timeline { list-style: none; margin: 0; padding: 0 0 0 1.1rem; border-left: 2px solid var(--ink-200); }
+.timeline li { position: relative; padding: 0 0 1rem 0.9rem; }
+.timeline li::before {
+  content: ""; position: absolute; left: -1.42rem; top: 0.45rem;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--brand-600); border: 2px solid var(--paper);
+}
+.timeline .when { font-size: 0.82rem; color: var(--ink-500); }
+.timeline .what { font-weight: 600; }
+.timeline .diff { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-700); margin-top: 0.2rem; }
+.timeline .diff .from { text-decoration: line-through; color: var(--ink-500); }
+
+/* --- Availability matrix ------------------------------------------------- */
+
+.matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 0.5rem; }
+.matrix-day { border: 1px solid var(--ink-200); border-radius: var(--radius); padding: 0.5rem; background: var(--paper); }
+.matrix-day .dow { font-size: 0.78rem; font-weight: 700; color: var(--ink-500); text-transform: uppercase; }
+.matrix-day .slot { font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.matrix-day.is-closed { background: var(--ink-050); color: var(--ink-400); }
+
+/* --- Auth ---------------------------------------------------------------- */
+
+/* Sign-in and the error page do not use `.shell`, so they need their own way
+   to scroll: the document no longer does it for them, and a card taller than a
+   short window would otherwise be cut off with no way to reach the rest. */
+.auth-shell {
+  display: grid; place-items: center;
+  height: 100%; overflow-y: auto;
+  padding: 1.5rem;
+}
+.auth-card { width: min(400px, 100%); }
+.auth-card .brand { align-items: center; margin-bottom: 1.25rem; }
+.auth-card .brand-logo { max-width: 168px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media print {
+  .sidebar, .btn-row, .filters, .pagination { display: none; }
+  .shell { grid-template-columns: 1fr; }
+  .card { box-shadow: none; }
+}
