@@ -1,0 +1,153 @@
+"use client";
+
+/**
+ * Participants and attendance.
+ *
+ * Ported from the participants block of `app/templates/sessions/detail.html`.
+ * Editable when the viewer may mark attendance, and a read-only table of badges
+ * when they may not — the same rows either way, so the page does not change
+ * shape depending on who is looking at it.
+ */
+
+import { useActionState } from "react";
+
+import { recordAttendance } from "@/app/actions/sessions";
+import { AttendanceBadge, WhenTime } from "@/components/ui";
+import { AttendanceStatus } from "@/generated/prisma/enums";
+import { CSRF_FIELD } from "@/lib/names";
+import { attendanceMeta, durationLabel, percent } from "@/lib/presentation";
+
+export interface ParticipantView {
+  id: string;
+  name: string;
+  role: string;
+  joinedAt: string | null;
+  leftAt: string | null;
+  attendedMinutes: number | null;
+  attendance: AttendanceStatus;
+}
+
+const ATTENDANCE_OPTIONS = Object.values(AttendanceStatus);
+
+export function AttendanceCard({
+  sessionRef,
+  csrfToken,
+  timezone,
+  participants,
+  attendanceRate,
+  editable,
+}: {
+  sessionRef: string;
+  csrfToken: string;
+  timezone: string;
+  participants: ParticipantView[];
+  attendanceRate: number | null;
+  editable: boolean;
+}) {
+  const [state, submit] = useActionState(recordAttendance.bind(null, sessionRef), {});
+
+  const table = (
+    <div className="table-wrap">
+      <table>
+        <caption className="visually-hidden">Participants on this session</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Role</th>
+            <th scope="col">Joined</th>
+            <th scope="col">Left</th>
+            <th scope="col">Attended</th>
+            <th scope="col">Attendance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {participants.map((participant) => (
+            <tr key={participant.id}>
+              <td data-label="Name">{participant.name}</td>
+              <td data-label="Role">
+                {participant.role.charAt(0) + participant.role.slice(1).toLowerCase()}
+              </td>
+              <td data-label="Joined">
+                <WhenTime
+                  instant={participant.joinedAt ? new Date(participant.joinedAt) : null}
+                  zone={timezone}
+                />
+              </td>
+              <td data-label="Left">
+                <WhenTime
+                  instant={participant.leftAt ? new Date(participant.leftAt) : null}
+                  zone={timezone}
+                />
+              </td>
+              <td data-label="Attended">{durationLabel(participant.attendedMinutes)}</td>
+              <td data-label="Attendance">
+                {editable ? (
+                  <>
+                    <label className="visually-hidden" htmlFor={`att-${participant.id}`}>
+                      Attendance for {participant.name}
+                    </label>
+                    <select
+                      id={`att-${participant.id}`}
+                      name={`attendance_${participant.id}`}
+                      defaultValue={participant.attendance}
+                    >
+                      {ATTENDANCE_OPTIONS.map((option) => (
+                        <option key={option} value={option.toLowerCase()}>
+                          {attendanceMeta(option).label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <AttendanceBadge status={participant.attendance} />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="card">
+      <h2>Participants and attendance</h2>
+      <p className="subtitle">
+        Overall attendance: <strong>{percent(attendanceRate)}</strong>{" "}
+        <span className="hint">Excused absences are not counted against this rate.</span>
+      </p>
+
+      {state.error && (
+        <p className="notice notice-bad" role="alert">
+          <span aria-hidden="true">!</span> <span>{state.error}</span>
+        </p>
+      )}
+      {state.notice && (
+        <p className="notice notice-good">
+          <span aria-hidden="true">✓</span> <span>{state.notice}</span>
+        </p>
+      )}
+
+      {editable ? (
+        <form action={submit}>
+          <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
+          {table}
+          <div className="btn-row">
+            <button className="btn btn-primary" type="submit">
+              Save attendance
+            </button>
+            <button className="btn" type="submit" name="bulk" value="all_present">
+              Mark unmarked students present
+            </button>
+          </div>
+          <p className="hint">
+            Marking all present only fills places nobody has judged yet — it never
+            overwrites an attendance you have already recorded.
+          </p>
+        </form>
+      ) : (
+        table
+      )}
+    </div>
+  );
+}

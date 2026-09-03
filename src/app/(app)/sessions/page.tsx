@@ -1,0 +1,330 @@
+/**
+ * The session grid.
+ *
+ * Ported from `sessions_grid` in `app/web/views.py` and
+ * `app/templates/sessions/grid.html`.
+ *
+ * Filters are a GET form, so the state lands in the URL and can be shared,
+ * bookmarked, and returned to with the back button.
+ */
+
+import Link from "next/link";
+
+import { EmptyState, StatusBadge, When } from "@/components/ui";
+import { prisma } from "@/lib/db";
+import { Permission } from "@/lib/policies/permissions";
+import { scoped } from "@/lib/policies/scoping";
+import {
+  STATUS_FILTER_ORDER,
+  durationLabel,
+  percent,
+  statusMeta,
+} from "@/lib/presentation";
+import { actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
+import {
+  AVAILABLE_COLUMNS,
+  firstIndex,
+  hasNext,
+  hasPrevious,
+  lastIndex,
+  listSessions,
+  pageCount,
+  parseFilters,
+  toQuery,
+  type SessionRow,
+} from "@/lib/services/sessionQuery";
+import { requireContext } from "@/lib/web/session";
+
+export const metadata = { title: "Sessions · TopTutorsForUs" };
+export const dynamic = "force-dynamic";
+
+type Search = Record<string, string | string[] | undefined>;
+
+/** Next hands search params as an object; the parser wants the real thing. */
+export function toSearchParams(search: Search): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(search)) {
+    if (value === undefined) continue;
+    for (const item of Array.isArray(value) ? value : [value]) params.append(key, item);
+  }
+  return params;
+}
+
+/** One grid cell, chosen by column key. */
+function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: string }) {
+  const session = row.session;
+  switch (column) {
+    case "title":
+      return (
+        <>
+          <Link href={`/sessions/${session.ref}`}>{session.title}</Link>
+          {row.seriesPosition && <span className="tag">{row.seriesPosition}</span>}
+          {session.detachedFromSeries && (
+            <span className="tag" title="Edited on its own; series edits skip it">
+              detached
+            </span>
+          )}
+        </>
+      );
+    case "instructor":
+      return <>{row.instructorName ?? "—"}</>;
+    case "students":
+      return <>{row.studentNames.join(", ") || "—"}</>;
+    case "location":
+      return <>{row.locationName ?? "—"}</>;
+    case "billable":
+      return <>{session.billable ? "Yes" : "No"}</>;
+    case "payment": {
+      const words = session.paymentState.replace(/_/g, " ");
+      return <>{words.charAt(0).toUpperCase() + words.slice(1)}</>;
+    }
+    case "invoice":
+      return <>{session.invoiceRef ?? "—"}</>;
+    case "status":
+      return <StatusBadge status={session.status} />;
+    case "attendance":
+      return <>{percent(row.attendanceRate)}</>;
+    case "scheduled_start":
+      return <When instant={session.scheduledStart} zone={session.timezone || zone} />;
+    case "scheduled_duration":
+      return <>{durationLabel(scheduledDurationMinutes(session))}</>;
+    case "actual_duration":
+      return <>{durationLabel(actualDurationMinutes(session))}</>;
+    case "subject":
+      return <>{row.subjectName ?? "—"}</>;
+    case "grade":
+      return <>{row.gradeName ?? "—"}</>;
+    default:
+      return null;
+  }
+}
+
+export default async function SessionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
+  const { principal } = await requireContext();
+  const zone = principal.timezone;
+  const params = toSearchParams(await searchParams);
+  const filters = parseFilters(params);
+  const results = await listSessions(prisma, principal, filters, { zone });
+
+  const [instructors, programs] = await Promise.all([
+    prisma.user.findMany({
+      where: { ...scoped(principal), archivedAt: null, roles: { some: { role: "INSTRUCTOR" } } },
+      select: { ref: true, firstName: true, lastName: true },
+      orderBy: { lastName: "asc" },
+    }),
+    prisma.program.findMany({
+      where: { ...scoped(principal), archivedAt: null },
+      select: { ref: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const columns = filters.columns;
+  const canExport = principal.has(Permission.EXPORT_SESSIONS);
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Sessions</h1>
+          <p className="subtitle">All times in {zone}</p>
+        </div>
+        <div className="btn-row">
+          {canExport && (
+            // A GET, so the current filters travel with it verbatim.
+            <a className="btn" href={`/sessions/export.csv?${toQuery(filters)}`}>
+              <span aria-hidden="true">⤓</span> Export CSV
+            </a>
+          )}
+          {principal.has(Permission.SESSION_BOOK) && (
+            <Link className="btn btn-primary" href="/sessions/new">
+              <span aria-hidden="true">＋</span> New session
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <form className="card" method="get" action="/sessions" role="search">
+        <div className="filters">
+          <div className="field grow">
+            <label htmlFor="q">Search titles</label>
+            <input
+              id="q"
+              name="q"
+              type="search"
+              defaultValue={filters.search}
+              placeholder="Session title"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="from">From</label>
+            <input id="from" name="from" type="date" defaultValue={filters.dateFrom ?? ""} />
+          </div>
+          <div className="field">
+            <label htmlFor="to">To</label>
+            <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
+          </div>
+          <div className="field">
+            <label htmlFor="instructor">Instructor</label>
+            <select
+              id="instructor"
+              name="instructor"
+              defaultValue={filters.instructorRef ?? ""}
+            >
+              <option value="">Anyone</option>
+              {instructors.map((person) => (
+                <option key={person.ref} value={person.ref}>
+                  {`${person.firstName} ${person.lastName}`.trim()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="program">Program</label>
+            <select id="program" name="program" defaultValue={filters.programRef ?? ""}>
+              <option value="">Any program</option>
+              {programs.map((program) => (
+                <option key={program.ref} value={program.ref}>
+                  {program.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <fieldset>
+          <legend>Status</legend>
+          <div className="choice-row">
+            {STATUS_FILTER_ORDER.map((status) => {
+              const meta = statusMeta(status);
+              return (
+                <label className="choice" key={status}>
+                  <input
+                    type="checkbox"
+                    name="status"
+                    value={status.toLowerCase()}
+                    defaultChecked={filters.statuses.includes(status)}
+                  />
+                  <span>
+                    {meta.label} <span aria-hidden="true">{meta.icon}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <details>
+          <summary>Choose columns</summary>
+          <div className="choice-row">
+            {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
+              <label className="choice" key={key}>
+                <input
+                  type="checkbox"
+                  name="columns"
+                  value={key}
+                  defaultChecked={columns.includes(key)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <p className="hint">
+            Untick a column to hide it. Choices apply when you press Apply filters, and
+            travel with the link so a filtered view can be shared as-is.
+          </p>
+        </details>
+
+        <div className="btn-row">
+          <button className="btn btn-primary" type="submit">
+            Apply filters
+          </button>
+          <Link className="btn" href="/sessions">
+            Clear
+          </Link>
+        </div>
+      </form>
+
+      {results.rows.length > 0 ? (
+        <>
+          <div className="table-wrap">
+            <table>
+              <caption className="visually-hidden">
+                Sessions {firstIndex(results)} to {lastIndex(results)} of {results.total}
+              </caption>
+              <thead>
+                <tr>
+                  {columns.map((key) => (
+                    <th scope="col" key={key}>
+                      {AVAILABLE_COLUMNS[key]}
+                    </th>
+                  ))}
+                  <th scope="col">
+                    <span className="visually-hidden">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.rows.map((row) => (
+                  <tr key={String(row.session.id)}>
+                    {columns.map((key) => (
+                      <td data-label={AVAILABLE_COLUMNS[key]} key={key}>
+                        <Cell column={key} row={row} zone={zone} />
+                      </td>
+                    ))}
+                    <td data-label="Actions">
+                      <Link className="btn btn-small" href={`/sessions/${row.session.ref}`}>
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <nav className="pagination" aria-label="Pagination">
+            <p className="count">
+              Showing {firstIndex(results)}–{lastIndex(results)} of {results.total}
+            </p>
+            <div className="btn-row">
+              {hasPrevious(results) && (
+                <Link
+                  className="btn btn-small"
+                  href={`/sessions?${toQuery(filters, { page: results.page - 1 })}`}
+                  rel="prev"
+                >
+                  Previous
+                </Link>
+              )}
+              <span className="count">
+                Page {results.page} of {pageCount(results)}
+              </span>
+              {hasNext(results) && (
+                <Link
+                  className="btn btn-small"
+                  href={`/sessions?${toQuery(filters, { page: results.page + 1 })}`}
+                  rel="next"
+                >
+                  Next
+                </Link>
+              )}
+            </div>
+          </nav>
+        </>
+      ) : (
+        <div className="card">
+          <EmptyState
+            heading="No sessions match these filters"
+            message="Try widening the date range or clearing the status filter."
+            glyph="≡"
+          />
+        </div>
+      )}
+    </>
+  );
+}
