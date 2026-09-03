@@ -16,14 +16,13 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { AuditCategory, Role, UserStatus } from "@/generated/prisma/enums";
 import { record } from "@/lib/audit";
+import type { Db } from "@/lib/db";
+export type { Db } from "@/lib/db";
 import { ValidationError } from "@/lib/errors";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { newRef } from "@/lib/ref";
 import { isValidZone } from "@/lib/time";
-
-/** The client a service writes through — a transaction client in practice. */
-export type Db = Prisma.TransactionClient;
 
 /**
  * Deliberately permissive: the authority on whether an address works is whether

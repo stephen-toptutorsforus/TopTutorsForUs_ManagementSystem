@@ -1,6 +1,17 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { PrismaClient } from "@/generated/prisma/client";
+
+/**
+ * What a service writes through.
+ *
+ * Deliberately the *transaction* client rather than `PrismaClient`: a service
+ * called inside `$transaction` is handed one of these, and a signature that
+ * insisted on the full client could not be called from there at all. A full
+ * client satisfies it, so a caller with no transaction to join still works.
+ */
+export type Db = Prisma.TransactionClient;
 
 /**
  * One Prisma client per process, created on first use.

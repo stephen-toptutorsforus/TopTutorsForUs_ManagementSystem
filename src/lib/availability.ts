@@ -17,7 +17,7 @@
  * refusing bookings that were fine last week.
  */
 
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Db } from "@/lib/db";
 import {
   addDays,
   type CivilDate,
@@ -70,7 +70,7 @@ export interface OrganizationRef {
 
 /** Closure dates in a range. The recurrence preview uses these to skip days. */
 export async function organizationOffDays(
-  db: PrismaClient,
+  db: Db,
   organizationId: bigint,
   start: CivilDate,
   end: CivilDate,
@@ -91,7 +91,7 @@ type Span = readonly [CivilTime, CivilTime];
  * The instructor's bookable windows on one date, with every layer applied.
  */
 export async function resolveDay(
-  db: PrismaClient,
+  db: Db,
   organization: OrganizationRef,
   instructorId: bigint,
   day: CivilDate,
@@ -225,7 +225,7 @@ export interface AvailabilityAnswer {
  * against the right day rather than against the next one in UTC.
  */
 export async function isAvailable(
-  db: PrismaClient,
+  db: Db,
   organization: OrganizationRef,
   instructorId: bigint,
   start: Date,
@@ -256,7 +256,7 @@ export async function isAvailable(
 
 /** A run of consecutive days, for one instructor's availability grid. */
 export async function matrix(
-  db: PrismaClient,
+  db: Db,
   organization: OrganizationRef,
   instructorId: bigint,
   start: CivilDate,

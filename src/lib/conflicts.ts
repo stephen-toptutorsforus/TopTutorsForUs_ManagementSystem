@@ -26,8 +26,8 @@
  * cases where two sessions genuinely cannot both exist.
  */
 
-import type { PrismaClient } from "@/generated/prisma/client";
 import { DeliveryType, SessionStatus } from "@/generated/prisma/enums";
+import type { Db } from "@/lib/db";
 import { isAvailable, type OrganizationRef } from "@/lib/availability";
 
 /**
@@ -106,7 +106,7 @@ export interface CheckInput {
 
 /** Check one proposed interval. */
 export async function check(
-  db: PrismaClient,
+  db: Db,
   organization: OrganizationRef,
   input: CheckInput,
 ): Promise<ConflictReport> {

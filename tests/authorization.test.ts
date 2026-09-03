@@ -303,4 +303,23 @@ describe("refusals", () => {
     expect(principalWith([Role.PARENT, Role.INSTRUCTOR]).primaryRole).toBe(Role.INSTRUCTOR);
     expect(principalWith([Role.STUDENT, Role.ADMIN]).primaryRole).toBe(Role.ADMIN);
   });
+
+  it("names reschedule separately from edit", () => {
+    // `ACTIONS_BY_STATUS` always said an in-progress session admits `edit` and
+    // not `reschedule`. Nothing ever asked: the service checked canEdit, and
+    // availableActions never emitted the word, so the page had no flag to gate
+    // on either. The rule was written down and never enforced.
+    const admin = principalWith([Role.ADMIN]);
+    const org = anOrganization();
+
+    const scheduled = aSession({ status: SessionStatus.SCHEDULED });
+    const running = aSession({ status: SessionStatus.IN_PROGRESS });
+
+    expect(availableActions(admin, scheduled, org)).toContain("reschedule");
+
+    const offered = availableActions(admin, running, org);
+    // Editing an in-progress session is still allowed.
+    expect(offered).toContain("edit");
+    expect(offered).not.toContain("reschedule");
+  });
 });
