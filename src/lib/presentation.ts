@@ -158,6 +158,17 @@ export function roleFilterOptions(): FilterOption[] {
   }));
 }
 
+/** ISO weekday names as they are shown. Stored as names, never as indices. */
+export const WEEKDAY_LABELS: Record<string, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
+
 // --- Numbers people read ----------------------------------------------------
 
 /** Human duration. An em dash for unknown, never "0 min". */

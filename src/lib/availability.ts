@@ -28,6 +28,7 @@ import {
   isoWeekday,
   resolveCivil,
   timeFromDb,
+  toZone,
 } from "@/lib/time";
 
 /** A concrete bookable interval, half-open. */
@@ -267,4 +268,218 @@ export async function matrix(
     out.push(await resolveDay(db, organization, instructorId, addDays(start, i)));
   }
   return out;
+}
+
+// --- The booking screen's two views -----------------------------------------
+//
+// The multi-day list answers "which day should I look at"; once a day is chosen
+// that question is settled and the useful one becomes "who, and when within
+// it". Both read `resolveDay`, so the grid can never disagree with the list
+// that led you to it.
+
+/** Just enough of a person to draw them in either view. */
+export interface Candidate {
+  id: bigint;
+  ref: string;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+}
+
+/**
+ * Which instructors are free on one date, for the booking screen.
+ *
+ * The shown list is capped so a large roster does not turn one row into a wall
+ * of initials; `total` is the honest count, so "5+ available" never overstates.
+ */
+export interface DayOpenings {
+  day: CivilDate;
+  /** `[ref, initials]`, capped. */
+  instructors: [string, string][];
+  total: number;
+  earliest: Date | null;
+}
+
+export function openingsAreOpen(day: DayOpenings): boolean {
+  return day.total > 0;
+}
+
+/**
+ * Two letters, for the avatar. Never the full name — this list is dense and a
+ * row of full names is unreadable; the ref carries the real identity.
+ */
+function initialsOf(person: Candidate): string {
+  return ((person.firstName || "?").slice(0, 1) + (person.lastName || "").slice(0, 1))
+    .toUpperCase();
+}
+
+function displayNameOf(person: Candidate): string {
+  return `${person.firstName} ${person.lastName}`.trim() || person.ref;
+}
+
+/**
+ * For each of the next `days` days, which candidates have a free window.
+ *
+ * "Free" here means **declared availability long enough for the session**, not
+ * "has no other booking" — the conflict check does the second, and does it per
+ * proposed occurrence. Showing a day as open and then reporting a clash at
+ * preview is the honest order: this list narrows the search, the preview
+ * decides.
+ */
+export async function openings(
+  db: Db,
+  organization: OrganizationRef,
+  candidates: readonly Candidate[],
+  options: {
+    start: CivilDate;
+    days: number;
+    durationMinutes: number;
+    showAtMost?: number;
+  },
+): Promise<DayOpenings[]> {
+  const { start, days, durationMinutes, showAtMost = 5 } = options;
+  const needed = durationMinutes * 60_000;
+  const result: DayOpenings[] = [];
+
+  for (let offset = 0; offset < days; offset += 1) {
+    const day = addDays(start, offset);
+    const free: [string, string][] = [];
+    let earliest: Date | null = null;
+    let total = 0;
+
+    for (const person of candidates) {
+      const availability = await resolveDay(db, organization, person.id, day);
+      const usable = availability.windows.filter(
+        (window) => window.end.getTime() - window.start.getTime() >= needed,
+      );
+      if (usable.length === 0) continue;
+
+      total += 1;
+      if (free.length < showAtMost) free.push([person.ref, initialsOf(person)]);
+
+      const first = usable.reduce((a, b) => (a.start <= b.start ? a : b)).start;
+      if (earliest === null || first < earliest) earliest = first;
+    }
+
+    result.push({ day, instructors: free, total, earliest });
+  }
+  return result;
+}
+
+/**
+ * One time column of the day grid.
+ *
+ * `label` is for reading, `value` is for the Start time field — the same
+ * instant said twice, so a cell the person clicks cannot put a different time
+ * in the form than the one it displayed. Both are derived from the local clock,
+ * so on the day a DST jump skips an hour the column shows and submits the clock
+ * reading that actually exists.
+ */
+export interface GridColumn {
+  start: Date;
+  label: string;
+  value: CivilTime;
+}
+
+/** One instructor's row: which columns they are free for. */
+export interface GridRow {
+  ref: string;
+  name: string;
+  email: string;
+  initials: string;
+  free: boolean[];
+  closedReason: string | null;
+}
+
+export function rowIsOpen(row: GridRow): boolean {
+  return row.free.some(Boolean);
+}
+
+/** Instructors down the side, time across the top, for one chosen date. */
+export interface DayGrid {
+  day: CivilDate;
+  columns: GridColumn[];
+  rows: GridRow[];
+}
+
+export function anyOpen(grid: DayGrid): boolean {
+  return grid.rows.some(rowIsOpen);
+}
+
+/**
+ * `"9 AM"`, `"9:30 AM"` — the minutes are dropped when they are zero, because a
+ * header row of ":00" repeated twelve times is noise.
+ */
+function clockLabel(instant: Date, timezone: string): string {
+  const local = toZone(instant, timezone);
+  const hour = local.hour % 12 || 12;
+  const suffix = local.hour < 12 ? "AM" : "PM";
+  return local.minute
+    ? `${hour}:${String(local.minute).padStart(2, "0")} ${suffix}`
+    : `${hour} ${suffix}`;
+}
+
+/**
+ * Who is free, hour by hour, on one date.
+ *
+ * Columns start at `fromTime` rather than at midnight: the person has already
+ * said when they want the session, and a grid that opens on eight columns of
+ * 3 a.m. buries the answer. Columns stop at the end of the civil day rather
+ * than rolling into the next one, because a window that ends at midnight is
+ * where this day's availability ends.
+ *
+ * A column is free when the instructor has one declared window covering the
+ * whole session — not merely overlapping the column. A 30-minute gap cannot
+ * hold a 60-minute session, and showing it as free would be a promise the
+ * preview then has to break.
+ */
+export async function dayGrid(
+  db: Db,
+  organization: OrganizationRef,
+  candidates: readonly Candidate[],
+  options: {
+    day: CivilDate;
+    fromTime: CivilTime;
+    durationMinutes: number;
+    timezone: string;
+    columns?: number;
+    stepMinutes?: number;
+  },
+): Promise<DayGrid> {
+  const { day, fromTime, durationMinutes, timezone } = options;
+  const columns = options.columns ?? 12;
+  const stepMs = (options.stepMinutes ?? 60) * 60_000;
+  const needed = durationMinutes * 60_000;
+
+  const dayEnd = resolveCivil(addDays(day, 1), "00:00", timezone).instant;
+  let cursor = resolveCivil(day, fromTime, timezone).instant;
+
+  const slots: GridColumn[] = [];
+  while (slots.length < columns && cursor < dayEnd) {
+    slots.push({
+      start: cursor,
+      label: clockLabel(cursor, timezone),
+      value: toZone(cursor, timezone).toFormat("HH:mm"),
+    });
+    cursor = new Date(cursor.getTime() + stepMs);
+  }
+
+  const rows: GridRow[] = [];
+  for (const person of candidates) {
+    const availability = await resolveDay(db, organization, person.id, day);
+    rows.push({
+      ref: person.ref,
+      name: displayNameOf(person),
+      email: person.email ?? "",
+      initials: initialsOf(person),
+      free: slots.map((slot) =>
+        availability.windows.some((window) =>
+          windowContains(window, slot.start, new Date(slot.start.getTime() + needed)),
+        ),
+      ),
+      closedReason: availability.closedReason,
+    });
+  }
+
+  return { day, columns: slots, rows };
 }
