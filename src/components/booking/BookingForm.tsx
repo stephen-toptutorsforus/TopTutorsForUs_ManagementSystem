@@ -15,7 +15,7 @@
  * title half-typed and students already added are never touched by a refresh.
  */
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
 import { CSRF_FIELD } from "@/lib/names";
@@ -39,15 +39,17 @@ export function BookingForm({
   const [students, setStudents] = useState<string[]>(state.selectedStudents);
   const [matrixDays, setMatrixDays] = useState(context.matrixDays);
 
-  // The chip list is the authority on who is booked, and the action hands it
-  // back on every round trip, so a refused submission does not lose it.
-  useEffect(() => {
+  // Two pieces of state the person edits between submissions, re-seeded from
+  // whatever the action just handed back. Adjusted during render rather than in
+  // an effect: an effect would paint the stale chip list first and then correct
+  // it, and React re-runs this component immediately without committing the
+  // discarded pass.
+  const [seen, setSeen] = useState(state);
+  if (seen !== state) {
+    setSeen(state);
     setStudents(state.selectedStudents);
-  }, [state.selectedStudents]);
-
-  useEffect(() => {
-    setMatrixDays(context.matrixDays);
-  }, [context.matrixDays]);
+    setMatrixDays(state.context.matrixDays);
+  }
 
   const value = (name: string, fallback = "") => values[name] ?? fallback;
   const chosenDate = value("start_date");
