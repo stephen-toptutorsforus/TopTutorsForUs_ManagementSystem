@@ -10,5 +10,10 @@ src/generated/
 *.tsbuildinfo
 .DS_Store
 
+# Minted session cookies for the browser tests.
+e2e/.auth/
+test-results/
+playwright-report/
+
 # Local documentation. Not part of the product.
 docs/
