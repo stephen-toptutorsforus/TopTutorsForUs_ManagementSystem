@@ -23,6 +23,7 @@ import { scoped } from "@/lib/policies/scoping";
 import { roleFilterOptions } from "@/lib/presentation";
 import { PAGE_LIMIT, listPeople, parseRoles } from "@/lib/services/peopleQuery";
 import { csrfToken, requireContext } from "@/lib/web/session";
+import { guard } from "@/lib/web/interrupt";
 
 import { toSearchParams } from "../sessions/page";
 
@@ -64,7 +65,7 @@ export default async function PeoplePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { principal, organization } = await requireContext();
-  principal.require(Permission.USER_VIEW);
+  await guard(async () => principal.require(Permission.USER_VIEW));
 
   const params = toSearchParams(await searchParams);
   const search = (params.get("q") ?? "").trim();

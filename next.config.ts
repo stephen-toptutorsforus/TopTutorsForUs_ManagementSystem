@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
    * server, where password hashing belongs anyway.
    */
   serverExternalPackages: ["@node-rs/argon2"],
+
+  experimental: {
+    /**
+     * `forbidden()` and `unauthorized()`. Without them a refusal from the
+     * policy layer reaches the browser as a 500, which is both the wrong status
+     * and the wrong story — "something broke" rather than "you may not".
+     */
+    authInterrupts: true,
+  },
 };
 
 export default nextConfig;

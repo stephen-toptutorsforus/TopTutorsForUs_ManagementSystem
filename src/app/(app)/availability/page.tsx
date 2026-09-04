@@ -18,6 +18,7 @@ import { WEEKDAY_LABELS } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { civilDate, timeFromDb } from "@/lib/time";
 import { csrfToken, requireContext } from "@/lib/web/session";
+import { guard } from "@/lib/web/interrupt";
 
 export const metadata = { title: "Availability · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function AvailabilityPage({
 }) {
   const { principal, organization } = await requireContext();
   if (!principal.has(Permission.AVAILABILITY_VIEW_ANY)) {
-    principal.require(Permission.AVAILABILITY_VIEW_OWN);
+    await guard(async () => principal.require(Permission.AVAILABILITY_VIEW_OWN));
   }
 
   const roster = await prisma.user.findMany({

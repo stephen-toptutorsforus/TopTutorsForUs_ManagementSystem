@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { MATRIX_MAX_DAYS, MATRIX_PAGE_DAYS, bookingContext } from "@/lib/web/booking";
 import { csrfToken, requireContext } from "@/lib/web/session";
+import { guard } from "@/lib/web/interrupt";
 
 export const metadata = { title: "Session Booking · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function NewSessionPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { principal, organization } = await requireContext();
-  principal.require(Permission.SESSION_BOOK);
+  await guard(async () => principal.require(Permission.SESSION_BOOK));
 
   const search = await searchParams;
   const askedDays = Number.parseInt(String(search.days ?? ""), 10);

@@ -11,13 +11,14 @@ import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { csrfToken, requireContext } from "@/lib/web/session";
+import { guard } from "@/lib/web/interrupt";
 
 export const metadata = { title: "Locations · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
 
 export default async function LocationsPage() {
   const { principal } = await requireContext();
-  principal.require(Permission.STRUCTURE_VIEW);
+  await guard(async () => principal.require(Permission.STRUCTURE_VIEW));
 
   const [locations, schools] = await Promise.all([
     prisma.location.findMany({

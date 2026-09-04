@@ -15,6 +15,7 @@ import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { requireContext } from "@/lib/web/session";
+import { guard } from "@/lib/web/interrupt";
 
 export const metadata = { title: "Audit · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ function sentenceCase(value: string): string {
 
 export default async function AuditPage() {
   const { principal } = await requireContext();
-  principal.require(Permission.AUDIT_VIEW);
+  await guard(async () => principal.require(Permission.AUDIT_VIEW));
 
   const zone = principal.timezone;
   const events = await prisma.auditEvent.findMany({
