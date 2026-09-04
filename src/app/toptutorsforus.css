@@ -549,6 +549,16 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 
   .table-wrap { border: 0; background: none; }
   table, thead, tbody, th, td, tr { display: block; }
+  /* A table sized for its desktop columns keeps that width once its rows are
+     cards, and a 1180px card on a 390px phone puts every value past the right
+     edge with only its label in view. Cleared here, for every table at once:
+     the rule that sets a min-width lives beside the columns it is counting,
+     which is nowhere near the rules that stop using columns.
+
+     Written against the wrapper because a media query adds no specificity: a
+     bare `table` loses to any `.some-table` rule elsewhere in the file, and
+     would look like it worked while doing nothing. */
+  .table-wrap table { min-width: 0; }
   thead { position: absolute; left: -9999px; }
   tbody tr {
     background: var(--paper); border: 1px solid var(--ink-200);
@@ -556,6 +566,11 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   }
   tbody tr + tr td { border-top: 0; }
   td { display: flex; gap: 0.75rem; justify-content: space-between; padding: 0.35rem 0.25rem; }
+  /* An email address offers nowhere to break, so as a flex item it refuses to
+     shrink below its own length and pushes the card wider than the phone.
+     `anywhere` rather than `break-word` because only `anywhere` also reduces
+     the min-content width, which is the measurement flexbox is consulting. */
+  td { overflow-wrap: anywhere; }
   td::before {
     content: attr(data-label);
     font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
@@ -1111,8 +1126,10 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .people-filters .field { margin: 0; flex: 0 1 260px; min-width: 0; }
 .people-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
-/* Ten columns is wider than most screens; the wrapper scrolls rather than the
-   page, and the two columns that identify the row stay put while it does. */
+/* Ten columns is wider than most screens, so the wrapper scrolls rather than
+   the page. Cleared below the breakpoint by the card-mode rules — see the
+   `min-width` reset there before adding a second table with a width like
+   this. */
 .people-table { min-width: 1180px; }
 .people-table th, .people-table td { vertical-align: top; }
 .people-avatar { width: 46px; padding-right: 0; }
@@ -1121,6 +1138,35 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .stacked { list-style: none; margin: 0; padding: 0; }
 .stacked li { white-space: nowrap; }
 .stacked .hint { margin-right: 0.25rem; }
+
+/* As a card, the row leads with who it is about.
+ *
+ * The generic card mode turns every cell into one label/value line, which for
+ * ten of them buries the name among nine equals. Here the avatar and the name
+ * pair up as a heading and the rest stack beneath it. Presentation only: no
+ * cell is hidden and no value is dropped, so the card still carries everything
+ * the table does. */
+@media (max-width: 720px) {
+  .people-table tbody tr {
+    display: grid; grid-template-columns: auto 1fr;
+    align-items: center; column-gap: 0.6rem;
+  }
+  .people-table .people-avatar { grid-column: 1; padding: 0; width: auto; }
+  .people-table .people-name { grid-column: 2; font-size: 1rem; }
+  /* Everything else runs the full width, under the heading. */
+  .people-table td:not(.people-avatar):not(.people-name) { grid-column: 1 / -1; }
+  /* The heading names itself; "Name" above a name is noise. */
+  .people-table .people-avatar::before,
+  .people-table .people-name::before { content: none; }
+  /* A long name wraps on a narrow card rather than pushing its own card wide —
+     which is the defect this whole block exists to keep fixed. */
+  .people-table .people-name { white-space: normal; }
+  .people-table .people-avatar,
+  .people-table .people-name {
+    border-bottom: 1px solid var(--ink-100);
+    padding-bottom: 0.5rem; margin-bottom: 0.35rem;
+  }
+}
 
 /* A control that exists but is not available. Never a link, so it cannot be
    followed, and never silently inert, so it cannot look broken. */
