@@ -61,7 +61,7 @@ availability, the people directory with its create-user modal, groups,
 locations, the audit trail, and a help page. The JSON API is under
 `/api/v1`, over the same services and the same policy layer.
 
-277 tests: 173 pure and 104 against a database. On top of those, two
+373 tests: 173 pure and 200 against a database. On top of those, two
 differential runs against the Python service — 29,200 civil-time resolutions
 and 27,090 recurrence rules — with zero mismatches. See [tools/](tools/).
 

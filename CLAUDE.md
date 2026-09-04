@@ -136,11 +136,11 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-277 tests — 173 pure, 104 database-backed — plus differential runs of 29,200
+373 tests — 173 pure, 200 database-backed — plus differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 277), and the
+The reference still has more tests than this does (509 against 373), and the
 difference is almost entirely its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,
