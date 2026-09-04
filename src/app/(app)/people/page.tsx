@@ -123,13 +123,16 @@ export default async function PeoplePage({
         </div>
       </div>
 
-      {/* The filters and the two create actions share one line. The actions are
-          not inside the search form — a button in a GET form would submit the
-          search. */}
+      {/* One line: what narrows the list on the left, what adds to it on the
+          right. The actions are not inside the search form — a button in a GET
+          form would submit the search. */}
       <div className="card people-toolbar">
         <form className="people-filters" method="get" action="/people" role="search">
-          <div className="field grow">
+          <div className="field">
             <label htmlFor="q">Search by name or email</label>
+            {/* No submit button beside it. The form has exactly one field that
+                blocks implicit submission, so Enter still searches — and with
+                scripting off that is also what applies the role ticks. */}
             <input id="q" name="q" type="search" defaultValue={search} placeholder="Search" />
           </div>
           <FilterMenu
@@ -142,9 +145,6 @@ export default async function PeoplePage({
             allLink={peopleLink(search, roleOptions.map((option) => option.value))}
             noneLink={peopleLink(search, [])}
           />
-          <button className="btn" type="submit">
-            Search
-          </button>
         </form>
 
         {canManage && (

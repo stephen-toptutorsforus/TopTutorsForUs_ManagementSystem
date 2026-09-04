@@ -1102,10 +1102,13 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 .people-filters {
   display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
-  flex: 1 1 420px; margin: 0;
+  flex: 0 1 auto; margin: 0;
 }
-.people-filters .field { margin: 0; min-width: 150px; flex: 1 1 150px; }
-.people-filters .field.grow { flex: 3 1 240px; }
+/* Sized to the text somebody types into it — a name — rather than stretched to
+   whatever room the toolbar has. It still shrinks on a narrow screen, but it
+   never grows, so the filters stay a group on the left instead of pushing the
+   actions to the far edge. */
+.people-filters .field { margin: 0; flex: 0 1 260px; min-width: 0; }
 .people-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 /* Ten columns is wider than most screens; the wrapper scrolls rather than the
