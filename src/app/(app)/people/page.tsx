@@ -1,0 +1,350 @@
+/**
+ * The people directory.
+ *
+ * Ported from `people_list` in `app/web/views.py` and
+ * `app/templates/people.html`.
+ *
+ * The row shows more than the `user` row holds — who somebody is connected to,
+ * which groups they are in, when they last signed in — and the query gathers
+ * all of it in a fixed number of statements regardless of how many people are
+ * listed.
+ */
+
+import Link from "next/link";
+
+import { FilterMenu } from "@/components/FilterMenu";
+import { AssignModal } from "@/components/people/AssignModal";
+import { CreateUserModal } from "@/components/people/CreateUserModal";
+import { EmptyState, When } from "@/components/ui";
+import { GuardianRelationship, Role } from "@/generated/prisma/enums";
+import { prisma } from "@/lib/db";
+import { Permission } from "@/lib/policies/permissions";
+import { scoped } from "@/lib/policies/scoping";
+import { roleFilterOptions } from "@/lib/presentation";
+import { PAGE_LIMIT, listPeople, parseRoles } from "@/lib/services/peopleQuery";
+import { csrfToken, requireContext } from "@/lib/web/session";
+
+import { toSearchParams } from "../sessions/page";
+
+export const metadata = { title: "User Management · TopTutorsForUs" };
+export const dynamic = "force-dynamic";
+
+/**
+ * The five roles the create form offers. Payer is deliberately not among them:
+ * it is granted by assigning somebody to pay, not by creating an account whose
+ * only purpose is to pay.
+ */
+const CREATABLE_ROLES: Role[] = [
+  Role.STUDENT,
+  Role.PARENT,
+  Role.INSTRUCTOR,
+  Role.ADMIN,
+  Role.REGIONAL_ADMIN,
+];
+
+function titleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/** A directory URL keeping the search text and naming a set of roles. */
+function peopleLink(search: string, roles: string[]): string {
+  const params = new URLSearchParams();
+  if (search) params.append("q", search);
+  for (const role of roles) params.append("role", role);
+  const query = params.toString();
+  return query ? `/people?${query}` : "/people";
+}
+
+export default async function PeoplePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { principal, organization } = await requireContext();
+  principal.require(Permission.USER_VIEW);
+
+  const params = toSearchParams(await searchParams);
+  const search = (params.get("q") ?? "").trim();
+  const chosenRoles = parseRoles(params.getAll("role"));
+
+  const rows = await listPeople(prisma, principal, { search, roles: chosenRoles });
+  const canManage = principal.has(Permission.USER_MANAGE);
+  const roleOptions = roleFilterOptions();
+
+  const people = async (role: Role) =>
+    prisma.user.findMany({
+      where: { ...scoped(principal), archivedAt: null, roles: { some: { role } } },
+      select: { ref: true, firstName: true, lastName: true, email: true },
+      orderBy: { lastName: "asc" },
+    });
+
+  const [instructors, students, parents, schools, regions] = canManage
+    ? await Promise.all([
+        people(Role.INSTRUCTOR),
+        people(Role.STUDENT),
+        people(Role.PARENT),
+        prisma.school.findMany({
+          where: { ...scoped(principal), archivedAt: null },
+          select: { ref: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.region.findMany({
+          where: { ...scoped(principal), archivedAt: null },
+          select: { ref: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+      ])
+    : [[], [], [], [], []];
+
+  const named = (person: { ref: string; firstName: string; lastName: string }) => ({
+    ref: person.ref,
+    label: `${person.firstName} ${person.lastName}`.trim() || person.ref,
+  });
+  const namedWithEmail = (person: {
+    ref: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  }) => {
+    const name = `${person.firstName} ${person.lastName}`.trim() || person.ref;
+    return { ref: person.ref, label: person.email ? `${name} (${person.email})` : name };
+  };
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>User Management</h1>
+          <p className="subtitle">Everyone at {organization.name}.</p>
+        </div>
+      </div>
+
+      {/* The filters and the two create actions share one line. The actions are
+          not inside the search form — a button in a GET form would submit the
+          search. */}
+      <div className="card people-toolbar">
+        <form className="people-filters" method="get" action="/people" role="search">
+          <div className="field grow">
+            <label htmlFor="q">Search by name or email</label>
+            <input id="q" name="q" type="search" defaultValue={search} placeholder="Search" />
+          </div>
+          <FilterMenu
+            name="role"
+            options={roleOptions}
+            selected={chosenRoles.map((role) => role.toLowerCase())}
+            singular="role"
+            plural="roles"
+            legend="Show these roles"
+            allLink={peopleLink(search, roleOptions.map((option) => option.value))}
+            noneLink={peopleLink(search, [])}
+          />
+          <button className="btn" type="submit">
+            Search
+          </button>
+        </form>
+
+        {canManage && (
+          <div className="people-actions">
+            <a className="btn btn-primary" href="#create-user">
+              <span aria-hidden="true">＋</span> Create User
+            </a>
+            {/* Bulk import is not built. A disabled control says the feature
+                exists and is unavailable; a working-looking button that did
+                nothing, or a missing one, would each say something untrue. */}
+            <button
+              type="button"
+              className="btn is-disabled"
+              disabled
+              title="Bulk import is not built yet — create users one at a time below"
+            >
+              <span aria-hidden="true">↥</span> Upload Users
+            </button>
+          </div>
+        )}
+      </div>
+
+      {rows.length > 0 ? (
+        <>
+          <div className="table-wrap">
+            <table className="people-table">
+              <caption className="visually-hidden">
+                People at {organization.name}
+                {(search || chosenRoles.length > 0) && ", filtered"}
+              </caption>
+              <thead>
+                <tr>
+                  {/* The avatar column is decorative — the name beside it is the
+                      label, and a heading here would be read out for every row. */}
+                  <th scope="col">
+                    <span className="visually-hidden">Avatar</span>
+                  </th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Email/Username</th>
+                  <th scope="col">Roles</th>
+                  <th scope="col">Relationships</th>
+                  <th scope="col">Groups</th>
+                  <th scope="col" className="numeric">Credits</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Actions</th>
+                  <th scope="col">Last Used</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const person = row.user;
+                  const displayName =
+                    `${person.firstName} ${person.lastName}`.trim() || person.ref;
+                  const isInstructor = row.roleNames.includes("Instructor");
+                  const active = person.status === "ACTIVE";
+                  return (
+                    <tr key={String(person.id)}>
+                      <td data-label="" className="people-avatar">
+                        <span className="avatar" aria-hidden="true">
+                          {row.initials}
+                        </span>
+                      </td>
+                      <td data-label="Name" className="people-name">
+                        {displayName}
+                      </td>
+                      <td data-label="Email/Username">
+                        {person.email ? (
+                          <a href={`mailto:${person.email}`}>{person.email}</a>
+                        ) : (
+                          // A student whose guardian has not set one yet. Saying
+                          // so beats an empty cell, which would read as a
+                          // missing value.
+                          <span className="hint">Awaiting parent setup</span>
+                        )}
+                      </td>
+                      <td data-label="Roles">
+                        {row.roleNames.length > 0 ? (
+                          row.roleNames.map((name) => (
+                            <span className="tag" key={name}>
+                              {name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="hint">No roles</span>
+                        )}
+                      </td>
+                      <td data-label="Relationships">
+                        {row.connections.length > 0 ? (
+                          <ul className="stacked">
+                            {row.connections.map((link, index) => (
+                              <li key={`${link.kind}-${link.name}-${index}`}>
+                                <span className="hint">{link.kind}</span> {link.name}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="hint">—</span>
+                        )}
+                      </td>
+                      <td data-label="Groups">
+                        {row.groups.length > 0 ? (
+                          row.groups.map((name) => (
+                            <span className="tag" key={name}>
+                              {name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="hint">—</span>
+                        )}
+                      </td>
+                      <td data-label="Credits" className="numeric">
+                        {row.credits === null ? (
+                          // Not zero: a zero here would read as a balance of
+                          // nothing, which is a different claim from "there is
+                          // no ledger yet".
+                          <span className="hint" title="Credits arrive with billing">
+                            —
+                          </span>
+                        ) : (
+                          row.credits
+                        )}
+                      </td>
+                      <td data-label="Status">
+                        <span className={`badge badge-${active ? "good" : "muted"}`}>
+                          <span className="glyph" aria-hidden="true">
+                            {active ? "✓" : "○"}
+                          </span>
+                          {titleCase(person.status)}
+                        </span>
+                      </td>
+                      <td data-label="Actions">
+                        {isInstructor ? (
+                          <Link href={`/sessions?instructor=${person.ref}`}>Sessions</Link>
+                        ) : canManage ? (
+                          <a href="#assign-people">Assign</a>
+                        ) : (
+                          <span className="hint">—</span>
+                        )}
+                      </td>
+                      <td data-label="Last Used">
+                        {row.lastLoginAt ? (
+                          <When
+                            instant={row.lastLoginAt}
+                            zone={person.timezone || organization.timezone}
+                          />
+                        ) : (
+                          <span className="hint">Never signed in</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {rows.length === PAGE_LIMIT && (
+            <p className="hint">
+              Showing the first {rows.length} people. Narrow the search to see the rest.
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="card">
+          <EmptyState
+            heading="Nobody matches"
+            message="Try a different name or clear the role filter."
+            glyph="◍"
+          />
+        </div>
+      )}
+
+      {canManage && (
+        <>
+          {/* Two modals, opened by the fragment in the URL and closed by
+              clearing it. `:target` rather than <dialog>, because a <dialog>
+              without a script is a form nobody can reach — this way the panels
+              open, submit and close with JavaScript unavailable. */}
+          <CreateUserModal
+            csrfToken={await csrfToken()}
+            creatableRoles={CREATABLE_ROLES.map((role) => ({
+              value: role.toLowerCase(),
+              label: titleCase(role),
+            }))}
+            guardianRelationships={Object.values(GuardianRelationship).map((kind) => ({
+              value: kind.toLowerCase(),
+              label: titleCase(kind),
+            }))}
+            instructors={instructors.map(named)}
+            students={students.map(named)}
+            parents={parents.map(namedWithEmail)}
+            schools={schools.map((school) => ({ ref: school.ref, label: school.name }))}
+            regions={regions.map((region) => ({ ref: region.ref, label: region.name }))}
+          />
+          <AssignModal
+            csrfToken={await csrfToken()}
+            instructors={instructors.map(named)}
+            students={students.map(named)}
+          />
+        </>
+      )}
+    </>
+  );
+}
