@@ -131,12 +131,30 @@ the logic that does not need one.
 
 ## Where the port has got to
 
-Done: the schema and migration, `time`, `recurrence`, `availability`,
-`conflicts`. 116 tests, plus differential runs of 29,200 civil-time resolutions
-and 27,090 recurrence rules against the reference, both with zero mismatches.
+The port is complete. Everything in `toptutorsforus_service` has an equivalent
+here: the schema and its four hand-written guarantees, `time`, `recurrence`,
+`availability`, `conflicts`, the policy layer, every service, authentication,
+all the screens, and the JSON API under `/api/v1`.
 
-Next, in order: permissions / principals / scoping, then booking and session
-operations, then queries and audit, then routes and screens. Nothing renders in
-a browser yet — there are no routes.
+277 tests — 173 pure, 104 database-backed — plus differential runs of 29,200
+civil-time resolutions and 27,090 recurrence rules against the reference, both
+with zero mismatches.
 
-`README.md` carries the same status in more detail.
+The reference still has more tests than this does (509 against 277), and the
+difference is almost entirely its HTML assertions: it tests rendered markup
+with `httpx` against Jinja output, and a good many of those cases are about
+template structure rather than behaviour. Where such a test was about a rule,
+the rule was ported and tested at the layer that owns it — the directory's role
+filter is asked of `listPeople`, not of a `<table>`. Where it was about markup,
+it was not ported, and the equivalent has not been written.
+
+Two known gaps, both narrow:
+
+- `seeds/scenarios.py` — the reference's awkward-case fixtures for manual
+  testing. `prisma/seed.ts` ports the main seed (two tenants, people, programs,
+  availability, groups, closures, example bookings) but not those extras.
+- No end-to-end browser tests. The screens have been driven by hand and by
+  `curl` against a real database; nothing automated clicks them.
+
+Nothing in Phases 2–5 of [`docs/brief.md`](docs/brief.md) is built, which is
+deliberate — see the standing instruction about seams above.

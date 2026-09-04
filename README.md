@@ -24,7 +24,9 @@ Two consequences worth knowing before touching anything:
   the two databases is only meaningful if the names line up, and it leaves open
   the option of moving data across rather than re-seeding.
 
-### Done — the schema and the correctness core
+### Done
+
+**The schema and the correctness core.**
 
 - Prisma schema: 30 tables, 11 native enums.
 - Migration, including the four guarantees Prisma cannot express. Verified
@@ -35,20 +37,41 @@ Two consequences worth knowing before touching anything:
   boundary.
 - `src/lib/recurrence.ts` — rule expansion, pure, shared by preview and
   generation.
-- `src/lib/availability.ts` — the three layers and the organization's bounds.
+- `src/lib/availability.ts` — the three layers, the organization's bounds, and
+  the booking screen's two views of "who is free".
 - `src/lib/conflicts.ts` — the four kinds, and a series that clashes with
   itself.
 
-116 tests: 65 pure and 51 against a database. On top of those, two differential
-runs against the Python service — 29,200 civil-time resolutions and 27,090
-recurrence rules — with zero mismatches. See [tools/](tools/).
+**Authorization**, in `src/lib/policies/`. The permission catalogue and the
+floor rule, principals rebuilt from live rows on every request, per-object
+session policy, and tenant scoping that answers 404 rather than 403.
 
-### Next
+**The services**, in `src/lib/services/`. Audit, people, enrolment, groups and
+locations, booking, session operations, and the queries behind the grid, the
+calendar and the series list.
 
-- Permissions, principals and tenant scoping — mechanical, and the shape of
-  every query below it.
-- Booking, session operations, queries, audit.
-- Routes and screens.
+**Authentication**, in `src/lib/security.ts`. Argon2id, a signed session cookie
+carrying an id and nothing else, session-bound CSRF, and in-process rate
+limits.
+
+**The screens**, under `src/app/`. Sign-in, a dashboard, the session grid with
+CSV export, session detail with every action it admits, the calendar in four
+views, series list and detail, booking with live availability and a preview,
+availability, the people directory with its create-user modal, groups,
+locations, the audit trail, and a help page. The JSON API is under
+`/api/v1`, over the same services and the same policy layer.
+
+277 tests: 173 pure and 104 against a database. On top of those, two
+differential runs against the Python service — 29,200 civil-time resolutions
+and 27,090 recurrence rules — with zero mismatches. See [tools/](tools/).
+
+### Not built, and deliberately so
+
+Phases 2 to 5 of [the brief](docs/brief.md): tenant configuration screens,
+notifications, progress forms and reporting, credits and invoicing, and the
+classroom integrations. The seams are where the brief says they should be —
+a delivery type, a payment column, a notification preference — and none of them
+is filled in with something that would look implemented.
 
 ## Requirements
 
