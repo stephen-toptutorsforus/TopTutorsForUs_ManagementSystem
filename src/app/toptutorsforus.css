@@ -28,10 +28,14 @@
   --paper: #ffffff;
 
   /* Brand: deep teal, chosen for 4.5:1+ on paper at every weight used */
-  --brand-700: #0d5c58;
-  --brand-600: #10716c;
-  --brand-500: #14867f;
-  --brand-100: #dcf0ee;
+  --brand-700: #1748bf;
+  --brand-600: #1e5ae7;
+  --brand-500: #4478f0;
+  --brand-100: #edf3ff;
+  /* What goes *on* a brand background. Not `#fff`: in the dark scheme the
+     brand tokens are light tints, and white on a light tint is unreadable —
+     which is what the six hard-coded whites this replaces were doing. */
+  --on-brand: #ffffff;
 
   /* Status tones. Text pairs are all >= 4.5:1 on their own surface. */
   --good-text: #14603a;
@@ -68,10 +72,11 @@
     --ink-100: #26313c;
     --ink-050: #1b242d;
     --paper: #141c24;
-    --brand-700: #6fd3ca;
-    --brand-600: #57c4bb;
-    --brand-500: #3fb3aa;
-    --brand-100: #17352f;
+    --brand-700: #a9c7ff;
+    --brand-600: #86aeff;
+    --brand-500: #6d9bfb;
+    --brand-100: #16233c;
+    --on-brand: #0b1220;
     --good-text: #8fe0b4;
     --good-surface: #14312a;
     --warn-text: #f0c982;
@@ -153,7 +158,7 @@ a:hover { color: var(--brand-700); }
   z-index: 100;
   padding: 0.75rem 1rem;
   background: var(--brand-700);
-  color: #fff;
+  color: var(--on-brand);
   border-radius: 0 0 var(--radius) 0;
 }
 .skip-link:focus { left: 0; }
@@ -231,7 +236,7 @@ a:hover { color: var(--brand-700); }
   width: 30px; height: 30px; flex: none;
   place-items: center;
   border-radius: 9px;
-  background: var(--brand-600); color: #fff;
+  background: var(--brand-600); color: var(--on-brand);
   font-size: 0.85rem; font-weight: 700;
 }
 .brand-tagline {
@@ -422,8 +427,8 @@ a:hover { color: var(--brand-700); }
   cursor: pointer; text-decoration: none;
 }
 .btn:hover { background: var(--ink-100); }
-.btn-primary { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
-.btn-primary:hover { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
+.btn-primary { background: var(--brand-600); border-color: var(--brand-600); color: var(--on-brand); }
+.btn-primary:hover { background: var(--brand-700); border-color: var(--brand-700); color: var(--on-brand); }
 .btn-danger { background: var(--bad-surface); border-color: var(--bad-text); color: var(--bad-text); }
 .btn-small { min-height: 34px; padding: 0 0.65rem; font-size: 0.85rem; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1019,7 +1024,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .tg-dayhead.is-today .tg-dom {
   display: inline-grid; place-items: center;
   min-width: 30px; height: 30px; border-radius: 50%;
-  background: var(--brand-600); color: #fff;
+  background: var(--brand-600); color: var(--on-brand);
 }
 
 /* Hour labels sit in the gutter, lifted so each reads as the line it marks. */
@@ -1324,7 +1329,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   font-size: 0.78rem;
 }
 .step.is-current { color: var(--ink-900); }
-.step.is-current span { background: var(--brand-600); color: #fff; }
+.step.is-current span { background: var(--brand-600); color: var(--on-brand); }
 
 /* A paragraph of guidance that belongs to the fields under it rather than to
    the one above, so it is set apart from the ordinary field hints. */
