@@ -280,12 +280,13 @@ a:hover { color: var(--brand-700); }
   color: var(--ink-400); font-size: 1rem;
   transition: transform 120ms ease;
 }
+/* An open section says so with its weight and its turned chevron, and nothing
+   else. It used to also take a brand-coloured border, which put two strong
+   markers on screen at once — the section and, inside it, the selected row —
+   competing to say where you are. The row wins: it is the more specific claim,
+   and it is the one being answered. */
 .nav-group[open] > summary { color: var(--ink-900); font-weight: 650; }
 .nav-group[open] .nav-chevron { transform: rotate(90deg); }
-.nav-group[open] > summary {
-  border: 1px solid var(--brand-500);
-  border-radius: var(--radius);
-}
 /* Children are indented plain text. The indent already says they belong to the
    section above, so they carry no icons and no connector rule. */
 .nav-children { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; }
@@ -370,11 +371,15 @@ a:hover { color: var(--brand-700); }
 
 /* --- Cards and surfaces -------------------------------------------------- */
 
+/* A border, not a border and a shadow. A card is a surface sitting on the page,
+   not floating over it — it is already separated by its own paper against the
+   page's grey. `--shadow` is kept for what genuinely floats: the filter panel
+   and the modal, where the shadow is the thing saying "this is above the page
+   you were reading". */
 .card {
   background: var(--paper);
   border: 1px solid var(--ink-200);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
   padding: 1.1rem 1.25rem;
   margin-bottom: 1.1rem;
 }
@@ -655,7 +660,7 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   align-items: center; justify-content: space-between;
   padding: 0.75rem; margin-bottom: 0.9rem;
   background: var(--paper); border: 1px solid var(--ink-200);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
 }
 .cal-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
 .cal-toolbar .field { margin: 0; }

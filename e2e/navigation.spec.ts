@@ -101,6 +101,20 @@ test.describe("with scripting off", () => {
 test.describe("on a wide screen", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) <= 720, "column only above 720px");
 
+  test("the longest section label fits without being cut off", async ({ page }) => {
+    await page.goto("/people");
+    // "People & Organization" is the longest label in the sidebar, and it is
+    // inside the section the page belongs to, so it renders in the open state.
+    // That state used to add a border, and the border's own padding was what
+    // pushed the label into an ellipsis — not the width of the sidebar, which
+    // is why widening the sidebar was never going to fix it.
+    const label = page
+      .locator(".nav-group summary .nav-label")
+      .filter({ hasText: "People & Organization" });
+    const cut = await label.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(cut, "the label should not be truncated").toBe(false);
+  });
+
   test("the sidebar is a column and the mobile header is absent", async ({ page }) => {
     await page.goto("/people");
     await expect(sidebar(page)).toBeVisible();
