@@ -13,9 +13,20 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { ADMIN_ONLY_ROUTES, ALL_ADMIN_ROUTES, SHARED_ROUTES, statePath } from "./accounts";
 
-/** The shell is the proof a page rendered rather than merely returned 200. */
+/**
+ * The shell is the proof a page rendered rather than merely returned 200.
+ *
+ * Which shell depends on the width. Above the breakpoint the sidebar is a
+ * column and always on screen; below it the sidebar is a drawer that starts
+ * closed, and the header is what stands in for it. Asserting the sidebar at
+ * both widths would mean asserting the drawer is open on arrival, which is the
+ * behaviour this redesign exists to remove.
+ */
 async function expectShell(page: Page): Promise<void> {
-  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+  const narrow = (page.viewportSize()?.width ?? 0) <= 720;
+  await expect(
+    narrow ? page.locator(".topbar") : page.getByRole("navigation", { name: "Primary" }),
+  ).toBeVisible();
   await expect(page.locator("h1")).toBeVisible();
 }
 

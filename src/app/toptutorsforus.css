@@ -200,6 +200,17 @@ a:hover { color: var(--brand-700); }
   min-width: 0;
 }
 
+/* --- Mobile header and drawer --------------------------------------------
+ *
+ * All three are inert above the breakpoint: on a wide screen the sidebar is a
+ * column that is always there, so there is no header standing in for it, no
+ * control to open it and nothing for a backdrop to cover. They are switched on
+ * together in the one media block below.
+ */
+.topbar { display: none; }
+.drawer-close { display: none; }
+.drawer-backdrop { display: none; }
+
 .brand {
   display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
   padding: 0.35rem 0.45rem 0.8rem;
@@ -536,14 +547,58 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   .main, .main-fill { overflow: visible; }
   .main-fill > .cal-grid-card { display: block; }
   :where(.main-fill) .cal-timegrid-scroll { max-height: 70vh; }
-  .sidebar {
-    position: static; height: auto; overflow: visible;
-    flex-direction: row; flex-wrap: wrap; align-items: center;
-    border-right: 0; border-bottom: 1px solid var(--ink-200);
+  /* The navigation is a drawer here, not a preamble. It used to unfold above
+     the page — every group, in full, before the first line of the actual
+     screen — which on a phone was most of the opening view of every route.
+
+     Off-canvas until the header's link makes it the fragment target. `fixed`,
+     so it covers the page instead of displacing it; the desktop reason for
+     `sticky` (a fixed element leaves the grid and the column collapses) does
+     not apply once there is no column. */
+  .topbar {
+    display: flex; align-items: center; gap: 0.6rem;
+    position: sticky; top: 0; z-index: 30;
+    padding: 0.45rem 0.75rem;
+    background: var(--paper);
+    border-bottom: 1px solid var(--ink-200);
   }
-  .nav { flex-direction: row; flex-wrap: wrap; }
-  .nav-group { flex: 1 1 100%; }
-  .sidebar-footer { flex-direction: row; flex-wrap: wrap; align-items: center; margin: 0; border: 0; }
+  .topbar-home { display: inline-flex; flex: none; text-decoration: none; }
+  .topbar-home .brand-mark { display: grid; }
+  /* Takes the leftover width and ellipsises, so a long page name cannot push
+     the control that opens the navigation off the edge of the screen. */
+  .topbar-title {
+    flex: 1 1 auto; min-width: 0; margin: 0;
+    font-weight: 650; font-size: 1rem; color: var(--ink-900);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .topbar-avatar { flex: none; }
+  .topbar-menu,
+  .drawer-close {
+    display: inline-grid; place-items: center; flex: none;
+    width: 44px; height: 44px; border-radius: var(--radius);
+    color: var(--ink-700); text-decoration: none; font-size: 1.15rem;
+  }
+  .topbar-menu:hover,
+  .drawer-close:hover { background: var(--ink-100); color: var(--ink-900); }
+
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: min(84vw, 300px); z-index: 40;
+    height: auto; overflow-y: auto;
+    border-right: 1px solid var(--ink-200);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 160ms ease, visibility 160ms;
+  }
+  .sidebar:target { transform: none; visibility: visible; }
+  .drawer-close { position: absolute; top: 0.5rem; right: 0.5rem; }
+  /* A sibling selector, which is why the backdrop is rendered after the
+     sidebar rather than before it. */
+  .sidebar:target ~ .drawer-backdrop {
+    display: block;
+    position: fixed; inset: 0; z-index: 35;
+    background: rgba(16, 22, 29, 0.45);
+  }
   .sidebar-collapse { display: none; }
   .main { padding: 1rem; }
 

@@ -19,6 +19,7 @@ import { usePathname } from "next/navigation";
 import type { Navigation, RenderedEntry, RenderedItem, RenderedPending } from "@/lib/navigation";
 import { CSRF_FIELD } from "@/lib/names";
 
+import { DRAWER_ID } from "./drawer";
 import { SignOutButton } from "./SignOutButton";
 
 /** A row inside an expanded group: a link, or an inert row for unbuilt work. */
@@ -114,46 +115,69 @@ export function Sidebar({
   const path = usePathname();
 
   return (
-    <nav className="sidebar" aria-label="Primary">
-      {/* The wordmark carries the product name, so the image is the accessible
-          name of this link and the square mark is only the collapsed-rail
-          stand-in. The tenant's own name stays beneath it: with two tenants
-          open side by side, the logo alone would make the two sidebars
-          identical. */}
-      <Link className="brand" href="/">
-        <Image
-          className="brand-logo"
-          src="/img/logo.png"
-          alt="TopTutorsForUs"
-          width={1688}
-          height={381}
-          priority
-        />
-        <span className="brand-mark" aria-hidden="true">
-          T
-        </span>
-        <span className="brand-tagline">{organizationName}</span>
-      </Link>
+    <>
+      {/* Below the breakpoint this is a drawer, opened by the header's link to
+          `#primary-nav` and closed by clearing the fragment. `:target` rather
+          than a scripted panel, for the reason the People modals give: a
+          control that needs JavaScript to open is, without it, a navigation
+          nobody can reach. Above the breakpoint the id does nothing and this is
+          simply the first column. */}
+      <nav className="sidebar" id={DRAWER_ID} aria-label="Primary">
+        {/* Only ever visible while the drawer is open; on a wide screen there is
+            nothing to close. Anchored to `#` because that is what clears the
+            fragment `:target` is matching. */}
+        <a className="drawer-close" href="#">
+          <span className="glyph" aria-hidden="true">
+            ✕
+          </span>
+          <span className="visually-hidden">Close navigation</span>
+        </a>
 
-      <div className="nav">
-        {nav.main.map((entry, index) => (
-          <NavEntry key={index} entry={entry} path={path} />
-        ))}
-      </div>
+        {/* The wordmark carries the product name, so the image is the accessible
+            name of this link and the square mark is only the collapsed-rail
+            stand-in. The tenant's own name stays beneath it: with two tenants
+            open side by side, the logo alone would make the two sidebars
+            identical. */}
+        <Link className="brand" href="/">
+          <Image
+            className="brand-logo"
+            src="/img/logo.png"
+            alt="TopTutorsForUs"
+            width={1688}
+            height={381}
+            priority
+          />
+          <span className="brand-mark" aria-hidden="true">
+            T
+          </span>
+          <span className="brand-tagline">{organizationName}</span>
+        </Link>
 
-      <div className="sidebar-footer">
         <div className="nav">
-          {nav.footer.map((entry, index) => (
+          {nav.main.map((entry, index) => (
             <NavEntry key={index} entry={entry} path={path} />
           ))}
         </div>
 
-        <p className="whoami">
-          <strong>{displayName}</strong>
-          <span className="whoami-role">{titleCase(primaryRole)}</span>
-        </p>
-        <SignOutButton csrfField={CSRF_FIELD} csrfToken={csrfToken} />
-      </div>
-    </nav>
+        <div className="sidebar-footer">
+          <div className="nav">
+            {nav.footer.map((entry, index) => (
+              <NavEntry key={index} entry={entry} path={path} />
+            ))}
+          </div>
+
+          <p className="whoami">
+            <strong>{displayName}</strong>
+            <span className="whoami-role">{titleCase(primaryRole)}</span>
+          </p>
+          <SignOutButton csrfField={CSRF_FIELD} csrfToken={csrfToken} />
+        </div>
+      </nav>
+
+      {/* Dismisses the drawer by tapping beside it. A sibling *after* the
+          sidebar so the stylesheet can select it from `:target`, and inert
+          above the breakpoint where nothing is covering anything. */}
+      <a className="drawer-backdrop" href="#" tabIndex={-1} aria-hidden="true" />
+    </>
   );
 }

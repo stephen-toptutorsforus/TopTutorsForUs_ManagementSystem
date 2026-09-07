@@ -250,3 +250,37 @@ export function navigation(
     footer: renderNav(NAV_FOOTER, principal, currentPath),
   };
 }
+
+/**
+ * What to call the page at this path.
+ *
+ * The mobile header needs a title, and the navigation already holds one for
+ * every route that has an entry — a separate registry would be a second list
+ * to keep in step with this one, and it would drift.
+ *
+ * Longest matching prefix, so a detail route takes the name of the section it
+ * belongs to: `/sessions/ses_x` reads "Sessions". `/` is matched exactly, since
+ * as a prefix it matches everything.
+ */
+export function titleFor(nav: Navigation, path: string): string | null {
+  let best: string | null = null;
+  let longest = -1;
+
+  const consider = (entry: RenderedEntry): void => {
+    if (entry.kind === "group") {
+      entry.items.forEach(consider);
+      return;
+    }
+    if (entry.kind !== "item") return;
+
+    const matches =
+      entry.href === "/" ? path === "/" : path === entry.href || path.startsWith(`${entry.href}/`);
+    if (matches && entry.href.length > longest) {
+      longest = entry.href.length;
+      best = entry.label;
+    }
+  };
+
+  [...nav.main, ...nav.footer].forEach(consider);
+  return best;
+}
