@@ -14,7 +14,19 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
-const BASE_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
+/**
+ * Its own port, and its own build.
+ *
+ * Not the dev server on 3000. Two reasons, both found the hard way: a dev
+ * server compiles routes on demand, so the first request to each pays for it
+ * and slow tests time out under a parallel run — and it can serve a stale
+ * bundle when its HMR socket has dropped, which means a green suite proves
+ * nothing about the code on disk. A build is slower to start once and honest
+ * about what it is testing. The separate port also means a dev server can stay
+ * running while these do.
+ */
+const PORT = process.env.E2E_PORT ?? "3100";
+const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -47,9 +59,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run dev",
+    command: `npm run build && npx next start -p ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
+    timeout: 420_000,
   },
 });

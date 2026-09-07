@@ -74,12 +74,6 @@ test.describe("with scripting off", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) > 720, "drawer only exists below 720px");
 
   test("the drawer still opens and still navigates", async ({ page }) => {
-    // Without scripting every link is a full page load, and against a dev
-    // server the first of those to a given route pays for compiling it. Under
-    // a parallel run that alone can outlast the default timeout — a property
-    // of how the suite is served, not of the drawer.
-    test.setTimeout(90_000);
-
     await page.goto("/people");
     await expect(sidebar(page)).toBeHidden();
 
