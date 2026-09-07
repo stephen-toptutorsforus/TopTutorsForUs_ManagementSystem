@@ -38,9 +38,15 @@ export function getPrisma(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not set");
 
-  const client = clientFor(connectionString);
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
-  return client;
+  // Cached in every environment, production included. The usual Next idiom
+  // caches only outside production, but that idiom guards a client built once
+  // at module scope; this one is built inside a function the proxy below calls
+  // on *every property access*. Skipping the cache in production therefore
+  // meant a new client, and a new connection pool, for each `prisma.something`
+  // — which stays invisible until enough requests arrive at once and Postgres
+  // answers "sorry, too many clients already".
+  globalForPrisma.prisma = clientFor(connectionString);
+  return globalForPrisma.prisma;
 }
 
 /**
