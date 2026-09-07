@@ -855,6 +855,19 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
  */
 
 .booking-card { padding: 1.25rem 1.4rem 1.5rem; }
+
+/* Groups inside the booking card.
+ *
+ * Borderless, against the stylesheet's default for `fieldset`: the card is
+ * already one boundary and a second around each group inside it is exactly the
+ * noise being removed elsewhere. A heading, space, and a rule between
+ * neighbours is enough to group nineteen fields into four readable parts. */
+.booking-section { border: 0; padding: 0; margin: 0; }
+.booking-section > legend { padding: 0; margin-top: 0; }
+.booking-section + .booking-section {
+  border-top: 1px solid var(--ink-100);
+  margin-top: 1.5rem; padding-top: 1.25rem;
+}
 .booking-row-type {
   display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
 }
@@ -1389,7 +1402,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .chip-remove:hover { background: var(--paper); color: var(--ink-900); }
 
 .booking-subhead {
-  margin: 1.6rem 0 0.35rem;
+  margin: 0 0 0.75rem;
   font-size: 0.78rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ink-500);
