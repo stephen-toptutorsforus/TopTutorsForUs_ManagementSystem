@@ -1,7 +1,7 @@
 /* TopTutorsForUs design system.
  *
  * Original work: a slate-and-teal palette, one type scale, and a small set of
- * components. No third-party framework, no build step — the whole system is
+ * components. No third-party framework, no build step â€” the whole system is
  * this file, which keeps it auditable and keeps the page fast on the school
  * laptops and phones this runs on.
  *
@@ -33,7 +33,7 @@
   --brand-500: #4478f0;
   --brand-100: #edf3ff;
   /* What goes *on* a brand background. Not `#fff`: in the dark scheme the
-     brand tokens are light tints, and white on a light tint is unreadable —
+     brand tokens are light tints, and white on a light tint is unreadable â€”
      which is what the six hard-coded whites this replaces were doing. */
   --on-brand: #ffffff;
 
@@ -107,9 +107,9 @@ img { max-width: 100%; height: auto; }
 
 /* `hidden` means hidden, whatever else a class says.
    The browser hides `[hidden]` from its own stylesheet, which any author rule
-   outranks — so a class that sets `display` un-hides every element it touches
+   outranks â€” so a class that sets `display` un-hides every element it touches
    that is also marked hidden, silently. `.availability-busy { display: flex }`
-   did exactly that, and the booking page's "Updating availability…" line was
+   did exactly that, and the booking page's "Updating availabilityâ€¦" line was
    visible from the moment it loaded and never went away. Stated once, globally,
    because the next `display` rule would have had the same bug latent in it. */
 [hidden] { display: none !important; }
@@ -121,7 +121,7 @@ img { max-width: 100%; height: auto; }
    removes the possibility rather than relying on every descendant to behave.
 
    Height on `html` and `body` as well, because a percentage height needs a
-   parent that has one — and `100%` of the real viewport beats `100vh`, which on
+   parent that has one â€” and `100%` of the real viewport beats `100vh`, which on
    mobile browsers counts the space behind the address bar. */
 html, body { height: 100%; }
 
@@ -173,7 +173,7 @@ a:hover { color: var(--brand-700); }
 
 /* --- Shell --------------------------------------------------------------- */
 
-/* The shell is exactly the window, and the content column scrolls inside it —
+/* The shell is exactly the window, and the content column scrolls inside it â€”
    so the document itself never scrolls and there is no page-level scrollbar
    competing with the ones inside the page. */
 .shell { display: grid; grid-template-columns: var(--sidebar-width) 1fr; height: 100%; }
@@ -188,7 +188,7 @@ a:hover { color: var(--brand-700); }
    the main content would slide underneath it. Sticky keeps the track and pins
    the box inside it.
 
-   Its own height is the viewport, and it scrolls internally — otherwise a long
+   Its own height is the viewport, and it scrolls internally â€” otherwise a long
    nav on a short screen would put the sign-out button somewhere unreachable. */
 .sidebar {
   position: sticky;
@@ -282,7 +282,7 @@ a:hover { color: var(--brand-700); }
 }
 /* An open section says so with its weight and its turned chevron, and nothing
    else. It used to also take a brand-coloured border, which put two strong
-   markers on screen at once — the section and, inside it, the selected row —
+   markers on screen at once â€” the section and, inside it, the selected row â€”
    competing to say where you are. The row wins: it is the more specific claim,
    and it is the one being answered. */
 .nav-group[open] > summary { color: var(--ink-900); font-weight: 650; }
@@ -334,7 +334,7 @@ a:hover { color: var(--brand-700); }
 .sidebar-collapse:hover { background: var(--ink-100); color: var(--ink-900); }
 
 /* Collapsed rail: icons only. Labels are removed from the accessibility tree
-   too, because the icon glyphs alone would read as punctuation — the title
+   too, because the icon glyphs alone would read as punctuation â€” the title
    attribute added by the toggle carries the name instead. */
 .shell.is-collapsed .brand-logo,
 .shell.is-collapsed .brand-tagline,
@@ -359,7 +359,7 @@ a:hover { color: var(--brand-700); }
    shrink below its content and would push the overflow back onto the document. */
 .main { min-width: 0; min-height: 0; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
 /* A page that fills the window instead of running past it: the head and toolbar
-   take what they need and one child — the calendar grid — takes the rest. */
+   take what they need and one child â€” the calendar grid â€” takes the rest. */
 .main-fill { display: flex; flex-direction: column; padding-bottom: 1.5rem; overflow: hidden; }
 .main-fill > .cal-grid-card { flex: 1 1 auto; min-height: 0; display: flex; }
 .page-head {
@@ -372,7 +372,7 @@ a:hover { color: var(--brand-700); }
 /* --- Cards and surfaces -------------------------------------------------- */
 
 /* A border, not a border and a shadow. A card is a surface sitting on the page,
-   not floating over it — it is already separated by its own paper against the
+   not floating over it â€” it is already separated by its own paper against the
    page's grey. `--shadow` is kept for what genuinely floats: the filter panel
    and the modal, where the shadow is the thing saying "this is above the page
    you were reading". */
@@ -445,7 +445,7 @@ a:hover { color: var(--brand-700); }
    an element sits rather than as utility classes, so the next form inside a
    disclosure gets the spacing without anyone remembering to ask for it. */
 
-/* A row of buttons following something — a table, a fieldset — needs air above
+/* A row of buttons following something â€” a table, a fieldset â€” needs air above
    it. Not when it is the first thing in its container, which is why this is not
    simply a margin on `.btn-row`. */
 * + .btn-row, * + .choice-row { margin-top: 0.9rem; }
@@ -456,7 +456,7 @@ details > form { margin-top: 0.8rem; }
 
 .btn-block { width: 100%; }
 
-/* A control that should take its content's width rather than the full row —
+/* A control that should take its content's width rather than the full row â€”
    inside a `.btn-row`, a full-width select pushes every button onto its own
    line. */
 .field-auto { width: auto; }
@@ -526,7 +526,7 @@ legend { padding: 0 0.35rem; font-weight: 600; font-size: 0.88rem; color: var(--
 
 /* Sideways only. Naming one axis `auto` computes the other from `visible` to
    `auto` as well, and the horizontal scrollbar then takes ~15px of height off
-   the box — which overflows it vertically and raises a second scrollbar for the
+   the box â€” which overflows it vertically and raises a second scrollbar for the
    height of the first. Pinning the vertical axis is what stops that. */
 .table-wrap {
   overflow-x: auto; overflow-y: hidden;
@@ -558,8 +558,8 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   .main-fill > .cal-grid-card { display: block; }
   :where(.main-fill) .cal-timegrid-scroll { max-height: 70vh; }
   /* The navigation is a drawer here, not a preamble. It used to unfold above
-     the page — every group, in full, before the first line of the actual
-     screen — which on a phone was most of the opening view of every route.
+     the page â€” every group, in full, before the first line of the actual
+     screen â€” which on a phone was most of the opening view of every route.
 
      Off-canvas until the header's link makes it the fragment target. `fixed`,
      so it covers the page instead of displacing it; the desktop reason for
@@ -601,6 +601,14 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
     transition: transform 160ms ease, visibility 160ms;
   }
   .sidebar:target { transform: none; visibility: visible; }
+  /* Set by the shell after a client-side navigation, which leaves `:target`
+     matching a fragment the new URL does not have. Never set when scripting is
+     off, where the page load clears the fragment by itself. */
+  .shell[data-nav="closed"] .sidebar:target {
+    transform: translateX(-100%);
+    visibility: hidden;
+  }
+  .shell[data-nav="closed"] .sidebar:target ~ .drawer-backdrop { display: none; }
   .drawer-close { position: absolute; top: 0.5rem; right: 0.5rem; }
   /* A sibling selector, which is why the backdrop is rendered after the
      sidebar rather than before it. */
@@ -647,7 +655,7 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
  *
  * Four views share one toolbar. The status filter is a native <details>
  * disclosure holding real checkboxes, so it opens, closes, and tabs correctly
- * with no script — and each option shows a colour swatch AND a glyph AND a
+ * with no script â€” and each option shows a colour swatch AND a glyph AND a
  * word, so the filter stays usable without colour vision.
  *
  * `.filtermenu` is deliberately not prefixed `cal-`: the directory's role
@@ -678,7 +686,7 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   list-style: none;
 }
 .filtermenu > summary::-webkit-details-marker { display: none; }
-.filtermenu > summary::after { content: "▾"; color: var(--ink-500); }
+.filtermenu > summary::after { content: "â–¾"; color: var(--ink-500); }
 .filtermenu[open] > summary { border-color: var(--brand-600); }
 .filtermenu-count { white-space: nowrap; }
 
@@ -736,7 +744,7 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   color: var(--ink-700); text-decoration: none; font-weight: 600; font-size: 0.88rem;
 }
 .cal-view:hover { color: var(--ink-900); }
-/* Today is an action, not a view, so it is set off from the four that are —
+/* Today is an action, not a view, so it is set off from the four that are â€”
    a divider rather than a different shape, since it sits in the same group. It
    holds this place in every view; only its availability changes. */
 .cal-view-today {
@@ -877,13 +885,13 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
  *
  * Instructors down the side, start times across the top. The table is a real
  * table because that is what it is: two headed axes and a value at each
- * intersection. Availability is never carried by the green alone — each cell
+ * intersection. Availability is never carried by the green alone â€” each cell
  * also holds a visually-hidden "available"/"not available", so the grid reads
  * correctly aloud and survives greyscale.
  */
 
 .daygrid-scroll {
-  /* Sideways only — see `.table-wrap`. The grid is exactly as tall as its rows,
+  /* Sideways only â€” see `.table-wrap`. The grid is exactly as tall as its rows,
      so the vertical scrollbar it used to show was never anything but the space
      the horizontal one took. */
   overflow-x: auto; overflow-y: hidden;
@@ -901,7 +909,7 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
   font-weight: 650; white-space: nowrap;
   min-width: 74px; text-align: center;
 }
-/* The name column stays put while the hours scroll under it — a row of green
+/* The name column stays put while the hours scroll under it â€” a row of green
    with the name scrolled off says nothing. */
 .daygrid .daygrid-who {
   position: sticky; left: 0; z-index: 2;
@@ -1000,14 +1008,14 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
  *
  * `style-src 'self'` forbids inline styles, so a session's position cannot be
  * written onto it as a percentage. Instead every position resolves to one of a
- * countable set of classes — a column, a row, a span, a lane — declared here
+ * countable set of classes â€” a column, a row, a span, a lane â€” declared here
  * once. That is why timegrid.py caps spans and lanes: an unbounded number of
  * positions would need an unbounded stylesheet.
  */
 
 .cal-grid-card { padding: 0; overflow: hidden; }
 .cal-timegrid-scroll { overflow: auto; flex: 1 1 auto; min-height: 0; width: 100%; }
-/* Off the filling layout — a printed page, or a future embed — it still needs a
+/* Off the filling layout â€” a printed page, or a future embed â€” it still needs a
    ceiling, or the grid would simply be as tall as a day. */
 :not(.main-fill) > .cal-grid-card .cal-timegrid-scroll { max-height: 74vh; }
 
@@ -1065,7 +1073,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 .tg-colrule.is-today { background: var(--brand-100); opacity: 0.4; }
 
-/* A session. Absolute within its own cell is not needed — it is a grid item
+/* A session. Absolute within its own cell is not needed â€” it is a grid item
    spanning the rows it occupies, and lanes split it across the column when two
    overlap. */
 .tg-event {
@@ -1197,7 +1205,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
   flex: 0 1 auto; margin: 0;
 }
-/* Sized to the text somebody types into it — a name — rather than stretched to
+/* Sized to the text somebody types into it â€” a name â€” rather than stretched to
    whatever room the toolbar has. It still shrinks on a narrow screen, but it
    never grows, so the filters stay a group on the left instead of pushing the
    actions to the far edge. */
@@ -1205,7 +1213,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .people-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 /* Ten columns is wider than most screens, so the wrapper scrolls rather than
-   the page. Cleared below the breakpoint by the card-mode rules — see the
+   the page. Cleared below the breakpoint by the card-mode rules â€” see the
    `min-width` reset there before adding a second table with a width like
    this. */
 .people-table { min-width: 1180px; }
@@ -1236,7 +1244,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   /* The heading names itself; "Name" above a name is noise. */
   .people-table .people-avatar::before,
   .people-table .people-name::before { content: none; }
-  /* A long name wraps on a narrow card rather than pushing its own card wide —
+  /* A long name wraps on a narrow card rather than pushing its own card wide â€”
      which is the defect this whole block exists to keep fixed. */
   .people-table .people-name { white-space: normal; }
   .people-table .people-avatar,
@@ -1255,7 +1263,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 
 /* A control the browser or the form has judged invalid, but only once it has
-   been left — turning a field red while somebody is still typing in it is
+   been left â€” turning a field red while somebody is still typing in it is
    telling them off for not having finished. */
 .field input.is-invalid,
 .field select.is-invalid {
@@ -1360,7 +1368,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 
 /* A search box with its icon inside the field rather than beside it. The icon
-   is decorative — the label above names the field — so it is hidden from
+   is decorative â€” the label above names the field â€” so it is hidden from
    assistive technology and the padding keeps the text clear of it. */
 .search-field { position: relative; }
 .search-field .search-icon {
@@ -1374,7 +1382,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 /* --- Small form helpers -------------------------------------------------- */
 
 /* A hint that belongs to the control above it but reads as a bound, not a
-   description — so it sits at the end of the row rather than the start. */
+   description â€” so it sits at the end of the row rather than the start. */
 .hint-end { text-align: right; }
 
 /* Chosen people, one chip each. The list is what grows as students are added,
@@ -1444,8 +1452,8 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 /* The state is also spelled out, so the switch does not rely on position and
    colour alone. */
-.switch-label::after { content: " — off"; font-weight: 500; color: var(--ink-500); }
-.switch input:checked ~ .switch-label::after { content: " — on"; }
+.switch-label::after { content: " â€” off"; font-weight: 500; color: var(--ink-500); }
+.switch input:checked ~ .switch-label::after { content: " â€” on"; }
 
 /* Availability matrix */
 .matrix-list {

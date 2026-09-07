@@ -15,6 +15,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
 import type { Navigation, RenderedEntry, RenderedItem, RenderedPending } from "@/lib/navigation";
 import { CSRF_FIELD } from "@/lib/names";
@@ -113,6 +114,29 @@ export function Sidebar({
   csrfToken: string;
 }) {
   const path = usePathname();
+
+  useEffect(() => {
+    const shell = document.querySelector(".shell");
+    if (shell === null) return;
+
+    // `:target` is how the drawer opens, and with a full page load it also
+    // closes itself: the next page's URL has no fragment. Client-side routing
+    // does not give it that — Chromium keeps the element matching `:target`
+    // after a pushState to a fragmentless URL, so the drawer stayed open over
+    // the page just navigated to. This says closed explicitly, and the
+    // stylesheet gives the attribute precedence over `:target`.
+    //
+    // Only ever an addition. With scripting off the attribute is never set,
+    // `:target` alone governs, and the full page load closes the drawer as it
+    // always did.
+    shell.setAttribute("data-nav", "closed");
+
+    const reopen = () => {
+      if (window.location.hash === `#${DRAWER_ID}`) shell.removeAttribute("data-nav");
+    };
+    window.addEventListener("hashchange", reopen);
+    return () => window.removeEventListener("hashchange", reopen);
+  }, [path]);
 
   return (
     <>
