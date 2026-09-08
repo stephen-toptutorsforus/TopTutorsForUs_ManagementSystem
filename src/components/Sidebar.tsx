@@ -17,6 +17,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
+import { Tag, VisuallyHidden } from "@/components/ui";
 import type { Navigation, RenderedEntry, RenderedItem, RenderedPending } from "@/lib/navigation";
 import { CSRF_FIELD } from "@/lib/names";
 
@@ -35,7 +36,7 @@ function NavRow({ entry, path }: { entry: RenderedItem | RenderedPending; path: 
   return (
     <p className="nav-pending" aria-disabled="true">
       <span className="nav-label">{entry.label}</span>
-      <span className="tag">{entry.note}</span>
+      <Tag>{entry.note}</Tag>
     </p>
   );
 }
@@ -88,7 +89,7 @@ function NavEntry({ entry, path }: { entry: RenderedEntry; path: string }) {
         {entry.icon}
       </span>
       <span className="nav-label">{entry.label}</span>
-      <span className="tag">{entry.note}</span>
+      <Tag>{entry.note}</Tag>
     </p>
   );
 }
@@ -154,7 +155,7 @@ export function Sidebar({
           <span className="glyph" aria-hidden="true">
             ✕
           </span>
-          <span className="visually-hidden">Close navigation</span>
+          <VisuallyHidden>Close navigation</VisuallyHidden>
         </a>
 
         {/* The wordmark carries the product name, so the image is the accessible

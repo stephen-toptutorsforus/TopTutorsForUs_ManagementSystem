@@ -21,6 +21,7 @@
 import { useActionState, useState } from "react";
 
 import { createPersonAction } from "@/app/actions/people";
+import { Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 import { Picker, type PickerOption } from "./Picker";
@@ -197,10 +198,10 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   </option>
                 ))}
               </select>
-              <span className="hint">
+              <Hint>
                 One role now. A person may hold several — add the rest once the account
                 exists, so they keep one account and one history.
-              </span>
+              </Hint>
             </div>
 
             {/* Only Next on the first step, and inert until the three fields
@@ -271,10 +272,10 @@ export function CreateUserModal(props: CreateUserModalProps) {
                       ))}
                     </select>
                     {props.parents.length === 0 && (
-                      <span className="hint">
+                      <Hint>
                         No parents yet — create one first, or choose <strong>No</strong> to
                         onboard the student directly.
-                      </span>
+                      </Hint>
                     )}
                   </div>
                 ) : (
@@ -289,7 +290,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                     />
-                    <span className="hint">The onboarding email goes here.</span>
+                    <Hint>The onboarding email goes here.</Hint>
                   </div>
                 )}
 
@@ -391,10 +392,10 @@ export function CreateUserModal(props: CreateUserModalProps) {
                       </option>
                     ))}
                   </select>
-                  <span className="hint">
+                  <Hint>
                     What this person is to the student. All four can be shown the
                     student&rsquo;s sessions; a report tells them apart.
-                  </span>
+                  </Hint>
                 </div>
                 <Picker
                   label="Select students"
@@ -466,7 +467,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
-                <span className="hint">The onboarding email goes here.</span>
+                <Hint>The onboarding email goes here.</Hint>
               </div>
             )}
 

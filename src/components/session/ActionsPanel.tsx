@@ -22,7 +22,7 @@ import {
   editSession,
   rescheduleSession,
 } from "@/app/actions/sessions";
-import { ScopeChoice } from "@/components/ui";
+import { Hint, ScopeChoice } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -267,9 +267,9 @@ export function ActionsPanel(props: ActionsPanelProps) {
             <div className="field">
               <label htmlFor="cancel-note">Note (optional)</label>
               <textarea id="cancel-note" name="note" />
-              <span className="hint">
+              <Hint>
                 The audit trail records that a note was given, not what it says.
-              </span>
+              </Hint>
             </div>
             <ScopeChoice series={series} legend="Cancel" />
             {/* A destructive action always confirms, and the confirmation names

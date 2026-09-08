@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 
-import { EmptyState, StatusBadge, When } from "@/components/ui";
+import { EmptyState, StatusBadge, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -58,11 +58,11 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
       return (
         <>
           <Link href={`/sessions/${session.ref}`}>{session.title}</Link>
-          {row.seriesPosition && <span className="tag">{row.seriesPosition}</span>}
+          {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
           {session.detachedFromSeries && (
-            <span className="tag" title="Edited on its own; series edits skip it">
+            <Tag title="Edited on its own; series edits skip it">
               detached
-            </span>
+            </Tag>
           )}
         </>
       );
@@ -264,7 +264,7 @@ export default async function SessionsPage({
                     </th>
                   ))}
                   <th scope="col">
-                    <span className="visually-hidden">Actions</span>
+                    <VisuallyHidden>Actions</VisuallyHidden>
                   </th>
                 </tr>
               </thead>

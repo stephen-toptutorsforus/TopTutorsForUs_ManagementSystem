@@ -14,7 +14,7 @@ import {
   ParticipantRole,
   SessionStatus,
 } from "@/generated/prisma/enums";
-import { EmptyState, StatusBadge, When, WhenTime } from "@/components/ui";
+import { EmptyState, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { durationLabel } from "@/lib/presentation";
@@ -197,7 +197,7 @@ export default async function DashboardPage() {
                     </td>
                     <td data-label="Session">
                       <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
-                      {row.seriesPosition && <span className="tag">{row.seriesPosition}</span>}
+                      {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
                     </td>
                     <td data-label="Instructor">{row.instructorName ?? "—"}</td>
                     <td data-label="Length">

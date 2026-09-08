@@ -16,7 +16,7 @@ import {
   ArchiveGroupForm,
   RemoveMemberForm,
 } from "@/components/structure/Forms";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, VisuallyHidden } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -111,7 +111,7 @@ export default async function GroupDetailPage({
                   <th scope="col">Name</th>
                   <th scope="col">In the group as</th>
                   <th scope="col">
-                    <span className="visually-hidden">Actions</span>
+                    <VisuallyHidden>Actions</VisuallyHidden>
                   </th>
                 </tr>
               </thead>

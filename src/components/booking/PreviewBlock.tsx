@@ -7,6 +7,7 @@
  * that leaves the person to find it.
  */
 
+import { Tag, VisuallyHidden } from "@/components/ui";
 import type { PlanView } from "@/lib/web/planView";
 
 export function PreviewBlock({
@@ -97,9 +98,9 @@ export function PreviewBlock({
             <span className="idx" aria-hidden="true">
               {item.index}
             </span>
-            <span className="visually-hidden">Session {item.index}:</span>
+            <VisuallyHidden>Session {item.index}:</VisuallyHidden>
             <span>{item.when}</span>
-            <span className="tag">→ {item.endsAt}</span>
+            <Tag>→ {item.endsAt}</Tag>
             {item.shiftedByDst && (
               <span className="badge badge-info">
                 <span className="glyph" aria-hidden="true">

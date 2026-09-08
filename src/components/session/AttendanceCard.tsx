@@ -12,7 +12,7 @@
 import { useActionState } from "react";
 
 import { recordAttendance } from "@/app/actions/sessions";
-import { AttendanceBadge, WhenTime } from "@/components/ui";
+import { AttendanceBadge, Hint, WhenTime } from "@/components/ui";
 import { AttendanceStatus } from "@/generated/prisma/enums";
 import { CSRF_FIELD } from "@/lib/names";
 import { attendanceMeta, durationLabel, percent } from "@/lib/presentation";
@@ -114,7 +114,7 @@ export function AttendanceCard({
       <h2>Participants and attendance</h2>
       <p className="subtitle">
         Overall attendance: <strong>{percent(attendanceRate)}</strong>{" "}
-        <span className="hint">Excused absences are not counted against this rate.</span>
+        <Hint>Excused absences are not counted against this rate.</Hint>
       </p>
 
       {state.error && (

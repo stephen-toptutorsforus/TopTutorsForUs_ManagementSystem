@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 
-import { EmptyState } from "@/components/ui";
+import { EmptyState, VisuallyHidden } from "@/components/ui";
 import { statusMeta } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { type CivilDate, isoWeekday } from "@/lib/time";
@@ -62,7 +62,7 @@ export function TimeGridView({
               <Link href={linkFor(day)}>
                 <span className="tg-dow">{DOW_SHORT[isoWeekday(day) - 1]}</span>
                 <span className="tg-dom">{Number(day.slice(8, 10))}</span>
-                {day === today && <span className="visually-hidden">(today)</span>}
+                {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
               </Link>
             </h3>
           ))}
@@ -121,9 +121,9 @@ export function TimeGridView({
                   <span className={`tg-event-flag badge-${meta.tone}`} aria-hidden="true">
                     {meta.icon}
                   </span>
-                  <span className="visually-hidden">
+                  <VisuallyHidden>
                     — {session.title}, {meta.label}, {start.full} to {end.time}
-                  </span>
+                  </VisuallyHidden>
                 </Link>
               );
             }),

@@ -14,6 +14,7 @@
  * Saying more than that would be a promise Preview then has to break.
  */
 
+import { Hint, VisuallyHidden } from "@/components/ui";
 import type { AvailabilityBlock as Block } from "@/lib/web/booking";
 
 const DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -81,7 +82,7 @@ export function AvailabilityBlock({
             <div className="chosen-instructor-who">
               <strong>{selectedInstructor.displayName}</strong>
               {selectedInstructor.email && (
-                <span className="hint">{selectedInstructor.email}</span>
+                <Hint>{selectedInstructor.email}</Hint>
               )}
               {block.canViewAvailability && (
                 <a
@@ -102,10 +103,10 @@ export function AvailabilityBlock({
               value="1"
             >
               Change instructor
-              <span className="visually-hidden">
+              <VisuallyHidden>
                 {" "}
                 — clear {selectedInstructor.displayName}
-              </span>
+              </VisuallyHidden>
             </button>
           </div>
         </>
@@ -155,16 +156,16 @@ export function AvailabilityBlock({
                               value={column.value}
                             >
                               <span aria-hidden="true">{column.label}</span>
-                              <span className="visually-hidden">
+                              <VisuallyHidden>
                                 Select {column.label} with {row.name}.
-                              </span>
+                              </VisuallyHidden>
                             </button>
                           ) : (
                             <span className="timecell is-out">
                               <span aria-hidden="true">—</span>
-                              <span className="visually-hidden">
+                              <VisuallyHidden>
                                 {column.label} unavailable for {row.name}.
-                              </span>
+                              </VisuallyHidden>
                             </span>
                           )}
                         </td>
@@ -230,7 +231,7 @@ export function AvailabilityBlock({
                           value={row.ref}
                         >
                           Select
-                          <span className="visually-hidden"> {row.name} as the instructor</span>
+                          <VisuallyHidden> {row.name} as the instructor</VisuallyHidden>
                         </button>
                       </span>
                     </th>
@@ -242,10 +243,10 @@ export function AvailabilityBlock({
                         {/* A glyph as well as the fill, so the answer does not
                             depend on being able to tell the two colours apart. */}
                         <span aria-hidden="true">{open ? "●" : "—"}</span>
-                        <span className="visually-hidden">
+                        <VisuallyHidden>
                           {grid.columns[index]!.label}:{" "}
                           {open ? `${row.name} available` : `${row.name} not available`}
-                        </span>
+                        </VisuallyHidden>
                       </td>
                     ))}
                   </tr>
@@ -293,7 +294,7 @@ export function AvailabilityBlock({
                   {opening.isOpen ? (
                     `${opening.total} available`
                   ) : (
-                    <span className="hint">None available</span>
+                    <Hint>None available</Hint>
                   )}
                 </p>
                 {opening.isOpen && (
@@ -304,10 +305,10 @@ export function AvailabilityBlock({
                     value={opening.day}
                   >
                     Select
-                    <span className="visually-hidden">
+                    <VisuallyHidden>
                       {" "}
                       {opening.day} as the session date
-                    </span>
+                    </VisuallyHidden>
                   </button>
                 )}
               </div>

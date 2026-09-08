@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { EmptyState, StatusBadge, When } from "@/components/ui";
+import { EmptyState, StatusBadge, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS, durationLabel, percent } from "@/lib/presentation";
@@ -58,11 +58,11 @@ export default async function SeriesDetailPage({
           <p className="subtitle">
             {rows.length} session{rows.length === 1 ? "" : "s"} ·{" "}
             {weekdays.map((day) => (
-              <span className="tag" key={day}>
+              <Tag key={day}>
                 {WEEKDAY_LABELS[day] ?? day}
-              </span>
+              </Tag>
             ))}{" "}
-            at {timeFromDb(series.startTime)} <span className="tag">{series.timezone}</span>
+            at {timeFromDb(series.startTime)} <Tag>{series.timezone}</Tag>
           </p>
         </div>
         <Link className="btn" href="/series">
@@ -113,7 +113,7 @@ export default async function SeriesDetailPage({
                   <th scope="col">Attendance</th>
                   <th scope="col">Actual length</th>
                   <th scope="col">
-                    <span className="visually-hidden">Actions</span>
+                    <VisuallyHidden>Actions</VisuallyHidden>
                   </th>
                 </tr>
               </thead>
@@ -127,9 +127,9 @@ export default async function SeriesDetailPage({
                         zone={row.session.timezone}
                       />
                       {row.session.detachedFromSeries && (
-                        <span className="tag" title="Edited on its own">
+                        <Tag title="Edited on its own">
                           detached
-                        </span>
+                        </Tag>
                       )}
                     </td>
                     <td data-label="Status">

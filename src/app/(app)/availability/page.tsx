@@ -9,7 +9,7 @@
  */
 
 import { AddWindowForm } from "@/components/availability/AddWindowForm";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
@@ -145,7 +145,7 @@ export default async function AvailabilityPage({
               ) : (
                 <p className="slot">
                   <span aria-hidden="true">—</span>{" "}
-                  <span className="visually-hidden">Unavailable:</span>{" "}
+                  <VisuallyHidden>Unavailable:</VisuallyHidden>{" "}
                   {day.closedReason ?? "unavailable"}
                 </p>
               )}

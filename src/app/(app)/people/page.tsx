@@ -15,7 +15,7 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { EmptyState, When } from "@/components/ui";
+import { EmptyState, Hint, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -180,7 +180,7 @@ export default async function PeoplePage({
                   {/* The avatar column is decorative — the name beside it is the
                       label, and a heading here would be read out for every row. */}
                   <th scope="col">
-                    <span className="visually-hidden">Avatar</span>
+                    <VisuallyHidden>Avatar</VisuallyHidden>
                   </th>
                   <th scope="col">Name</th>
                   <th scope="col">Email/Username</th>
@@ -217,18 +217,18 @@ export default async function PeoplePage({
                           // A student whose guardian has not set one yet. Saying
                           // so beats an empty cell, which would read as a
                           // missing value.
-                          <span className="hint">Awaiting parent setup</span>
+                          <Hint>Awaiting parent setup</Hint>
                         )}
                       </td>
                       <td data-label="Roles">
                         {row.roleNames.length > 0 ? (
                           row.roleNames.map((name) => (
-                            <span className="tag" key={name}>
+                            <Tag key={name}>
                               {name}
-                            </span>
+                            </Tag>
                           ))
                         ) : (
-                          <span className="hint">No roles</span>
+                          <Hint>No roles</Hint>
                         )}
                       </td>
                       <td data-label="Relationships">
@@ -236,23 +236,23 @@ export default async function PeoplePage({
                           <ul className="stacked">
                             {row.connections.map((link, index) => (
                               <li key={`${link.kind}-${link.name}-${index}`}>
-                                <span className="hint">{link.kind}</span> {link.name}
+                                <Hint>{link.kind}</Hint> {link.name}
                               </li>
                             ))}
                           </ul>
                         ) : (
-                          <span className="hint">—</span>
+                          <Hint>—</Hint>
                         )}
                       </td>
                       <td data-label="Groups">
                         {row.groups.length > 0 ? (
                           row.groups.map((name) => (
-                            <span className="tag" key={name}>
+                            <Tag key={name}>
                               {name}
-                            </span>
+                            </Tag>
                           ))
                         ) : (
-                          <span className="hint">—</span>
+                          <Hint>—</Hint>
                         )}
                       </td>
                       <td data-label="Credits" className="numeric">
@@ -260,9 +260,9 @@ export default async function PeoplePage({
                           // Not zero: a zero here would read as a balance of
                           // nothing, which is a different claim from "there is
                           // no ledger yet".
-                          <span className="hint" title="Credits arrive with billing">
+                          <Hint title="Credits arrive with billing">
                             —
-                          </span>
+                          </Hint>
                         ) : (
                           row.credits
                         )}
@@ -281,7 +281,7 @@ export default async function PeoplePage({
                         ) : canManage ? (
                           <a href="#assign-people">Assign</a>
                         ) : (
-                          <span className="hint">—</span>
+                          <Hint>—</Hint>
                         )}
                       </td>
                       <td data-label="Last Used">
@@ -291,7 +291,7 @@ export default async function PeoplePage({
                             zone={person.timezone || organization.timezone}
                           />
                         ) : (
-                          <span className="hint">Never signed in</span>
+                          <Hint>Never signed in</Hint>
                         )}
                       </td>
                     </tr>

@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { EmptyState, StatusBadge, WhenTime } from "@/components/ui";
+import { EmptyState, Hint, StatusBadge, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -105,9 +105,9 @@ function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boo
       <span className={`cal-flag badge-${meta.tone}`} aria-hidden="true">
         {meta.icon}
       </span>
-      <span className="visually-hidden">
+      <VisuallyHidden>
         — {session.title}, {meta.label}, {moment.full}
-      </span>
+      </VisuallyHidden>
     </Link>
   );
 }
@@ -232,7 +232,7 @@ export default async function CalendarPage({
             href={`/calendar?${link({ view, anchor: window.previous })}`}
           >
             <span aria-hidden="true">‹</span>
-            <span className="visually-hidden">Previous {view}</span>
+            <VisuallyHidden>Previous {view}</VisuallyHidden>
           </Link>
           <h2 className="cal-heading">{window.heading}</h2>
           <Link
@@ -241,7 +241,7 @@ export default async function CalendarPage({
             href={`/calendar?${link({ view, anchor: window.following })}`}
           >
             <span aria-hidden="true">›</span>
-            <span className="visually-hidden">Next {view}</span>
+            <VisuallyHidden>Next {view}</VisuallyHidden>
           </Link>
         </nav>
 
@@ -279,7 +279,7 @@ export default async function CalendarPage({
               href={`/calendar?${link({ view: "day", anchor: today })}`}
             >
               Today
-              <span className="visually-hidden">— show today</span>
+              <VisuallyHidden>— show today</VisuallyHidden>
             </Link>
           ) : (
             <button
@@ -289,7 +289,7 @@ export default async function CalendarPage({
               title="Switch to the day view to jump to today"
             >
               Today
-              <span className="visually-hidden">— available in the day view</span>
+              <VisuallyHidden>— available in the day view</VisuallyHidden>
             </button>
           )}
         </div>
@@ -316,11 +316,11 @@ export default async function CalendarPage({
                 }`}
               >
                 <p className="cal-daynum">
-                  <span className="visually-hidden">{longDate(day)}</span>
+                  <VisuallyHidden>{longDate(day)}</VisuallyHidden>
                   <Link href={`/calendar?${link({ view: "day", anchor: day })}`} aria-hidden="true">
                     {dayNumber(day)}
                   </Link>
-                  {day === today && <span className="visually-hidden">(today)</span>}
+                  {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
                 </p>
                 {rows.slice(0, MONTH_CELL_LIMIT).map((row) => (
                   <EventLink key={String(row.session.id)} row={row} />
@@ -331,7 +331,7 @@ export default async function CalendarPage({
                     href={`/calendar?${link({ view: "day", anchor: day })}`}
                   >
                     +{rows.length - MONTH_CELL_LIMIT} more
-                    <span className="visually-hidden"> on {longDate(day)}</span>
+                    <VisuallyHidden> on {longDate(day)}</VisuallyHidden>
                   </Link>
                 )}
               </div>
@@ -361,9 +361,9 @@ export default async function CalendarPage({
                     <Link href={`/calendar?${link({ view: "day", anchor: day })}`}>
                       {longDate(day)}
                     </Link>
-                    <span className="hint">
+                    <Hint>
                       {rows.length} session{rows.length === 1 ? "" : "s"}
-                    </span>
+                    </Hint>
                   </h3>
                   <div className="table-wrap">
                     <table>

@@ -17,6 +17,7 @@ import {
   createLocationAction,
   removeGroupMemberAction,
 } from "@/app/actions/structure";
+import { Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -72,9 +73,9 @@ export function NewGroupForm({
               min={1}
               aria-describedby="capacity-hint"
             />
-            <span className="hint" id="capacity-hint">
+            <Hint id="capacity-hint">
               Leave empty for no limit.
-            </span>
+            </Hint>
           </div>
           <div className="field">
             <label htmlFor="group-program">Program</label>

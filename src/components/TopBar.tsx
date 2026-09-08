@@ -19,6 +19,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { VisuallyHidden } from "@/components/ui";
 import { titleFor, type Navigation } from "@/lib/navigation";
 
 import { DRAWER_ID } from "./drawer";
@@ -73,7 +74,7 @@ export function TopBar({
         <span className="glyph" aria-hidden="true">
           ☰
         </span>
-        <span className="visually-hidden">Open navigation</span>
+        <VisuallyHidden>Open navigation</VisuallyHidden>
       </a>
     </header>
   );

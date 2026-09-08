@@ -6,7 +6,7 @@
  */
 
 import { ArchiveLocationForm, NewLocationForm } from "@/components/structure/Forms";
-import { EmptyState } from "@/components/ui";
+import { Card, EmptyState, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -37,65 +37,56 @@ export default async function LocationsPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Locations</h1>
-          <p className="subtitle">
-            Rooms an in-person session can occupy. A location holds one session at a time —
-            the database refuses a second, so a double-booked room is not possible rather
-            than merely discouraged.
-          </p>
-        </div>
-      </div>
+      <PageHead
+        title="Locations"
+        subtitle="Rooms an in-person session can occupy. A location holds one session at a time — the database refuses a second, so a double-booked room is not possible rather than merely discouraged."
+      />
 
       {locations.length > 0 ? (
-        <div className="table-wrap">
-          <table>
-            <caption className="visually-hidden">Locations in this organization</caption>
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Address</th>
-                <th scope="col">School</th>
-                <th scope="col" className="numeric">Capacity</th>
-                <th scope="col">
-                  <span className="visually-hidden">Actions</span>
-                </th>
+        <TableWrap caption="Locations in this organization">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Address</th>
+              <th scope="col">School</th>
+              <th scope="col" className="numeric">Capacity</th>
+              <th scope="col">
+                <VisuallyHidden>Actions</VisuallyHidden>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {locations.map((location) => (
+              <tr key={String(location.id)}>
+                <td data-label="Name">{location.name}</td>
+                <td data-label="Address">{location.address ?? "—"}</td>
+                <td data-label="School">
+                  {location.schoolId ? (schoolNames.get(location.schoolId) ?? "—") : "—"}
+                </td>
+                <td data-label="Capacity" className="numeric">
+                  {location.capacity ?? "—"}
+                </td>
+                <td data-label="Actions">
+                  {canManage && (
+                    <ArchiveLocationForm
+                      locationRef={location.ref}
+                      csrfToken={token}
+                      name={location.name}
+                    />
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {locations.map((location) => (
-                <tr key={String(location.id)}>
-                  <td data-label="Name">{location.name}</td>
-                  <td data-label="Address">{location.address ?? "—"}</td>
-                  <td data-label="School">
-                    {location.schoolId ? (schoolNames.get(location.schoolId) ?? "—") : "—"}
-                  </td>
-                  <td data-label="Capacity" className="numeric">
-                    {location.capacity ?? "—"}
-                  </td>
-                  <td data-label="Actions">
-                    {canManage && (
-                      <ArchiveLocationForm
-                        locationRef={location.ref}
-                        csrfToken={token}
-                        name={location.name}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </TableWrap>
       ) : (
-        <div className="card">
+        <Card>
           <EmptyState
             heading="No locations yet"
             message="Add a room so in-person sessions can be booked."
             glyph="⌂"
           />
-        </div>
+        </Card>
       )}
 
       {canManage && (

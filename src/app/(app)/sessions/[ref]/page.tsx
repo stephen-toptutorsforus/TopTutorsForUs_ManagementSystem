@@ -14,7 +14,7 @@ import { notFound } from "next/navigation";
 
 import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
-import { DeliveryBadge, StatusBadge, When, WhenTime } from "@/components/ui";
+import { DeliveryBadge, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -116,7 +116,7 @@ export default async function SessionDetailPage({
               </Link>
             )}
             {session.detachedFromSeries && (
-              <span className="tag">Edited on its own — series edits skip it</span>
+              <Tag>Edited on its own — series edits skip it</Tag>
             )}
             {session.conflictOverridden && (
               <span className="badge badge-warn">
@@ -152,7 +152,7 @@ export default async function SessionDetailPage({
                   <WhenTime instant={session.actualEnd} zone={zone} />
                 </>
               ) : (
-                <span className="tag">Not recorded</span>
+                <Tag>Not recorded</Tag>
               )}
             </dd>
             <dt>Actual length</dt>

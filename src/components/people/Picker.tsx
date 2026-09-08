@@ -1,5 +1,6 @@
 "use client";
 
+import { Hint, VisuallyHidden } from "@/components/ui";
 /**
  * A search box that turns matches into chips.
  *
@@ -103,9 +104,9 @@ export function Picker({
           </li>
         ))}
       </ul>
-      {hint && <span className="hint">{hint}</span>}
+      {hint && <Hint>{hint}</Hint>}
       {required && chosen.length === 0 && (
-        <span className="visually-hidden">At least one is required.</span>
+        <VisuallyHidden>At least one is required.</VisuallyHidden>
       )}
     </div>
   );

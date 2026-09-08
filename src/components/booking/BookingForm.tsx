@@ -18,6 +18,7 @@
 import { useActionState, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
+import { Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { clockDuration, durationWords } from "@/lib/presentation";
 
@@ -222,10 +223,10 @@ export function BookingForm({
                   </option>
                 ))}
               </select>
-              <span className="hint hint-end" id="length-hint">
+              <Hint className="hint-end" id="length-hint">
                 min. {clockDuration(context.durationLimits[0])}, max.{" "}
                 {clockDuration(context.durationLimits[1])}
-              </span>
+              </Hint>
             </div>
             <div className="field">
               <label htmlFor="start_time">Start time</label>
@@ -239,9 +240,9 @@ export function BookingForm({
                 aria-describedby="tz-hint"
                 onChange={() => refresh()}
               />
-              <span className="hint" id="tz-hint">
+              <Hint id="tz-hint">
                 {context.zone}
-              </span>
+              </Hint>
               <input type="hidden" name="timezone" value={context.zone} />
             </div>
           </div>
@@ -269,17 +270,17 @@ export function BookingForm({
               disabled={!chosenDate}
               aria-describedby="count-hint count-repeat"
             />
-            <span className="hint" id="count-hint">
+            <Hint id="count-hint">
               Total sessions, including the first. More than one repeats weekly on the
               selected date&rsquo;s weekday. Up to {context.maxOccurrences}.
-            </span>
-            <span className="hint" id="count-repeat">
+            </Hint>
+            <Hint id="count-repeat">
               {!chosenDate
                 ? "Choose a session date first."
                 : counted > 1
                   ? `${counted} sessions, repeating every ${context.chosenWeekday}.`
                   : `One session on ${context.chosenWeekday}.`}
-            </span>
+            </Hint>
           </div>
 
         </fieldset>
@@ -368,9 +369,9 @@ export function BookingForm({
                   </option>
                 ))}
             </select>
-            <span className="hint" id="students-hint">
+            <Hint id="students-hint">
               Choose one at a time. Each is added below.
-            </span>
+            </Hint>
 
             <ul className="chips">
               {students.map((ref) => (
@@ -406,10 +407,10 @@ export function BookingForm({
                 </option>
               ))}
             </select>
-            <span className="hint" id="group-hint">
+            <Hint id="group-hint">
               Members are added to each session as it is created. Later changes to the group
               do not alter sessions already booked.
-            </span>
+            </Hint>
           </div>
         </fieldset>
       </section>
