@@ -48,6 +48,10 @@ Table and column names are deliberately identical to the Python schema, so the
 two databases can be diffed and so data could be moved across rather than
 re-seeded. Keep it that way.
 
+`src/app/toptutorsforus.css` was byte-identical to the reference's and no longer
+is: the design work has moved on here, and this repository now owns it. Do not
+try to keep the two in step.
+
 ## Standing instructions
 
 - Work on branch `develop/main`. One commit per feature. Commit without asking.
@@ -121,13 +125,19 @@ tenant's record is **404, never 403** — a 403 confirms it exists.
 npm run dev          # http://127.0.0.1:3000
 npm test             # pure logic; no database needed
 npm run test:db      # database-backed
+npm run test:e2e     # browser, against a build on :3100
 npm run typecheck
 npm run lint
 npm run db:migrate   # after a schema change
+node tools/contrast.mjs   # palette against WCAG, both colour schemes
 ```
 
-The two test suites are separate so a machine with no Postgres can still gate
-the logic that does not need one.
+The three test suites are separate so a machine with no Postgres, or no
+browsers, can still gate the logic that needs neither. `test:e2e` builds the app
+and serves it on its own port rather than reusing the dev server: a dev server
+compiles on demand, which makes tests time out, and it will happily serve a
+stale bundle when its HMR socket has dropped — a green suite against stale code
+proves nothing.
 
 ## Where the port has got to
 
@@ -148,13 +158,17 @@ the rule was ported and tested at the layer that owns it — the directory's rol
 filter is asked of `listPeople`, not of a `<table>`. Where it was about markup,
 it was not ported, and the equivalent has not been written.
 
-Two known gaps, both narrow:
+One known gap:
 
 - `seeds/scenarios.py` — the reference's awkward-case fixtures for manual
   testing. `prisma/seed.ts` ports the main seed (two tenants, people, programs,
   availability, groups, closures, example bookings) but not those extras.
-- No end-to-end browser tests. The screens have been driven by hand and by
-  `curl` against a real database; nothing automated clicks them.
+
+The browser tests in `e2e/` close the other. They are deliberately structural —
+a heading, a landmark, a status code, a width — so that design work does not
+invalidate them weekly. They sign in by reusing `scripts/mint-session.ts`, and
+they run as three people, because two tenants are what make an isolation bug
+visible.
 
 Nothing in Phases 2–5 of [`docs/brief.md`](docs/brief.md) is built, which is
 deliberate — see the standing instruction about seams above.
