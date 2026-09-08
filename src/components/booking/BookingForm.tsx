@@ -18,7 +18,7 @@
 import { useActionState, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Hint } from "@/components/ui";
+import { Button, Card, Field, Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { clockDuration, durationWords } from "@/lib/presentation";
 
@@ -116,8 +116,7 @@ export function BookingForm({
           <legend className="booking-subhead">Session details</legend>
 
           <div className="booking-row booking-row-type">
-            <div className="field">
-              <label htmlFor="delivery_type">Type</label>
+            <Field id="delivery_type" label="Type">
               <select
                 id="delivery_type"
                 name="delivery_type"
@@ -130,7 +129,7 @@ export function BookingForm({
                   </option>
                 ))}
               </select>
-            </div>
+                        </Field>
             {/* The Billable switch is not offered here, but the value still has to
                 be sent: the action reads `billable == "on"`, so simply dropping
                 the control would book every new session as non-billable — a
@@ -142,8 +141,7 @@ export function BookingForm({
           {/* Only one of these belongs to the chosen type. Both stay in the form;
               the action reads only the one that matches the type, so a stale
               value from a browser that filled both cannot reach the session. */}
-          <div className="field" data-when-delivery="external_link">
-            <label htmlFor="meeting_url">Other Online Classroom link</label>
+          <Field id="meeting_url" label="Other Online Classroom link" data-when-delivery="external_link">
             <input
               id="meeting_url"
               name="meeting_url"
@@ -151,10 +149,9 @@ export function BookingForm({
               defaultValue={value("meeting_url")}
               placeholder="example: meet.google.com/hey-yoo-gyz"
             />
-          </div>
+          </Field>
 
-          <div className="field" data-when-delivery="in_person">
-            <label htmlFor="location_detail">Location Details</label>
+          <Field id="location_detail" label="Location Details" data-when-delivery="in_person">
             <input
               id="location_detail"
               name="location_detail"
@@ -163,10 +160,9 @@ export function BookingForm({
               defaultValue={value("location_detail")}
               placeholder="Address or other description"
             />
-          </div>
+          </Field>
 
-          <div className="field">
-            <label htmlFor="title">Title</label>
+          <Field id="title" label="Title">
             <input
               id="title"
               name="title"
@@ -176,25 +172,23 @@ export function BookingForm({
               defaultValue={value("title")}
               placeholder="Please enter title (i.e. Math, Reading, etc)"
             />
-          </div>
+                    </Field>
 
-          <div className="field">
-            <label htmlFor="description">Description</label>
+          <Field id="description" label="Description">
             <textarea
               id="description"
               name="description"
               defaultValue={value("description")}
               placeholder="Focus areas, upcoming tests, learning styles, etc."
             />
-          </div>
+                    </Field>
 
         </fieldset>
 
         <fieldset className="booking-section">
           <legend className="booking-subhead">Date and repeat</legend>
           <div className="form-row">
-            <div className="field">
-              <label htmlFor="start_date">Session date</label>
+            <Field id="start_date" label="Session date">
               <input
                 id="start_date"
                 name="start_date"
@@ -205,9 +199,8 @@ export function BookingForm({
                 min={context.today}
                 onChange={() => refresh()}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="duration_minutes">Session length</label>
+                        </Field>
+            <Field id="duration_minutes" label="Session length">
               <select
                 id="duration_minutes"
                 name="duration_minutes"
@@ -227,9 +220,8 @@ export function BookingForm({
                 min. {clockDuration(context.durationLimits[0])}, max.{" "}
                 {clockDuration(context.durationLimits[1])}
               </Hint>
-            </div>
-            <div className="field">
-              <label htmlFor="start_time">Start time</label>
+                        </Field>
+            <Field id="start_time" label="Start time">
               <input
                 id="start_time"
                 name="start_time"
@@ -244,7 +236,7 @@ export function BookingForm({
                 {context.zone}
               </Hint>
               <input type="hidden" name="timezone" value={context.zone} />
-            </div>
+                        </Field>
           </div>
 
           {/* The count is the only recurrence control on this form: weekday,
@@ -256,8 +248,7 @@ export function BookingForm({
               there is a first one. The ceiling comes from the organization's
               setting, so the field, the help text and the service check cannot
               disagree. */}
-          <div className="field field-third">
-            <label htmlFor="occurrence_count">Number of sessions</label>
+          <Field id="occurrence_count" label="Number of sessions" className="field-third">
             <input
               id="occurrence_count"
               name="occurrence_count"
@@ -281,14 +272,13 @@ export function BookingForm({
                   ? `${counted} sessions, repeating every ${context.chosenWeekday}.`
                   : `One session on ${context.chosenWeekday}.`}
             </Hint>
-          </div>
+                    </Field>
 
         </fieldset>
 
         <fieldset className="booking-section">
           <legend className="booking-subhead">Instructor</legend>
-          <div className="field">
-            <label htmlFor="program_ref">Program</label>
+          <Field id="program_ref" label="Program">
             <select
               id="program_ref"
               name="program_ref"
@@ -302,10 +292,9 @@ export function BookingForm({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
 
-          <div className="field">
-            <label htmlFor="instructor_ref">Instructor</label>
+          <Field id="instructor_ref" label="Instructor">
             <select
               id="instructor_ref"
               name="instructor_ref"
@@ -321,7 +310,7 @@ export function BookingForm({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
 
           {/* Before a date is chosen, the useful question is which day to look at.
               Once one is chosen that is settled, and the question becomes who;
@@ -344,8 +333,7 @@ export function BookingForm({
         <fieldset className="booking-section">
           <legend className="booking-subhead">Students and groups</legend>
 
-          <div className="field">
-            <label htmlFor="student_picker">Students</label>
+          <Field id="student_picker" label="Students">
             {/* An ordinary one-line dropdown, not a multi-select list box: a
                 native `multiple` select is rendered by some browsers as a column
                 of check boxes, and it cannot start at the height of every other
@@ -389,10 +377,9 @@ export function BookingForm({
                 </li>
               ))}
             </ul>
-          </div>
+                    </Field>
 
-          <div className="field">
-            <label htmlFor="group_ref">Group</label>
+          <Field id="group_ref" label="Group">
             <select
               id="group_ref"
               name="group_ref"
@@ -411,7 +398,7 @@ export function BookingForm({
               Members are added to each session as it is created. Later changes to the group
               do not alter sessions already booked.
             </Hint>
-          </div>
+                    </Field>
         </fieldset>
       </Card>
 

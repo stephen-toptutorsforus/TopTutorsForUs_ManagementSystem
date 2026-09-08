@@ -11,7 +11,7 @@
 import { useActionState } from "react";
 
 import { assignStudentAction } from "@/app/actions/people";
-import { Modal } from "@/components/ui";
+import { AnchorButton, Button, Field, Modal } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 export function AssignModal({
@@ -46,8 +46,7 @@ export function AssignModal({
       <form action={submit}>
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="assign-instructor">Instructor</label>
+          <Field id="assign-instructor" label="Instructor">
             <select id="assign-instructor" name="instructor_ref" required>
               {instructors.map((person) => (
                 <option value={person.ref} key={person.ref}>
@@ -55,9 +54,8 @@ export function AssignModal({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="field">
-            <label htmlFor="assign-student">Student</label>
+                    </Field>
+          <Field id="assign-student" label="Student">
             <select id="assign-student" name="student_ref" required>
               {students.map((person) => (
                 <option value={person.ref} key={person.ref}>
@@ -65,15 +63,15 @@ export function AssignModal({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
         <div className="modal-actions">
-          <a className="btn" href="#">
+          <AnchorButton href="#">
             Cancel
-          </a>
-          <button className="btn btn-primary" type="submit" disabled={pending}>
+          </AnchorButton>
+          <Button variant="primary" type="submit" disabled={pending}>
             Assign
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Hint, VisuallyHidden } from "@/components/ui";
+import { Field, Hint, VisuallyHidden } from "@/components/ui";
 /**
  * A search box that turns matches into chips.
  *
@@ -58,8 +58,7 @@ export function Picker({
   };
 
   return (
-    <div className="field">
-      <label htmlFor={inputId}>{label}</label>
+    <Field id={inputId} label={<>{label}</>}>
       <div className="search-field">
         <span className="search-icon" aria-hidden="true">
           ⌕
@@ -108,6 +107,6 @@ export function Picker({
       {required && chosen.length === 0 && (
         <VisuallyHidden>At least one is required.</VisuallyHidden>
       )}
-    </div>
+        </Field>
   );
 }

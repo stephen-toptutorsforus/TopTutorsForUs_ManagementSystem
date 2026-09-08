@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 
-import { AnchorButton, Button, ButtonRow, Card, EmptyState, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, EmptyState, Field, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -144,8 +144,7 @@ export default async function SessionsPage({
 
       <Card as="form" method="get" action="/sessions" role="search">
         <div className="filters">
-          <div className="field grow">
-            <label htmlFor="q">Search titles</label>
+          <Field id="q" label="Search titles" className="grow">
             <input
               id="q"
               name="q"
@@ -153,17 +152,14 @@ export default async function SessionsPage({
               defaultValue={filters.search}
               placeholder="Session title"
             />
-          </div>
-          <div className="field">
-            <label htmlFor="from">From</label>
+                    </Field>
+          <Field id="from" label="From">
             <input id="from" name="from" type="date" defaultValue={filters.dateFrom ?? ""} />
-          </div>
-          <div className="field">
-            <label htmlFor="to">To</label>
+                    </Field>
+          <Field id="to" label="To">
             <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
-          </div>
-          <div className="field">
-            <label htmlFor="instructor">Instructor</label>
+                    </Field>
+          <Field id="instructor" label="Instructor">
             <select
               id="instructor"
               name="instructor"
@@ -176,9 +172,8 @@ export default async function SessionsPage({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="field">
-            <label htmlFor="program">Program</label>
+                    </Field>
+          <Field id="program" label="Program">
             <select id="program" name="program" defaultValue={filters.programRef ?? ""}>
               <option value="">Any program</option>
               {programs.map((program) => (
@@ -187,7 +182,7 @@ export default async function SessionsPage({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
 
         <fieldset>

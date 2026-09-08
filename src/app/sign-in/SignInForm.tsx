@@ -13,7 +13,7 @@ import Image from "next/image";
 import { useActionState } from "react";
 
 import { signIn } from "@/app/actions/auth";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, Field } from "@/components/ui";
 import type { SignInState } from "@/lib/web/formState";
 import { CSRF_FIELD } from "@/lib/names";
 
@@ -43,8 +43,7 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
 
         <form action={formAction} noValidate>
           <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
-          <div className="field">
-            <label htmlFor="email">Email address</label>
+          <Field id="email" label="Email address">
             <input
               id="email"
               name="email"
@@ -55,9 +54,8 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
               aria-invalid={state.error ? true : undefined}
               aria-describedby={state.error ? "signin-error" : undefined}
             />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Password</label>
+                    </Field>
+          <Field id="password" label="Password">
             <input
               id="password"
               name="password"
@@ -67,7 +65,7 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
               aria-invalid={state.error ? true : undefined}
               aria-describedby={state.error ? "signin-error" : undefined}
             />
-          </div>
+                    </Field>
           {state.error && (
             <p id="signin-error" className="visually-hidden">
               {state.error}

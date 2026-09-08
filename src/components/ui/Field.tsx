@@ -1,55 +1,41 @@
 /**
  * A labelled control.
  *
- * Written out by hand fifty-six times, and the label was wired to the control
- * by a matching `htmlFor`/`id` pair each time — which is the part that quietly
- * stops being true. Here the id is passed once and used for both, and the hint
- * is wired to `aria-describedby` rather than left as a paragraph that happens
- * to sit underneath.
+ * Written out by hand fifty-six times: the same wrapper, the same label, the
+ * same `htmlFor`.
+ *
+ * It owns the wrapper and the label and stops there. An earlier draft handed
+ * the control a generated id and an `aria-describedby` built from it, which is
+ * the wiring most worth guaranteeing — but the fields here are not uniform
+ * enough for it. One is described by two hints at once
+ * (`aria-describedby="count-hint count-repeat"`); several hold a select and
+ * its options, or a picker and the chips it fills. Generating those ids would
+ * have renamed every one of them to prove a point. The control keeps its id
+ * and its own describedby; the label is told where to point.
  */
 
 export function Field({
   id,
   label,
-  hint,
-  error,
   className,
-  labelSuffix,
+  labelClassName,
   children,
+  ...rest
 }: {
+  /** The control's id. The label points at it; the control still carries it. */
   id: string;
   label: React.ReactNode;
-  /** Guidance. Announced with the control, not merely printed near it. */
-  hint?: React.ReactNode;
-  /** Shown only once the field has been left — see the stylesheet's note. */
-  error?: React.ReactNode;
   className?: string;
-  /** Anything that belongs on the label's line, such as a units note. */
-  labelSuffix?: React.ReactNode;
-  /** Given the id and, when there is one, the id describing it. */
-  children: (props: { id: string; "aria-describedby"?: string }) => React.ReactNode;
-}) {
-  const hintId = hint !== undefined ? `${id}-hint` : undefined;
-  const errorId = error !== undefined ? `${id}-error` : undefined;
-  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
-
+  /** For a label that is present but not drawn — a search box in a toolbar. */
+  labelClassName?: string;
+  children: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={className ? `field ${className}` : "field"}>
-      <label htmlFor={id}>
+    <div className={className ? `field ${className}` : "field"} {...rest}>
+      <label className={labelClassName} htmlFor={id}>
         {label}
-        {labelSuffix}
       </label>
-      {children({ id, "aria-describedby": describedBy })}
-      {hint !== undefined && (
-        <span className="hint" id={hintId}>
-          {hint}
-        </span>
-      )}
-      {error !== undefined && (
-        <span className="error" id={errorId}>
-          {error}
-        </span>
-      )}
+      {children}
     </div>
   );
 }

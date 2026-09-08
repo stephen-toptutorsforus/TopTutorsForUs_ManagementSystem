@@ -15,7 +15,7 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { AnchorButton, Badge, Button, Card, EmptyState, Hint, PageHead, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Badge, Button, Card, EmptyState, Field, Hint, PageHead, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -123,13 +123,12 @@ export default async function PeoplePage({
           form would submit the search. */}
       <Card className="people-toolbar">
         <form className="people-filters" method="get" action="/people" role="search">
-          <div className="field">
-            <label htmlFor="q">Search by name or email</label>
+          <Field id="q" label="Search by name or email">
             {/* No submit button beside it. The form has exactly one field that
                 blocks implicit submission, so Enter still searches — and with
                 scripting off that is also what applies the role ticks. */}
             <input id="q" name="q" type="search" defaultValue={search} placeholder="Search" />
-          </div>
+                    </Field>
           <FilterMenu
             name="role"
             options={roleOptions}

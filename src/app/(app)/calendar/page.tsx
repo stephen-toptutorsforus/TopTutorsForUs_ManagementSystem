@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, EmptyState, Hint, LinkButton, PageHead, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Hint, LinkButton, PageHead, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -180,10 +180,7 @@ export default async function CalendarPage({
           <input type="hidden" name="view" value={view} />
           <input type="hidden" name="date" value={window.anchor} />
 
-          <div className="field cal-search">
-            <label className="visually-hidden" htmlFor="q">
-              Search session titles
-            </label>
+          <Field id="q" label="Search session titles" className="cal-search" labelClassName="visually-hidden">
             <input
               id="q"
               name="q"
@@ -191,7 +188,7 @@ export default async function CalendarPage({
               defaultValue={filters.search}
               placeholder="Search"
             />
-          </div>
+                    </Field>
 
           <FilterMenu
             name="status"

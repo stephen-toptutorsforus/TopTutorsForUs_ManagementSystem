@@ -21,7 +21,7 @@
 import { useActionState, useState } from "react";
 
 import { createPersonAction } from "@/app/actions/people";
-import { Hint, Modal } from "@/components/ui";
+import { Button, Field, Hint, Modal } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 import { Picker, type PickerOption } from "./Picker";
@@ -152,8 +152,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
         <section {...panel(1)}>
           <div className="form-row">
-            <div className="field">
-              <label htmlFor="first_name">First name</label>
+            <Field id="first_name" label="First name">
               <input
                 id="first_name"
                 name="first_name"
@@ -163,9 +162,8 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="last_name">Last name</label>
+                        </Field>
+            <Field id="last_name" label="Last name">
               <input
                 id="last_name"
                 name="last_name"
@@ -175,10 +173,9 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
               />
-            </div>
+                        </Field>
           </div>
-          <div className="field">
-            <label htmlFor="new-role">Role</label>
+          <Field id="new-role" label="Role">
             <select
               id="new-role"
               name="role"
@@ -197,19 +194,18 @@ export function CreateUserModal(props: CreateUserModalProps) {
               One role now. A person may hold several — add the rest once the account
               exists, so they keep one account and one history.
             </Hint>
-          </div>
+                    </Field>
 
           {/* Only Next on the first step, and inert until the three fields
               above are filled. */}
           <div className="modal-actions">
-            <button
-              className="btn btn-primary"
+            <Button variant="primary"
               type="button"
               disabled={!whoIsComplete}
               onClick={() => setStep(2)}
             >
               Next
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -251,8 +247,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
               </fieldset>
 
               {requiresGuardian === "yes" ? (
-                <div className="field">
-                  <label htmlFor="guardian_ref">Select parent</label>
+                <Field id="guardian_ref" label="Select parent">
                   <select
                     id="guardian_ref"
                     name="guardian_ref"
@@ -272,10 +267,9 @@ export function CreateUserModal(props: CreateUserModalProps) {
                       onboard the student directly.
                     </Hint>
                   )}
-                </div>
+                                </Field>
               ) : (
-                <div className="field">
-                  <label htmlFor="student-email">Email address</label>
+                <Field id="student-email" label="Email address">
                   <input
                     id="student-email"
                     name="email"
@@ -286,11 +280,10 @@ export function CreateUserModal(props: CreateUserModalProps) {
                     onChange={(event) => setEmail(event.target.value)}
                   />
                   <Hint>The onboarding email goes here.</Hint>
-                </div>
+                                </Field>
               )}
 
-              <div className="field">
-                <label htmlFor="student-phone">Phone</label>
+              <Field id="student-phone" label="Phone">
                 <input
                   id="student-phone"
                   name="phone"
@@ -301,7 +294,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                 />
-              </div>
+                            </Field>
 
               <Picker
                 label="Select instructors"
@@ -348,8 +341,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
           {role === "parent" && (
             <>
-              <div className="field">
-                <label htmlFor="parent-email">Email address</label>
+              <Field id="parent-email" label="Email address">
                 <input
                   id="parent-email"
                   name="email"
@@ -359,9 +351,8 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
-              </div>
-              <div className="field">
-                <label htmlFor="parent-phone">Phone</label>
+                            </Field>
+              <Field id="parent-phone" label="Phone">
                 <input
                   id="parent-phone"
                   name="phone"
@@ -372,9 +363,8 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                 />
-              </div>
-              <div className="field">
-                <label htmlFor="relationship">Relationship</label>
+                            </Field>
+              <Field id="relationship" label="Relationship">
                 <select
                   id="relationship"
                   name="relationship"
@@ -391,7 +381,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   What this person is to the student. All four can be shown the
                   student&rsquo;s sessions; a report tells them apart.
                 </Hint>
-              </div>
+                            </Field>
               <Picker
                 label="Select students"
                 name="student"
@@ -405,8 +395,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
           {role === "instructor" && (
             <>
-              <div className="field">
-                <label htmlFor="instructor-email">Email address</label>
+              <Field id="instructor-email" label="Email address">
                 <input
                   id="instructor-email"
                   name="email"
@@ -416,7 +405,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
-              </div>
+                            </Field>
               <p className="hint hint-block">
                 Assign this instructor to schools or regions. Assigning directly to a
                 school will also assign the instructor to that school&rsquo;s districts
@@ -451,8 +440,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
           )}
 
           {role === "admin" && (
-            <div className="field">
-              <label htmlFor="admin-email">Email address</label>
+            <Field id="admin-email" label="Email address">
               <input
                 id="admin-email"
                 name="email"
@@ -463,13 +451,12 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 onChange={(event) => setEmail(event.target.value)}
               />
               <Hint>The onboarding email goes here.</Hint>
-            </div>
+                        </Field>
           )}
 
           {role === "regional_admin" && (
             <>
-              <div className="field">
-                <label htmlFor="regional-email">Email address</label>
+              <Field id="regional-email" label="Email address">
                 <input
                   id="regional-email"
                   name="email"
@@ -479,7 +466,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
-              </div>
+                            </Field>
               {/* The regions are not decoration: `Principal.regionIds` is read
                   from the role rows, so what is chosen here is what bounds
                   everything this person will be allowed to see. */}
@@ -497,17 +484,16 @@ export function CreateUserModal(props: CreateUserModalProps) {
           )}
 
           <div className="modal-actions">
-            <button className="btn" type="button" onClick={() => setStep(1)}>
+            <Button type="button" onClick={() => setStep(1)}>
               Back
-            </button>
-            <button
-              className="btn btn-primary"
+            </Button>
+            <Button variant="primary"
               type="button"
               disabled={!detailsComplete}
               onClick={() => setStep(3)}
             >
               Next
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -527,12 +513,12 @@ export function CreateUserModal(props: CreateUserModalProps) {
             ))}
           </dl>
           <div className="modal-actions">
-            <button className="btn" type="button" onClick={() => setStep(2)}>
+            <Button type="button" onClick={() => setStep(2)}>
               Back
-            </button>
-            <button className="btn btn-primary" type="submit" disabled={pending}>
+            </Button>
+            <Button variant="primary" type="submit" disabled={pending}>
               Create user
-            </button>
+            </Button>
           </div>
         </section>
       </form>

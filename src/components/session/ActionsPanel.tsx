@@ -22,7 +22,7 @@ import {
   editSession,
   rescheduleSession,
 } from "@/app/actions/sessions";
-import { Button, ButtonRow, Card, Hint, ScopeChoice } from "@/components/ui";
+import { Button, ButtonRow, Card, Field, Hint, ScopeChoice } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -127,8 +127,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
           <Result state={editState} />
           <form action={edit}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
-            <div className="field">
-              <label htmlFor="edit-title">Title</label>
+            <Field id="edit-title" label="Title">
               <input
                 id="edit-title"
                 name="title"
@@ -136,15 +135,14 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 required
                 defaultValue={props.title}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="edit-description">Description</label>
+                        </Field>
+            <Field id="edit-description" label="Description">
               <textarea
                 id="edit-description"
                 name="description"
                 defaultValue={props.description ?? ""}
               />
-            </div>
+                        </Field>
             <label className="choice">
               <input type="checkbox" name="billable" defaultChecked={props.billable} />
               <span>Billable</span>
@@ -164,8 +162,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
           <form action={move}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <div className="form-row">
-              <div className="field">
-                <label htmlFor="new-date">New date</label>
+              <Field id="new-date" label="New date">
                 <input
                   id="new-date"
                   name="start_date"
@@ -173,9 +170,8 @@ export function ActionsPanel(props: ActionsPanelProps) {
                   required
                   defaultValue={props.startDate}
                 />
-              </div>
-              <div className="field">
-                <label htmlFor="new-time">New start time ({props.timezone})</label>
+                            </Field>
+              <Field id="new-time" label={<>New start time ({props.timezone})</>}>
                 <input
                   id="new-time"
                   name="start_time"
@@ -183,9 +179,8 @@ export function ActionsPanel(props: ActionsPanelProps) {
                   required
                   defaultValue={props.startTime}
                 />
-              </div>
-              <div className="field">
-                <label htmlFor="new-duration">Length in minutes</label>
+                            </Field>
+              <Field id="new-duration" label="Length in minutes">
                 <input
                   id="new-duration"
                   name="duration_minutes"
@@ -195,12 +190,11 @@ export function ActionsPanel(props: ActionsPanelProps) {
                   required
                   defaultValue={props.durationMinutes}
                 />
-              </div>
+                            </Field>
             </div>
-            <div className="field">
-              <label htmlFor="reschedule-reason">Reason (optional)</label>
+            <Field id="reschedule-reason" label="Reason (optional)">
               <input id="reschedule-reason" name="reason" type="text" />
-            </div>
+                        </Field>
             <ScopeChoice series={series} />
             <p className="hint">
               A series-wide move keeps each session on its own date and moves it to the new
@@ -221,24 +215,22 @@ export function ActionsPanel(props: ActionsPanelProps) {
           <form action={times}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <div className="form-row">
-              <div className="field">
-                <label htmlFor="actual-start">Actually started ({props.timezone})</label>
+              <Field id="actual-start" label={<>Actually started ({props.timezone})</>}>
                 <input
                   id="actual-start"
                   name="actual_start"
                   type="datetime-local"
                   defaultValue={props.actualStartLocal}
                 />
-              </div>
-              <div className="field">
-                <label htmlFor="actual-end">Actually ended ({props.timezone})</label>
+                            </Field>
+              <Field id="actual-end" label={<>Actually ended ({props.timezone})</>}>
                 <input
                   id="actual-end"
                   name="actual_end"
                   type="datetime-local"
                   defaultValue={props.actualEndLocal}
                 />
-              </div>
+                            </Field>
             </div>
             <p className="hint">This rewrites the record of what happened, and is audited.</p>
             <Button variant="primary" type="submit">
@@ -254,8 +246,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
           <Result state={cancelState} />
           <form action={cancel}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
-            <div className="field">
-              <label htmlFor="cancel-reason">Reason</label>
+            <Field id="cancel-reason" label="Reason">
               <select id="cancel-reason" name="reason" required>
                 {props.cancellationReasons.map((reason) => (
                   <option key={reason} value={reason}>
@@ -263,14 +254,13 @@ export function ActionsPanel(props: ActionsPanelProps) {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="cancel-note">Note (optional)</label>
+                        </Field>
+            <Field id="cancel-note" label="Note (optional)">
               <textarea id="cancel-note" name="note" />
               <Hint>
                 The audit trail records that a note was given, not what it says.
               </Hint>
-            </div>
+                        </Field>
             <ScopeChoice series={series} legend="Cancel" />
             {/* A destructive action always confirms, and the confirmation names
                 what will happen rather than asking "are you sure?". */}

@@ -11,7 +11,7 @@
 import { useActionState } from "react";
 
 import { addAvailability } from "@/app/actions/availability";
-import { Button } from "@/components/ui";
+import { Button, Field } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { WEEKDAY_LABELS } from "@/lib/presentation";
 
@@ -41,8 +41,7 @@ export function AddWindowForm({
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <input type="hidden" name="instructor_ref" value={instructorRef} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="weekday">Weekday</label>
+          <Field id="weekday" label="Weekday">
             <select id="weekday" name="weekday" required>
               {Object.entries(WEEKDAY_LABELS).map(([value, label]) => (
                 <option value={value} key={value}>
@@ -50,15 +49,13 @@ export function AddWindowForm({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="field">
-            <label htmlFor="av-start">From</label>
+                    </Field>
+          <Field id="av-start" label="From">
             <input id="av-start" name="start_time" type="time" required defaultValue="09:00" />
-          </div>
-          <div className="field">
-            <label htmlFor="av-end">To</label>
+                    </Field>
+          <Field id="av-end" label="To">
             <input id="av-end" name="end_time" type="time" required defaultValue="17:00" />
-          </div>
+                    </Field>
         </div>
         <Button variant="primary" type="submit" disabled={pending}>
           Add window

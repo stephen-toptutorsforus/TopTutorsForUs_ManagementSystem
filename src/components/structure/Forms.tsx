@@ -17,7 +17,7 @@ import {
   createLocationAction,
   removeGroupMemberAction,
 } from "@/app/actions/structure";
-import { Button, Card, Hint } from "@/components/ui";
+import { Button, Card, Field, Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -60,12 +60,10 @@ export function NewGroupForm({
       <form action={submit}>
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="group-name">Name</label>
+          <Field id="group-name" label="Name">
             <input id="group-name" name="name" type="text" required maxLength={160} />
-          </div>
-          <div className="field">
-            <label htmlFor="group-capacity">Capacity</label>
+                    </Field>
+          <Field id="group-capacity" label="Capacity">
             <input
               id="group-capacity"
               name="capacity"
@@ -76,9 +74,8 @@ export function NewGroupForm({
             <Hint id="capacity-hint">
               Leave empty for no limit.
             </Hint>
-          </div>
-          <div className="field">
-            <label htmlFor="group-program">Program</label>
+                    </Field>
+          <Field id="group-program" label="Program">
             <select id="group-program" name="program_ref">
               <option value="">No program</option>
               {programs.map((program) => (
@@ -87,7 +84,7 @@ export function NewGroupForm({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
         <Button variant="primary" type="submit" disabled={pending}>
           Create group
@@ -120,8 +117,7 @@ export function AddMemberForms({
       <form action={submit}>
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="member-student">Student</label>
+          <Field id="member-student" label="Student">
             <select id="member-student" name="user_ref">
               <option value="">Choose a student</option>
               {students.map((person) => (
@@ -130,7 +126,7 @@ export function AddMemberForms({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
         <input type="hidden" name="member_role" value="student" />
         <Button variant="primary" type="submit" disabled={pending}>
@@ -141,8 +137,7 @@ export function AddMemberForms({
       <form action={submit} className="section-gap">
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="member-instructor">Instructor</label>
+          <Field id="member-instructor" label="Instructor">
             <select id="member-instructor" name="user_ref">
               <option value="">Choose an instructor</option>
               {instructors.map((person) => (
@@ -151,7 +146,7 @@ export function AddMemberForms({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
         <input type="hidden" name="member_role" value="instructor" />
         <Button type="submit" disabled={pending}>
@@ -239,16 +234,13 @@ export function NewLocationForm({
       <form action={submit}>
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="location-name">Name</label>
+          <Field id="location-name" label="Name">
             <input id="location-name" name="name" type="text" required maxLength={160} />
-          </div>
-          <div className="field">
-            <label htmlFor="location-capacity">Capacity</label>
+                    </Field>
+          <Field id="location-capacity" label="Capacity">
             <input id="location-capacity" name="capacity" type="number" min={1} />
-          </div>
-          <div className="field">
-            <label htmlFor="location-school">School</label>
+                    </Field>
+          <Field id="location-school" label="School">
             <select id="location-school" name="school_ref">
               <option value="">No school</option>
               {schools.map((school) => (
@@ -257,12 +249,11 @@ export function NewLocationForm({
                 </option>
               ))}
             </select>
-          </div>
+                    </Field>
         </div>
-        <div className="field">
-          <label htmlFor="location-address">Address</label>
+        <Field id="location-address" label="Address">
           <textarea id="location-address" name="address" rows={2} />
-        </div>
+                </Field>
         <Button variant="primary" type="submit" disabled={pending}>
           Create location
         </Button>

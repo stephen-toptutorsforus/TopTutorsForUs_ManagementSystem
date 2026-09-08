@@ -9,7 +9,7 @@
  */
 
 import { AddWindowForm } from "@/components/availability/AddWindowForm";
-import { Button, Card, EmptyState, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Button, Card, EmptyState, Field, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
@@ -103,8 +103,7 @@ export default async function AvailabilityPage({
       {roster.length > 1 && (
         <Card as="form" method="get" action="/availability">
           <div className="filters">
-            <div className="field grow">
-              <label htmlFor="instructor">Show availability for</label>
+            <Field id="instructor" label="Show availability for" className="grow">
               <select id="instructor" name="instructor" defaultValue={instructor.ref}>
                 {roster.map((person) => (
                   <option value={person.ref} key={person.ref}>
@@ -112,7 +111,7 @@ export default async function AvailabilityPage({
                   </option>
                 ))}
               </select>
-            </div>
+                        </Field>
             <Button type="submit">
               Show
             </Button>
