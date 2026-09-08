@@ -112,6 +112,15 @@ edges have a stated, tested policy — gaps shift forward, overlaps take the fir
 **Preview and creation share one function.** What somebody is shown before
 pressing the button is by construction what gets written.
 
+**The interface has a vocabulary.** `src/components/ui/` holds what every
+screen is built from — Card, PageHead, TableWrap, Button, Field, Badge, Modal —
+and pages import from it rather than combining class names by hand. Each module
+says why it exists, not just what it renders: why a badge is a glyph *and* a
+colour *and* a word, why the modal is `:target` and not `<dialog>`, why
+`Button`, `LinkButton` and `AnchorButton` are three components and not one with
+a prop. A raw class name in a page should be a modifier passed to a component,
+not a rebuilt component.
+
 **Tenant isolation is a column, not a join chain.** Every owned table carries
 `organizationId`, and every read goes through the scoping helper. Another
 tenant's record is **404, never 403** — a 403 confirms it exists.
@@ -130,7 +139,14 @@ npm run typecheck
 npm run lint
 npm run db:migrate   # after a schema change
 node tools/contrast.mjs   # palette against WCAG, both colour schemes
+node tools/snapshot-html.mjs <dir>   # every route's markup, for diffing
 ```
+
+`snapshot-html.mjs` is the check for any change that is meant to move markup
+without altering it. Snapshot before, snapshot after, diff: a refactor that
+only relocates markup produces nothing. It redacts the CSRF token — which must
+never reach disk — and normalises Next's action ids and React's hydration
+comments, none of which are the application's markup.
 
 The three test suites are separate so a machine with no Postgres, or no
 browsers, can still gate the logic that needs neither. `test:e2e` builds the app
