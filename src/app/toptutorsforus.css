@@ -1255,9 +1255,14 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   display: flex; flex-wrap: wrap; gap: 1rem;
   align-items: flex-end; justify-content: space-between;
 }
+/* One line, always: the role filter belongs beside the search box, not under
+   it. `nowrap` because a wrapping flex container nested inside another one
+   resolves to the width of a single line and then wraps its own contents into
+   the space that leaves — 314px for 379px of controls. The search box shrinks
+   instead, which is what `min-width: 0` below is for. */
 .people-filters {
-  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
-  flex: 0 1 auto; margin: 0;
+  display: flex; flex-wrap: nowrap; gap: 0.75rem; align-items: flex-end;
+  flex: 1 1 auto; margin: 0;
 }
 /* Sized to the text somebody types into it — a name — rather than stretched to
    whatever room the toolbar has. It still shrinks on a narrow screen, but it
