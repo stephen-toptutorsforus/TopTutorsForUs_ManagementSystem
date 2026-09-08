@@ -12,6 +12,9 @@ import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
   buildWindow,
+  calendarLink,
+  canonicalLink,
+  narrowsByStatus,
   parseAnchor,
   parseView,
   queryString,
@@ -19,6 +22,7 @@ import {
   restoredLink,
   writeStatuses,
 } from "@/lib/calendar";
+import { parseFilters } from "@/lib/services/sessionQuery";
 import { isoWeekday } from "@/lib/time";
 
 const ANCHOR = "2026-08-14"; // a Friday
@@ -135,9 +139,104 @@ describe("links", () => {
   });
 
   it("falls back to the month for a view it does not recognise", () => {
-    expect(queryString({ search: "", statuses: [] }, { view: "gantt" })).toContain(
-      "view=month",
+    // The month is the default, and the default is spelled as nothing at all —
+    // so the test worth writing is that the unknown name is not echoed back.
+    const query = queryString({ search: "", statuses: [] }, { view: "gantt" });
+
+    expect(query).toBe("");
+    expect(query).not.toContain("gantt");
+  });
+
+  it("leaves out the parameters that only restate a default", () => {
+    // Five parameters saying what their own absence says make the two that
+    // mean something hard to find.
+    expect(
+      queryString(
+        { search: "", statuses: Object.values(SessionStatus) },
+        { view: CalendarView.MONTH, anchor: ANCHOR },
+      ),
+    ).toBe("date=2026-08-14");
+  });
+
+  it("keeps a status list that actually excludes something", () => {
+    const query = queryString(
+      { search: "", statuses: [SessionStatus.CANCELLED] },
+      { view: CalendarView.MONTH },
     );
+
+    expect(query).toBe("status=cancelled");
+  });
+
+  it("counts a full menu of ticks as a filter, because in_progress is not on it", () => {
+    // The menu offers seven of the eight statuses. Ticking them all excludes
+    // the eighth, so it is a real narrowing however complete it looks — and
+    // collapsing it would change what the calendar shows the day Phase 5
+    // starts setting `in_progress`.
+    const offered = (Object.values(SessionStatus) as SessionStatus[]).filter(
+      (status) => status !== SessionStatus.IN_PROGRESS,
+    );
+
+    expect(narrowsByStatus(offered)).toBe(true);
+    expect(narrowsByStatus(Object.values(SessionStatus))).toBe(false);
+    expect(narrowsByStatus([])).toBe(false);
+  });
+
+  it("gives a path without a bare question mark for the default screen", () => {
+    expect(calendarLink({ search: "", statuses: [] }, { view: CalendarView.MONTH })).toBe(
+      "/calendar",
+    );
+    expect(
+      calendarLink({ search: "algebra", statuses: [] }, { view: CalendarView.WEEK }),
+    ).toBe("/calendar?view=week&q=algebra");
+  });
+});
+
+describe("tidying the address bar", () => {
+  const tidy = (query: string) => {
+    const params = new URLSearchParams(query);
+    return canonicalLink(params, {
+      filters: parseFilters(params),
+      view: parseView(params.get("view")),
+      anchor: parseAnchor(params.get("date"), ANCHOR),
+    });
+  };
+
+  it("leaves an address that is already the tidiest one alone", () => {
+    // The redirect fires on anything but `null`, so a fixed point here is what
+    // keeps the page from bouncing a request between two spellings for ever.
+    expect(tidy("")).toBeNull();
+    expect(tidy("view=week&date=2026-08-14")).toBeNull();
+    expect(tidy("status=cancelled")).toBeNull();
+    expect(tidy("date=2026-08-14&q=algebra&status=missed")).toBeNull();
+  });
+
+  it("strips the defaults, and is then a fixed point", () => {
+    const statuses = Object.values(SessionStatus)
+      .map((status) => `status=${status.toLowerCase()}`)
+      .join("&");
+
+    expect(tidy(`view=month&${statuses}`)).toBe("/calendar");
+    expect(tidy("view=month")).toBe("/calendar");
+    expect(tidy("view=month&date=2026-08-14")).toBe("/calendar?date=2026-08-14");
+  });
+
+  it("drops what the page never read in the first place", () => {
+    // `calendarRange` narrows by search text and status and nothing else, so
+    // these were being ignored before they were removed from the address.
+    expect(tidy("instructor=abc&page=4")).toBe("/calendar");
+    expect(tidy("status=wizard")).toBe("/calendar");
+    expect(tidy("view=gantt")).toBe("/calendar");
+  });
+
+  it("settles an impossible date and untidy search text", () => {
+    expect(tidy("date=2026-02-30")).toBe("/calendar?date=2026-08-14");
+    expect(tidy("q=%20algebra%20")).toBe("/calendar?q=algebra");
+  });
+
+  it("does not invent a date for an address that did not carry one", () => {
+    // Otherwise a bare `/calendar` would pin itself to today on first sight,
+    // and stop meaning "now" the moment it was bookmarked.
+    expect(tidy("view=week")).toBeNull();
   });
 });
 
@@ -176,8 +275,7 @@ describe("the remembered status filter", () => {
     // reading on Friday.
     const link = restoredLink([SessionStatus.CANCELLED]);
 
-    expect(link).toContain("view=month");
-    expect(link).toContain("status=cancelled");
+    expect(link).toBe("/calendar?status=cancelled");
     expect(link).not.toContain("date=");
   });
 });

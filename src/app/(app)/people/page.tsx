@@ -11,6 +11,7 @@
  */
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
@@ -20,8 +21,15 @@ import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import { roleFilterOptions } from "@/lib/presentation";
-import { PAGE_LIMIT, listPeople, parseRoles } from "@/lib/services/peopleQuery";
+import { ROLE_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
+import {
+  PAGE_LIMIT,
+  directoryLink,
+  directoryQuery,
+  listPeople,
+  parseRoles,
+} from "@/lib/services/peopleQuery";
+import { canonicalUrl } from "@/lib/urlState";
 import { csrfToken, requireContext } from "@/lib/web/session";
 import { guard } from "@/lib/web/interrupt";
 
@@ -50,15 +58,6 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-/** A directory URL keeping the search text and naming a set of roles. */
-function peopleLink(search: string, roles: string[]): string {
-  const params = new URLSearchParams();
-  if (search) params.append("q", search);
-  for (const role of roles) params.append("role", role);
-  const query = params.toString();
-  return query ? `/people?${query}` : "/people";
-}
-
 export default async function PeoplePage({
   searchParams,
 }: {
@@ -70,6 +69,9 @@ export default async function PeoplePage({
   const params = toSearchParams(await searchParams);
   const search = (params.get("q") ?? "").trim();
   const chosenRoles = parseRoles(params.getAll("role"));
+
+  const tidy = canonicalUrl("/people", params, directoryQuery(search, chosenRoles));
+  if (tidy !== null) redirect(tidy);
 
   const rows = await listPeople(prisma, principal, { search, roles: chosenRoles });
   const canManage = principal.has(Permission.USER_MANAGE);
@@ -136,8 +138,8 @@ export default async function PeoplePage({
             singular="role"
             plural="roles"
             legend="Show these roles"
-            allLink={peopleLink(search, roleOptions.map((option) => option.value))}
-            noneLink={peopleLink(search, [])}
+            allLink={directoryLink(search, ROLE_FILTER_ORDER)}
+            noneLink={directoryLink(search, [])}
           />
         </form>
 

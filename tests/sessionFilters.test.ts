@@ -19,6 +19,7 @@ import {
   parseFilters,
   toQuery,
 } from "@/lib/services/sessionQuery";
+import { canonicalUrl } from "@/lib/urlState";
 
 const filtersFrom = (query: string) => parseFilters(new URLSearchParams(query));
 
@@ -101,5 +102,31 @@ describe("toQuery", () => {
     expect(next).toContain("page=3");
     expect(next).toContain("q=algebra");
     expect(next).toContain("status=missed");
+  });
+});
+
+describe("the grid's address", () => {
+  const tidy = (query: string) => {
+    const params = new URLSearchParams(query);
+    return canonicalUrl("/sessions", params, toQuery(parseFilters(params)));
+  };
+
+  it("drops the empty fields the filter form submits", () => {
+    // Filtering on nothing at all used to leave all five behind.
+    expect(tidy("q=&from=&to=&instructor=&program=")).toBe("/sessions");
+    expect(tidy("q=&page=1")).toBe("/sessions");
+  });
+
+  it("settles one spelling of a status and a column set", () => {
+    expect(tidy("status=SCHEDULED")).toBe("/sessions?status=scheduled");
+    expect(tidy("columns=title&columns=status")).toBe("/sessions?columns=title%2Cstatus");
+  });
+
+  it("is a fixed point, or the page redirects to itself for ever", () => {
+    expect(tidy("")).toBeNull();
+    expect(tidy("page=3")).toBeNull();
+    expect(tidy("status=scheduled")).toBeNull();
+    expect(tidy("columns=title%2Cstatus")).toBeNull();
+    expect(tidy("q=algebra&status=missed&from=2026-04-01&instructor=abc&page=2")).toBeNull();
   });
 });

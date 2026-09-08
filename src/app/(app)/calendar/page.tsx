@@ -6,6 +6,8 @@
  *
  * The whole screen's state — view, date, search text, statuses — lives in the
  * URL, so it survives a refresh, a back button, and being sent to a colleague.
+ * It says no more than it has to: `lib/urlState.ts` holds the rule, and
+ * `lib/calendar.ts` what it means here.
  */
 
 import Link from "next/link";
@@ -19,10 +21,12 @@ import {
   CalendarView,
   MONTH_CELL_LIMIT,
   buildWindow,
+  calendarLink,
+  canonicalLink,
   carriesState,
+  narrowsByStatus,
   parseAnchor,
   parseView,
-  queryString,
   readStatuses,
   restoredLink,
 } from "@/lib/calendar";
@@ -128,13 +132,22 @@ export default async function CalendarPage({
   // is a redirect rather than a quiet filter.
   if (!carriesState(params)) {
     const remembered = readStatuses(await statusCookie());
-    if (remembered.length > 0) redirect(`/calendar?${restoredLink(remembered)}`);
+    // A remembered set covering every status is not a filter. Restoring one
+    // would redirect to an address the tidying below strips straight back to
+    // `/calendar`, and the two would trade the request between them for ever.
+    if (narrowsByStatus(remembered)) redirect(restoredLink(remembered));
   }
 
   const view = parseView(params.get("view"));
   const anchor = parseAnchor(params.get("date"), today);
   const window = buildWindow(view, anchor);
   const filters = parseFilters(params);
+
+  // Whatever produced this address — a link, the filter form, a cookie restore,
+  // or something typed by hand — the bar ends up showing the least that still
+  // says what is on screen.
+  const tidy = canonicalLink(params, { filters, view, anchor: window.anchor });
+  if (tidy !== null) redirect(tidy);
 
   const buckets = await calendarRange(prisma, principal, {
     first: window.first,
@@ -147,13 +160,17 @@ export default async function CalendarPage({
   // Every link on the page is built through this, so none of them can drop part
   // of the state by forgetting a parameter.
   const link = (options: { view: CalendarView | string; anchor?: CivilDate | null }) =>
-    queryString(filters, options);
+    calendarLink(filters, options);
 
-  const allStatuses = queryString(
+  // Both of these come out as the same address, because a complete selection
+  // and an empty one ask the query for the same thing. They are still two
+  // links: "Select all" ticks every box, "Clear all" empties them, and the
+  // menu is shared with the directory's role filter.
+  const allStatuses = calendarLink(
     { search: filters.search, statuses: Object.values(SessionStatus) },
     { view, anchor },
   );
-  const noStatuses = queryString(
+  const noStatuses = calendarLink(
     { search: filters.search, statuses: [] },
     { view, anchor },
   );
@@ -177,7 +194,11 @@ export default async function CalendarPage({
 
       <div className="cal-toolbar">
         <form className="cal-filters" method="get" action="/calendar" role="search">
-          <input type="hidden" name="view" value={view} />
+          {/* The month needs no hidden field: it is what an absent `view`
+              draws, and submitting it would only be tidied away again. */}
+          {view !== CalendarView.MONTH && (
+            <input type="hidden" name="view" value={view} />
+          )}
           <input type="hidden" name="date" value={window.anchor} />
 
           <Field id="q" label="Search session titles" className="cal-search" labelClassName="visually-hidden">
@@ -197,8 +218,8 @@ export default async function CalendarPage({
             singular="status"
             plural="statuses"
             legend="Show these statuses"
-            allLink={`/calendar?${allStatuses}`}
-            noneLink={`/calendar?${noStatuses}`}
+            allLink={allStatuses}
+            noneLink={noStatuses}
           />
 
           {/* The menu applies itself on close, so there is no Apply button.
@@ -225,7 +246,7 @@ export default async function CalendarPage({
         <nav className="cal-nav" aria-label="Change date range">
           <LinkButton size="small"
             rel="prev"
-            href={`/calendar?${link({ view, anchor: window.previous })}`}
+            href={link({ view, anchor: window.previous })}
           >
             <span aria-hidden="true">‹</span>
             <VisuallyHidden>Previous {view}</VisuallyHidden>
@@ -233,7 +254,7 @@ export default async function CalendarPage({
           <h2 className="cal-heading">{window.heading}</h2>
           <LinkButton size="small"
             rel="next"
-            href={`/calendar?${link({ view, anchor: window.following })}`}
+            href={link({ view, anchor: window.following })}
           >
             <span aria-hidden="true">›</span>
             <VisuallyHidden>Next {view}</VisuallyHidden>
@@ -249,7 +270,7 @@ export default async function CalendarPage({
             <Link
               key={option}
               className={`cal-view ${option === view ? "is-current" : ""}`}
-              href={`/calendar?${link({ view: option, anchor: window.anchor })}`}
+              href={link({ view: option, anchor: window.anchor })}
               aria-current={option === view ? "true" : undefined}
             >
               {option.charAt(0).toUpperCase() + option.slice(1)}
@@ -271,7 +292,7 @@ export default async function CalendarPage({
               className={`cal-view cal-view-today ${
                 window.anchor === today ? "is-on-today" : ""
               }`}
-              href={`/calendar?${link({ view: "day", anchor: today })}`}
+              href={link({ view: "day", anchor: today })}
             >
               Today
               <VisuallyHidden>— show today</VisuallyHidden>
@@ -312,7 +333,7 @@ export default async function CalendarPage({
               >
                 <p className="cal-daynum">
                   <VisuallyHidden>{longDate(day)}</VisuallyHidden>
-                  <Link href={`/calendar?${link({ view: "day", anchor: day })}`} aria-hidden="true">
+                  <Link href={link({ view: "day", anchor: day })} aria-hidden="true">
                     {dayNumber(day)}
                   </Link>
                   {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
@@ -323,7 +344,7 @@ export default async function CalendarPage({
                 {rows.length > MONTH_CELL_LIMIT && (
                   <Link
                     className="cal-more"
-                    href={`/calendar?${link({ view: "day", anchor: day })}`}
+                    href={link({ view: "day", anchor: day })}
                   >
                     +{rows.length - MONTH_CELL_LIMIT} more
                     <VisuallyHidden> on {longDate(day)}</VisuallyHidden>
@@ -340,7 +361,7 @@ export default async function CalendarPage({
           grid={grid}
           days={window.days}
           today={today}
-          linkFor={(day) => `/calendar?${link({ view: "day", anchor: day })}`}
+          linkFor={(day) => link({ view: "day", anchor: day })}
         />
       )}
 
@@ -353,7 +374,7 @@ export default async function CalendarPage({
               return (
                 <div key={day}>
                   <h3 className="cal-list-day">
-                    <Link href={`/calendar?${link({ view: "day", anchor: day })}`}>
+                    <Link href={link({ view: "day", anchor: day })}>
                       {longDate(day)}
                     </Link>
                     <Hint>

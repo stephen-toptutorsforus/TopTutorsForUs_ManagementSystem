@@ -10,7 +10,9 @@
 import { describe, expect, it } from "vitest";
 
 import { Role } from "@/generated/prisma/enums";
-import { parseRoles } from "@/lib/services/peopleQuery";
+import { ROLE_FILTER_ORDER } from "@/lib/presentation";
+import { directoryQuery, parseRoles } from "@/lib/services/peopleQuery";
+import { canonicalUrl } from "@/lib/urlState";
 
 describe("parseRoles", () => {
   it("counts a repeated role once", () => {
@@ -35,5 +37,34 @@ describe("parseRoles", () => {
   it("refuses to be lengthened past the number of roles that exist", () => {
     const flood = Array.from({ length: 500 }, () => "student");
     expect(parseRoles(flood)).toEqual([Role.STUDENT]);
+  });
+});
+
+describe("the directory's address", () => {
+  const tidy = (query: string) => {
+    const params = new URLSearchParams(query);
+    return canonicalUrl("/people", params, directoryQuery(params.get("q")?.trim() ?? "", parseRoles(params.getAll("role"))));
+  };
+
+  it("does not write down an empty search", () => {
+    // A GET form submits its empty fields, so this is what searching for
+    // nothing used to leave in the address bar.
+    expect(tidy("q=")).toBe("/people");
+    expect(tidy("q=&role=instructor")).toBe("/people?role=instructor");
+  });
+
+  it("keeps every role the menu offers, because four of six is a filter", () => {
+    // Ticking all four still hides somebody who only holds `payer` or
+    // `regional_admin`, so collapsing it would show people the ticks exclude.
+    const everyOffered = ROLE_FILTER_ORDER.map((role) => `role=${role.toLowerCase()}`).join("&");
+
+    expect(directoryQuery("", ROLE_FILTER_ORDER)).toBe(everyOffered);
+    expect(directoryQuery("", Object.values(Role))).toBe("");
+  });
+
+  it("is a fixed point, or the page redirects to itself for ever", () => {
+    expect(tidy("")).toBeNull();
+    expect(tidy("role=instructor")).toBeNull();
+    expect(tidy("q=mercer&role=admin")).toBeNull();
   });
 });

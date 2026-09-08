@@ -88,6 +88,35 @@ export function parseRoles(values: readonly string[]): Role[] {
   return seen;
 }
 
+/**
+ * The directory's whole state, and the only spelling of it.
+ *
+ * An empty search is not written down: the filter form submits its empty
+ * fields, so searching for nothing used to leave `?q=` in the address bar. See
+ * `lib/urlState.ts` for the rule this follows and why the page redirects to it.
+ *
+ * A complete set of roles *is* written down, unlike the calendar's statuses.
+ * The menu offers four of the six roles, so ticking all four still excludes
+ * somebody who only holds `payer` or `regional_admin`: it looks complete and is
+ * a real filter. Only a set covering every role in the enum narrows nothing,
+ * because `listPeople` narrows only when the list is non-empty.
+ */
+export function directoryQuery(search: string, roles: readonly Role[]): string {
+  const params = new URLSearchParams();
+  if (search) params.append("q", search);
+  const everyRole = (Object.values(Role) as Role[]).every((role) => roles.includes(role));
+  if (roles.length > 0 && !everyRole) {
+    for (const role of roles) params.append("role", role.toLowerCase());
+  }
+  return params.toString();
+}
+
+/** A directory URL keeping the search text and naming a set of roles. */
+export function directoryLink(search: string, roles: readonly Role[]): string {
+  const query = directoryQuery(search, roles);
+  return query ? `/people?${query}` : "/people";
+}
+
 export interface ListPeopleOptions {
   search?: string;
   roles?: readonly Role[];

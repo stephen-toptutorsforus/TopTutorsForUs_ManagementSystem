@@ -112,6 +112,19 @@ edges have a stated, tested policy — gaps shift forward, overlaps take the fir
 **Preview and creation share one function.** What somebody is shown before
 pressing the button is by construction what gets written.
 
+**The URL says the state, and only the state.** Filter state lives in the query
+string, so a refresh, a back button, a bookmark and a link sent to a colleague
+all mean the same thing, and every filter form can be a plain GET that works
+with scripting off. A parameter restating a default does not live there: each
+screen with filters serialises what it parsed and redirects when the address
+differs, so `?view=month`, an empty `?q=` from a submitted form, and a status
+set covering every status all disappear. `src/lib/urlState.ts` holds the rule
+and the two properties that make redirecting on every request safe — one
+spelling per state, and the tidy form of a tidy address being itself. There is a
+fixed-point test per screen, because the failure is an infinite redirect.
+Nothing on a URL identifies anybody: the parameters that name a record carry an
+opaque `ref`.
+
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHead, TableWrap, Button, Field, Badge, Modal —
 and pages import from it rather than combining class names by hand. Each module
@@ -162,11 +175,11 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-373 tests — 173 pure, 200 database-backed — plus differential runs of 29,200
+388 tests — 188 pure, 200 database-backed — plus differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 373), and the
+The reference still has more tests than this does (509 against 388), and the
 difference is almost entirely its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,

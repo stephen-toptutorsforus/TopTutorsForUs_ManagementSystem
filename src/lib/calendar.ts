@@ -16,6 +16,7 @@
 import { SessionStatus } from "@/generated/prisma/enums";
 import type { SessionFilters } from "@/lib/services/sessionQuery";
 import { type CivilDate, addDays, isoWeekday } from "@/lib/time";
+import { canonicalUrl } from "@/lib/urlState";
 
 export enum CalendarView {
   MONTH = "month",
@@ -104,13 +105,42 @@ export function writeStatuses(statuses: readonly SessionStatus[]): string {
 /**
  * The URL a bare `/calendar` sends someone to when a filter is remembered.
  *
- * Only the statuses are restored. The date is deliberately not: coming back to
- * the calendar should show now, not the month somebody was reading on Friday.
+ * Only the statuses are restored. `anchor: null` is the point of the rest:
+ * coming back to the calendar should show now, not the month somebody was
+ * reading on Friday.
  */
 export function restoredLink(statuses: readonly SessionStatus[]): string {
-  const params = new URLSearchParams([["view", CalendarView.MONTH]]);
-  for (const status of statuses) params.append("status", status.toLowerCase());
-  return params.toString();
+  return calendarLink({ search: "", statuses }, { view: CalendarView.MONTH, anchor: null });
+}
+
+/**
+ * The calendar's answer to `canonicalUrl` — see `lib/urlState.ts` for the rule.
+ *
+ * Only `view`, `date`, `q` and `status` reach the query; `calendarRange` reads
+ * nothing else off the filters. So any other parameter on a calendar URL was
+ * already being ignored, and dropping it from the address removes a lie rather
+ * than a feature.
+ *
+ * `date` is kept when it was asked for and not invented when it was not, so a
+ * bare `/calendar` goes on meaning "now" instead of pinning itself to the day
+ * somebody first opened it.
+ */
+export function canonicalLink(
+  params: URLSearchParams,
+  state: {
+    filters: Pick<SessionFilters, "search" | "statuses">;
+    view: CalendarView;
+    anchor: CivilDate;
+  },
+): string | null {
+  return canonicalUrl(
+    "/calendar",
+    params,
+    queryString(state.filters, {
+      view: state.view,
+      anchor: params.has("date") ? state.anchor : null,
+    }),
+  );
 }
 
 /** Everything a page needs to render and navigate one view. */
@@ -300,11 +330,37 @@ export function step(view: CalendarView): string {
   return STEP[view];
 }
 
+// --- What the address bar carries -------------------------------------------
+//
+// The state stays in the URL; a parameter restating a default does not. That
+// rule and its reasoning live in `lib/urlState.ts`. Here it means two things:
+// `view=month` is what a bare `/calendar` already draws, and a status list
+// covering every status narrows nothing, because the query narrows only when
+// the list is non-empty. Both spell out what their own absence says already.
+
+/**
+ * Whether a status selection actually excludes anything.
+ *
+ * Complete means every status in the enum, not every status the filter menu
+ * offers. The menu leaves `in_progress` out because nothing reaches it yet, so
+ * a tick in all seven boxes still excludes a status the query would otherwise
+ * return; collapsing that to "no filter" would quietly change what the calendar
+ * shows on the day Phase 5 starts setting it.
+ */
+export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
+  if (statuses.length === 0) return false;
+  return !(Object.values(SessionStatus) as SessionStatus[]).every((status) =>
+    statuses.includes(status),
+  );
+}
+
 /**
  * Serialise the calendar's whole state, so every link preserves it.
  *
  * Switching view, paging a month, or following a "+N more" link must not drop
- * the search text or the status filter the person just set.
+ * the search text or the status filter the person just set. It must not spell
+ * out the defaults either: what this omits is recoverable from the parsers, and
+ * `canonicalLink` relies on that being the *only* spelling of a given state.
  *
  * `view` accepts a plain string because a component may pass one; an
  * unrecognised value falls back to the month rather than throwing in the middle
@@ -315,9 +371,27 @@ export function queryString(
   options: { view: CalendarView | string; anchor?: CivilDate | null },
 ): string {
   const resolved = parseView(String(options.view));
-  const params = new URLSearchParams([["view", resolved]]);
+  const params = new URLSearchParams();
+  if (resolved !== CalendarView.MONTH) params.append("view", resolved);
   if (options.anchor) params.append("date", options.anchor);
   if (filters.search) params.append("q", filters.search);
-  for (const status of filters.statuses) params.append("status", status.toLowerCase());
+  if (narrowsByStatus(filters.statuses)) {
+    for (const status of filters.statuses) params.append("status", status.toLowerCase());
+  }
   return params.toString();
+}
+
+/**
+ * The calendar at this state, as a path.
+ *
+ * A separate function because `queryString` is now empty for the default
+ * screen, and `/calendar?` with a bare question mark is the kind of thing that
+ * ends up in a bookmark.
+ */
+export function calendarLink(
+  filters: Pick<SessionFilters, "search" | "statuses">,
+  options: { view: CalendarView | string; anchor?: CivilDate | null },
+): string {
+  const query = queryString(filters, options);
+  return query ? `/calendar?${query}` : "/calendar";
 }

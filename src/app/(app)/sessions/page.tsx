@@ -9,6 +9,7 @@
  */
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AnchorButton, Button, ButtonRow, Card, EmptyState, Field, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
@@ -33,6 +34,7 @@ import {
   toQuery,
   type SessionRow,
 } from "@/lib/services/sessionQuery";
+import { canonicalUrl } from "@/lib/urlState";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Sessions · TopTutorsForUs" };
@@ -108,6 +110,18 @@ export default async function SessionsPage({
   const zone = principal.timezone;
   const params = toSearchParams(await searchParams);
   const filters = parseFilters(params);
+
+  // The filter form submits its empty fields, so filtering on nothing used to
+  // leave `?q=&from=&to=&instructor=&program=` behind. `toQuery` has always
+  // known which of those are defaults; this makes the address bar agree with
+  // it. See `lib/urlState.ts`.
+  const query = toQuery(filters);
+  const tidy = canonicalUrl("/sessions", params, query);
+  if (tidy !== null) redirect(tidy);
+
+  // The export takes the filters as they stand, and an unfiltered grid now
+  // serialises to nothing at all — `export.csv?` is not a URL to hand a browser.
+  const exportHref = query ? `/sessions/export.csv?${query}` : "/sessions/export.csv";
   const results = await listSessions(prisma, principal, filters, { zone });
 
   const [instructors, programs] = await Promise.all([
@@ -131,7 +145,7 @@ export default async function SessionsPage({
       <PageHead title="Sessions" subtitle={<>All times in {zone}</>} actions={<ButtonRow>
           {canExport && (
             // A GET, so the current filters travel with it verbatim.
-            <AnchorButton href={`/sessions/export.csv?${toQuery(filters)}`}>
+            <AnchorButton href={exportHref}>
               <span aria-hidden="true">⤓</span> Export CSV
             </AnchorButton>
           )}
