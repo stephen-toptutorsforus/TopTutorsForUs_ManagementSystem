@@ -14,7 +14,7 @@
  * Saying more than that would be a promise Preview then has to break.
  */
 
-import { Hint, VisuallyHidden } from "@/components/ui";
+import { Button, Hint, VisuallyHidden } from "@/components/ui";
 import type { AvailabilityBlock as Block } from "@/lib/web/booking";
 
 const DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -96,8 +96,7 @@ export function AvailabilityBlock({
             {/* Its own name rather than an empty `pick_instructor`: an empty
                 value would fall back to whatever the Instructor select still
                 holds, and the choice would come straight back. */}
-            <button
-              className="btn btn-small"
+            <Button size="small"
               type="submit"
               name="clear_instructor"
               value="1"
@@ -107,7 +106,7 @@ export function AvailabilityBlock({
                 {" "}
                 — clear {selectedInstructor.displayName}
               </VisuallyHidden>
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -224,15 +223,14 @@ export function AvailabilityBlock({
                           {row.name}
                           {row.email && ` (${row.email})`}
                         </span>
-                        <button
-                          className="btn btn-small"
+                        <Button size="small"
                           type="submit"
                           name="pick_instructor"
                           value={row.ref}
                         >
                           Select
                           <VisuallyHidden> {row.name} as the instructor</VisuallyHidden>
-                        </button>
+                        </Button>
                       </span>
                     </th>
                     {row.free.map((open, index) => (
@@ -298,8 +296,7 @@ export function AvailabilityBlock({
                   )}
                 </p>
                 {opening.isOpen && (
-                  <button
-                    className="btn btn-small btn-primary"
+                  <Button variant="primary" size="small"
                     type="submit"
                     name="pick_date"
                     value={opening.day}
@@ -309,19 +306,18 @@ export function AvailabilityBlock({
                       {" "}
                       {opening.day} as the session date
                     </VisuallyHidden>
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
           </div>
           {block.matrixCanExtend && (
-            <button
+            <Button className="matrix-more"
               type="button"
-              className="btn matrix-more"
               onClick={() => onLoadMoreDays(block.matrixNext)}
             >
               <span aria-hidden="true">＋</span> Load more days
-            </button>
+            </Button>
           )}
         </>
       )}

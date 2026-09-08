@@ -8,7 +8,6 @@
  * session already booked, because each session owns its own participant rows.
  */
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -16,7 +15,7 @@ import {
   ArchiveGroupForm,
   RemoveMemberForm,
 } from "@/components/structure/Forms";
-import { EmptyState, VisuallyHidden } from "@/components/ui";
+import { Badge, Card, EmptyState, LinkButton, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -72,77 +71,69 @@ export default async function GroupDetailPage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{group.name}</h1>
-          <p className="subtitle">
+      <PageHead
+        title={group.name}
+        subtitle={
+          <>
             {studentCount} student{studentCount === 1 ? "" : "s"}
             {group.capacity ? (
               <>
                 {" "}
                 of {group.capacity}
                 {studentCount >= group.capacity && (
-                  <span className="badge badge-warn">
-                    <span className="glyph" aria-hidden="true">
-                      !
-                    </span>
+                  <Badge tone="warn" glyph="!">
                     Full
-                  </span>
+                  </Badge>
                 )}
               </>
             ) : (
               <> · no capacity limit</>
             )}
-          </p>
-        </div>
-        <Link className="btn" href="/groups">
-          Back to groups
-        </Link>
-      </div>
+          </>
+        }
+        actions={<LinkButton href="/groups">Back to groups</LinkButton>}
+      />
 
-      <div className="card">
+      <Card>
         <h2>Members</h2>
         {members.length > 0 ? (
-          <div className="table-wrap">
-            <table>
-              <caption className="visually-hidden">People in {group.name}</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">In the group as</th>
-                  <th scope="col">
-                    <VisuallyHidden>Actions</VisuallyHidden>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => {
-                  const name =
-                    `${member.user.firstName} ${member.user.lastName}`.trim() ||
-                    member.user.ref;
-                  return (
-                    <tr key={String(member.id)}>
-                      <td data-label="Name">{name}</td>
-                      <td data-label="In the group as">
-                        {member.memberRole.charAt(0).toUpperCase() +
-                          member.memberRole.slice(1)}
-                      </td>
-                      <td data-label="Actions">
-                        {canManage && (
-                          <RemoveMemberForm
-                            groupRef={group.ref}
-                            csrfToken={token}
-                            memberId={String(member.id)}
-                            name={name}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TableWrap caption={<>People in {group.name}</>}>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">In the group as</th>
+                <th scope="col">
+                  <VisuallyHidden>Actions</VisuallyHidden>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((member) => {
+                const name =
+                  `${member.user.firstName} ${member.user.lastName}`.trim() ||
+                  member.user.ref;
+                return (
+                  <tr key={String(member.id)}>
+                    <td data-label="Name">{name}</td>
+                    <td data-label="In the group as">
+                      {member.memberRole.charAt(0).toUpperCase() +
+                        member.memberRole.slice(1)}
+                    </td>
+                    <td data-label="Actions">
+                      {canManage && (
+                        <RemoveMemberForm
+                          groupRef={group.ref}
+                          csrfToken={token}
+                          memberId={String(member.id)}
+                          name={name}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableWrap>
         ) : (
           <EmptyState
             heading="Nobody in this group yet"
@@ -150,7 +141,7 @@ export default async function GroupDetailPage({
             glyph="◍"
           />
         )}
-      </div>
+      </Card>
 
       {canManage && (
         <>
@@ -160,7 +151,7 @@ export default async function GroupDetailPage({
             students={students}
             instructors={instructors}
           />
-          <div className="card">
+          <Card>
             <h2>Retire this group</h2>
             <p className="hint">
               Archiving hides it from the pickers. Sessions already booked with it keep
@@ -171,7 +162,7 @@ export default async function GroupDetailPage({
               csrfToken={token}
               name={group.name}
             />
-          </div>
+          </Card>
         </>
       )}
     </>

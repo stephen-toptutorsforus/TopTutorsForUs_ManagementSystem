@@ -6,6 +6,7 @@
  * rides in it like every other form's.
  */
 
+import { Button } from "@/components/ui";
 import { signOut } from "@/app/actions/auth";
 
 export function SignOutButton({
@@ -18,9 +19,9 @@ export function SignOutButton({
   return (
     <form action={signOut}>
       <input type="hidden" name={csrfField} value={csrfToken} />
-      <button className="btn btn-small nav-signout" type="submit">
+      <Button size="small" className="nav-signout" type="submit">
         Sign out
-      </button>
+      </Button>
     </form>
   );
 }

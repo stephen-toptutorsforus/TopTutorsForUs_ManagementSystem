@@ -9,7 +9,7 @@
  * instead of somebody else's contact address.
  */
 
-import { EmptyState } from "@/components/ui";
+import { Card, CardGrid, EmptyState, PageHead } from "@/components/ui";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Help Center · TopTutorsForUs" };
@@ -30,15 +30,10 @@ export default async function HelpPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Help Center</h1>
-          <p className="subtitle">How this workspace behaves, and who to ask.</p>
-        </div>
-      </div>
+      <PageHead title="Help Center" subtitle="How this workspace behaves, and who to ask." />
 
-      <div className="card-grid">
-        <div className="card">
+      <CardGrid>
+        <Card>
           <h2>Your access</h2>
           <dl className="definition">
             <dt>Organization</dt>
@@ -63,9 +58,9 @@ export default async function HelpPage() {
               ))}
             </ul>
           </details>
-        </div>
+        </Card>
 
-        <div className="card">
+        <Card>
           <h2>Getting help</h2>
           {organization.supportEmail || organization.supportPhone ? (
             <dl className="definition">
@@ -93,10 +88,10 @@ export default async function HelpPage() {
               glyph="?"
             />
           )}
-        </div>
-      </div>
+        </Card>
+      </CardGrid>
 
-      <div className="card">
+      <Card>
         <h2>Things worth knowing</h2>
         <dl className="definition">
           <dt>Times and zones</dt>
@@ -129,7 +124,7 @@ export default async function HelpPage() {
             navigation.
           </dd>
         </dl>
-      </div>
+      </Card>
     </>
   );
 }

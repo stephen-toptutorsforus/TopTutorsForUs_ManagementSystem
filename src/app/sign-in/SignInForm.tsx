@@ -13,6 +13,7 @@ import Image from "next/image";
 import { useActionState } from "react";
 
 import { signIn } from "@/app/actions/auth";
+import { Button, Card } from "@/components/ui";
 import type { SignInState } from "@/lib/web/formState";
 import { CSRF_FIELD } from "@/lib/names";
 
@@ -21,7 +22,7 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
 
   return (
     <div className="auth-shell">
-      <div className="card auth-card">
+      <Card className="auth-card">
         <p className="brand">
           <Image
             className="brand-logo"
@@ -72,11 +73,11 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
               {state.error}
             </p>
           )}
-          <button className="btn btn-primary btn-block" type="submit" disabled={pending}>
+          <Button variant="primary" className="btn-block" type="submit" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

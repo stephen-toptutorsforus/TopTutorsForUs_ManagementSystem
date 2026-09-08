@@ -22,7 +22,7 @@ import {
   editSession,
   rescheduleSession,
 } from "@/app/actions/sessions";
-import { Hint, ScopeChoice } from "@/components/ui";
+import { Button, ButtonRow, Card, Hint, ScopeChoice } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -82,7 +82,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
   if (actions.length === 0) return null;
 
   return (
-    <div className="card">
+    <Card>
       <h2>Actions</h2>
 
       {(has("approve") || has("reject")) && (
@@ -95,7 +95,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
             </span>
           </div>
           <Result state={decideState} />
-          <form action={decide} className="btn-row form-actions">
+          <ButtonRow as="form" action={decide} className="form-actions">
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <label className="visually-hidden" htmlFor="decide-reason">
               Reason for rejecting
@@ -108,16 +108,16 @@ export function ActionsPanel(props: ActionsPanelProps) {
               className="field-short"
             />
             {has("approve") && (
-              <button className="btn btn-primary" type="submit" name="decision" value="approve">
+              <Button variant="primary" type="submit" name="decision" value="approve">
                 Approve request
-              </button>
+              </Button>
             )}
             {has("reject") && (
-              <button className="btn btn-danger" type="submit" name="decision" value="reject">
+              <Button variant="danger" type="submit" name="decision" value="reject">
                 Reject request
-              </button>
+              </Button>
             )}
-          </form>
+          </ButtonRow>
         </>
       )}
 
@@ -150,9 +150,9 @@ export function ActionsPanel(props: ActionsPanelProps) {
               <span>Billable</span>
             </label>
             <ScopeChoice series={series} />
-            <button className="btn btn-primary" type="submit">
+            <Button variant="primary" type="submit">
               Save changes
-            </button>
+            </Button>
           </form>
         </details>
       )}
@@ -207,9 +207,9 @@ export function ActionsPanel(props: ActionsPanelProps) {
               wall-clock time, so a series spanning a daylight-saving change stays at the
               hour you choose.
             </p>
-            <button className="btn btn-primary" type="submit">
+            <Button variant="primary" type="submit">
               Reschedule
-            </button>
+            </Button>
           </form>
         </details>
       )}
@@ -241,9 +241,9 @@ export function ActionsPanel(props: ActionsPanelProps) {
               </div>
             </div>
             <p className="hint">This rewrites the record of what happened, and is audited.</p>
-            <button className="btn btn-primary" type="submit">
+            <Button variant="primary" type="submit">
               Save corrected times
-            </button>
+            </Button>
           </form>
         </details>
       )}
@@ -274,8 +274,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
             <ScopeChoice series={series} legend="Cancel" />
             {/* A destructive action always confirms, and the confirmation names
                 what will happen rather than asking "are you sure?". */}
-            <button
-              className="btn btn-danger"
+            <Button variant="danger"
               type="submit"
               onClick={(event) => {
                 if (
@@ -288,33 +287,33 @@ export function ActionsPanel(props: ActionsPanelProps) {
               }}
             >
               Cancel session
-            </button>
+            </Button>
           </form>
         </details>
       )}
 
       <Result state={statusState} />
-      <div className="btn-row">
+      <ButtonRow>
         {has("complete") && (
           <form action={status}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <input type="hidden" name="action" value="complete" />
-            <button className="btn" type="submit">
+            <Button type="submit">
               Mark completed
-            </button>
+            </Button>
           </form>
         )}
         {has("restore") && (
           <form action={status}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <input type="hidden" name="action" value="restore" />
-            <button className="btn" type="submit">
+            <Button type="submit">
               Restore to scheduled
-            </button>
+            </Button>
           </form>
         )}
         {has("mark_missed") && (
-          <form action={status} className="btn-row">
+          <ButtonRow as="form" action={status}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <input type="hidden" name="action" value="mark_missed" />
             <label className="visually-hidden" htmlFor="missed-reason">
@@ -327,12 +326,12 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 </option>
               ))}
             </select>
-            <button className="btn" type="submit">
+            <Button type="submit">
               Mark missed
-            </button>
-          </form>
+            </Button>
+          </ButtonRow>
         )}
-      </div>
-    </div>
+      </ButtonRow>
+    </Card>
   );
 }

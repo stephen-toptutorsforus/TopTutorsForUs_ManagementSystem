@@ -71,13 +71,27 @@ export function AnchorButton({
   return <a className={classes(variant, size, className)} {...rest} />;
 }
 
-/** A row of them, spaced and wrapped. */
+/**
+ * A row of them, spaced and wrapped.
+ *
+ * `as="form"` where the row is the form that submits them, which is the usual
+ * case for a panel of actions: wrapping a form in a row div adds an element
+ * that exists only to carry a class.
+ */
 export function ButtonRow({
+  as: Tag = "div",
   className,
   children,
+  ...rest
 }: {
+  as?: "div" | "form";
   className?: string;
   children: React.ReactNode;
-}) {
-  return <div className={className ? `btn-row ${className}` : "btn-row"}>{children}</div>;
+} & React.HTMLAttributes<HTMLElement> &
+  Pick<React.FormHTMLAttributes<HTMLFormElement>, "action" | "method">) {
+  return (
+    <Tag className={className ? `btn-row ${className}` : "btn-row"} {...rest}>
+      {children}
+    </Tag>
+  );
 }

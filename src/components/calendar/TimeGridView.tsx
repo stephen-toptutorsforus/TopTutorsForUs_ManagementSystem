@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 
-import { EmptyState, VisuallyHidden } from "@/components/ui";
+import { Card, EmptyState, VisuallyHidden } from "@/components/ui";
 import { statusMeta } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { type CivilDate, isoWeekday } from "@/lib/time";
@@ -34,7 +34,7 @@ export function TimeGridView({
   linkFor: (day: CivilDate) => string;
 }) {
   return (
-    <div className="card cal-grid-card">
+    <Card className="cal-grid-card">
       {/* The whole day is rendered and scrolls. The row named here is only
           where the scroll starts — the client nudges it there so an ordinary
           session is not below the fold on load. Without it the pane opens at
@@ -138,6 +138,6 @@ export function TimeGridView({
           glyph="◷"
         />
       )}
-    </div>
+    </Card>
   );
 }

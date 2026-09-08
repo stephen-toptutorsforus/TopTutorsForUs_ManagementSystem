@@ -6,20 +6,19 @@
  * same answer by design.
  */
 
-import Link from "next/link";
-
+import { Card, LinkButton } from "@/components/ui";
 export default function NotFound() {
   return (
     <div className="auth-shell">
-      <div className="card auth-card">
+      <Card className="auth-card">
         <h1>Not found</h1>
         <p>There is nothing here, or nothing here that belongs to your organization.</p>
         <p>
-          <Link className="btn btn-primary" href="/">
+          <LinkButton variant="primary" href="/">
             Back to the dashboard
-          </Link>
+          </LinkButton>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

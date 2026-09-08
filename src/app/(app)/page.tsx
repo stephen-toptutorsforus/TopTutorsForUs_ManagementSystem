@@ -14,7 +14,7 @@ import {
   ParticipantRole,
   SessionStatus,
 } from "@/generated/prisma/enums";
-import { EmptyState, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
+import { Card, CardGrid, EmptyState, LinkButton, PageHead, StatusBadge, TableWrap, Tag, When, WhenTime } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { durationLabel } from "@/lib/presentation";
@@ -85,38 +85,40 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Today at {organization.name}</h1>
-          <p className="subtitle">
+      <PageHead
+        title={<>Today at {organization.name}</>}
+        subtitle={
+          <>
             {LONG_DATE.format(new Date(`${today}T00:00:00Z`))} · all times shown in {zone}
-          </p>
-        </div>
-        {principal.has(Permission.SESSION_BOOK) && (
-          <Link className="btn btn-primary" href="/sessions/new">
-            <span aria-hidden="true">＋</span> New session
-          </Link>
-        )}
-      </div>
+          </>
+        }
+        actions={
+          principal.has(Permission.SESSION_BOOK) && (
+            <LinkButton variant="primary" href="/sessions/new">
+              <span aria-hidden="true">＋</span> New session
+            </LinkButton>
+          )
+        }
+      />
 
-      <div className="card-grid">
-        <div className="card stat">
+      <CardGrid>
+        <Card className="stat">
           <span className="value">{counts.today}</span>
           <span className="label">Sessions today</span>
-        </div>
-        <div className="card stat">
+        </Card>
+        <Card className="stat">
           <span className="value">{counts.completed}</span>
           <span className="label">Completed</span>
-        </div>
-        <div className="card stat">
+        </Card>
+        <Card className="stat">
           <span className="value">{counts.inProgress}</span>
           <span className="label">In progress</span>
-        </div>
-        <div className="card stat">
+        </Card>
+        <Card className="stat">
           <span className="value">{counts.missed + counts.cancelled}</span>
           <span className="label">Missed or cancelled</span>
-        </div>
-      </div>
+        </Card>
+      </CardGrid>
 
       {unmarked > 0 && (
         <p className="notice notice-warn">
@@ -129,43 +131,40 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      <div className="card">
+      <Card>
         <h2>Today&rsquo;s schedule</h2>
         {todayRows.length > 0 ? (
-          <div className="table-wrap">
-            <table>
-              <caption className="visually-hidden">Sessions scheduled today</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Time</th>
-                  <th scope="col">Session</th>
-                  <th scope="col">Instructor</th>
-                  <th scope="col">Students</th>
-                  <th scope="col">Status</th>
+          <TableWrap caption="Sessions scheduled today">
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Session</th>
+                <th scope="col">Instructor</th>
+                <th scope="col">Students</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {todayRows.map((row) => (
+                <tr key={String(row.session.id)}>
+                  <td data-label="Time">
+                    <WhenTime
+                      instant={row.session.scheduledStart}
+                      zone={row.session.timezone}
+                    />
+                  </td>
+                  <td data-label="Session">
+                    <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
+                  </td>
+                  <td data-label="Instructor">{row.instructorName ?? "—"}</td>
+                  <td data-label="Students">{row.studentNames.join(", ") || "—"}</td>
+                  <td data-label="Status">
+                    <StatusBadge status={row.session.status} />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {todayRows.map((row) => (
-                  <tr key={String(row.session.id)}>
-                    <td data-label="Time">
-                      <WhenTime
-                        instant={row.session.scheduledStart}
-                        zone={row.session.timezone}
-                      />
-                    </td>
-                    <td data-label="Session">
-                      <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
-                    </td>
-                    <td data-label="Instructor">{row.instructorName ?? "—"}</td>
-                    <td data-label="Students">{row.studentNames.join(", ") || "—"}</td>
-                    <td data-label="Status">
-                      <StatusBadge status={row.session.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </TableWrap>
         ) : (
           <EmptyState
             heading="Nothing scheduled today"
@@ -173,41 +172,38 @@ export default async function DashboardPage() {
             glyph="◷"
           />
         )}
-      </div>
+      </Card>
 
-      <div className="card">
+      <Card>
         <h2>Coming up</h2>
         {upcomingRows.length > 0 ? (
-          <div className="table-wrap">
-            <table>
-              <caption className="visually-hidden">The next scheduled sessions</caption>
-              <thead>
-                <tr>
-                  <th scope="col">When</th>
-                  <th scope="col">Session</th>
-                  <th scope="col">Instructor</th>
-                  <th scope="col">Length</th>
+          <TableWrap caption="The next scheduled sessions">
+            <thead>
+              <tr>
+                <th scope="col">When</th>
+                <th scope="col">Session</th>
+                <th scope="col">Instructor</th>
+                <th scope="col">Length</th>
+              </tr>
+            </thead>
+            <tbody>
+              {upcomingRows.map((row) => (
+                <tr key={String(row.session.id)}>
+                  <td data-label="When">
+                    <When instant={row.session.scheduledStart} zone={row.session.timezone} />
+                  </td>
+                  <td data-label="Session">
+                    <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
+                    {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
+                  </td>
+                  <td data-label="Instructor">{row.instructorName ?? "—"}</td>
+                  <td data-label="Length">
+                    {durationLabel(scheduledDurationMinutes(row.session))}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {upcomingRows.map((row) => (
-                  <tr key={String(row.session.id)}>
-                    <td data-label="When">
-                      <When instant={row.session.scheduledStart} zone={row.session.timezone} />
-                    </td>
-                    <td data-label="Session">
-                      <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
-                      {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
-                    </td>
-                    <td data-label="Instructor">{row.instructorName ?? "—"}</td>
-                    <td data-label="Length">
-                      {durationLabel(scheduledDurationMinutes(row.session))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </TableWrap>
         ) : (
           <EmptyState
             heading="Nothing coming up"
@@ -215,7 +211,7 @@ export default async function DashboardPage() {
             glyph="▤"
           />
         )}
-      </div>
+      </Card>
     </>
   );
 }

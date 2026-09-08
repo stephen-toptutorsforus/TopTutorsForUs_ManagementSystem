@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 
-import { EmptyState, StatusBadge, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, EmptyState, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -128,27 +128,21 @@ export default async function SessionsPage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Sessions</h1>
-          <p className="subtitle">All times in {zone}</p>
-        </div>
-        <div className="btn-row">
+      <PageHead title="Sessions" subtitle={<>All times in {zone}</>} actions={<ButtonRow>
           {canExport && (
             // A GET, so the current filters travel with it verbatim.
-            <a className="btn" href={`/sessions/export.csv?${toQuery(filters)}`}>
+            <AnchorButton href={`/sessions/export.csv?${toQuery(filters)}`}>
               <span aria-hidden="true">⤓</span> Export CSV
-            </a>
+            </AnchorButton>
           )}
           {principal.has(Permission.SESSION_BOOK) && (
-            <Link className="btn btn-primary" href="/sessions/new">
+            <LinkButton variant="primary" href="/sessions/new">
               <span aria-hidden="true">＋</span> New session
-            </Link>
+            </LinkButton>
           )}
-        </div>
-      </div>
+        </ButtonRow>} />
 
-      <form className="card" method="get" action="/sessions" role="search">
+      <Card as="form" method="get" action="/sessions" role="search">
         <div className="filters">
           <div className="field grow">
             <label htmlFor="q">Search titles</label>
@@ -239,91 +233,84 @@ export default async function SessionsPage({
           </p>
         </details>
 
-        <div className="btn-row">
-          <button className="btn btn-primary" type="submit">
+        <ButtonRow>
+          <Button variant="primary" type="submit">
             Apply filters
-          </button>
-          <Link className="btn" href="/sessions">
+          </Button>
+          <LinkButton href="/sessions">
             Clear
-          </Link>
-        </div>
-      </form>
+          </LinkButton>
+        </ButtonRow>
+      </Card>
 
       {results.rows.length > 0 ? (
         <>
-          <div className="table-wrap">
-            <table>
-              <caption className="visually-hidden">
-                Sessions {firstIndex(results)} to {lastIndex(results)} of {results.total}
-              </caption>
-              <thead>
-                <tr>
-                  {columns.map((key) => (
-                    <th scope="col" key={key}>
-                      {AVAILABLE_COLUMNS[key]}
-                    </th>
-                  ))}
-                  <th scope="col">
-                    <VisuallyHidden>Actions</VisuallyHidden>
+          <TableWrap caption={<>Sessions {firstIndex(results)} to {lastIndex(results)} of {results.total}</>}>
+            <thead>
+              <tr>
+                {columns.map((key) => (
+                  <th scope="col" key={key}>
+                    {AVAILABLE_COLUMNS[key]}
                   </th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.rows.map((row) => (
-                  <tr key={String(row.session.id)}>
-                    {columns.map((key) => (
-                      <td data-label={AVAILABLE_COLUMNS[key]} key={key}>
-                        <Cell column={key} row={row} zone={zone} />
-                      </td>
-                    ))}
-                    <td data-label="Actions">
-                      <Link className="btn btn-small" href={`/sessions/${row.session.ref}`}>
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <th scope="col">
+                  <VisuallyHidden>Actions</VisuallyHidden>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.rows.map((row) => (
+                <tr key={String(row.session.id)}>
+                  {columns.map((key) => (
+                    <td data-label={AVAILABLE_COLUMNS[key]} key={key}>
+                      <Cell column={key} row={row} zone={zone} />
+                    </td>
+                  ))}
+                  <td data-label="Actions">
+                    <LinkButton size="small" href={`/sessions/${row.session.ref}`}>
+                      Open
+                    </LinkButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
 
           <nav className="pagination" aria-label="Pagination">
             <p className="count">
               Showing {firstIndex(results)}–{lastIndex(results)} of {results.total}
             </p>
-            <div className="btn-row">
+            <ButtonRow>
               {hasPrevious(results) && (
-                <Link
-                  className="btn btn-small"
+                <LinkButton size="small"
                   href={`/sessions?${toQuery(filters, { page: results.page - 1 })}`}
                   rel="prev"
                 >
                   Previous
-                </Link>
+                </LinkButton>
               )}
               <span className="count">
                 Page {results.page} of {pageCount(results)}
               </span>
               {hasNext(results) && (
-                <Link
-                  className="btn btn-small"
+                <LinkButton size="small"
                   href={`/sessions?${toQuery(filters, { page: results.page + 1 })}`}
                   rel="next"
                 >
                   Next
-                </Link>
+                </LinkButton>
               )}
-            </div>
+            </ButtonRow>
           </nav>
         </>
       ) : (
-        <div className="card">
+        <Card>
           <EmptyState
             heading="No sessions match these filters"
             message="Try widening the date range or clearing the status filter."
             glyph="≡"
           />
-        </div>
+        </Card>
       )}
     </>
   );

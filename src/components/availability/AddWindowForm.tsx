@@ -11,6 +11,7 @@
 import { useActionState } from "react";
 
 import { addAvailability } from "@/app/actions/availability";
+import { Button } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { WEEKDAY_LABELS } from "@/lib/presentation";
 
@@ -59,9 +60,9 @@ export function AddWindowForm({
             <input id="av-end" name="end_time" type="time" required defaultValue="17:00" />
           </div>
         </div>
-        <button className="btn btn-primary" type="submit" disabled={pending}>
+        <Button variant="primary" type="submit" disabled={pending}>
           Add window
-        </button>
+        </Button>
       </form>
     </>
   );

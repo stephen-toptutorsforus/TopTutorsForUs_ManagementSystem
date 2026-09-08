@@ -14,7 +14,7 @@ import { notFound } from "next/navigation";
 
 import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
-import { DeliveryBadge, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
+import { Badge, Card, CardGrid, DeliveryBadge, LinkButton, PageHead, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -104,11 +104,7 @@ export default async function SessionDetailPage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{session.title}</h1>
-          <p className="subtitle">
-            <StatusBadge status={session.status} />{" "}
+      <PageHead title={session.title} subtitle={<><StatusBadge status={session.status} />{" "}
             <DeliveryBadge delivery={session.deliveryType} />{" "}
             {series && session.seriesIndex && seriesTotal && (
               <Link className="tag" href={`/series/${series.ref}`}>
@@ -119,22 +115,13 @@ export default async function SessionDetailPage({
               <Tag>Edited on its own — series edits skip it</Tag>
             )}
             {session.conflictOverridden && (
-              <span className="badge badge-warn">
-                <span className="glyph" aria-hidden="true">
-                  !
-                </span>
-                Booked over a conflict
-              </span>
-            )}
-          </p>
-        </div>
-        <Link className="btn" href="/sessions">
+              <Badge tone="warn" glyph="!">Booked over a conflict</Badge>
+            )}</>} actions={<LinkButton href="/sessions">
           Back to sessions
-        </Link>
-      </div>
+        </LinkButton>} />
 
-      <div className="card-grid">
-        <div className="card">
+      <CardGrid>
+        <Card>
           <h2>Schedule</h2>
           <dl className="definition">
             <dt>Scheduled</dt>
@@ -159,36 +146,21 @@ export default async function SessionDetailPage({
             <dd>
               {durationLabel(actual)}{" "}
               {delta !== null && delta > 0 && (
-                <span className="badge badge-warn">
-                  <span className="glyph" aria-hidden="true">
-                    ▲
-                  </span>
-                  {delta} min over
-                </span>
+                <Badge tone="warn" glyph="▲">{delta} min over</Badge>
               )}
               {delta !== null && delta < 0 && (
-                <span className="badge badge-warn">
-                  <span className="glyph" aria-hidden="true">
-                    ▼
-                  </span>
-                  {-delta} min short
-                </span>
+                <Badge tone="warn" glyph="▼">{-delta} min short</Badge>
               )}
               {delta === 0 && (
-                <span className="badge badge-good">
-                  <span className="glyph" aria-hidden="true">
-                    ✓
-                  </span>
-                  As scheduled
-                </span>
+                <Badge tone="good" glyph="✓">As scheduled</Badge>
               )}
             </dd>
             <dt>Timezone</dt>
             <dd>{zone}</dd>
           </dl>
-        </div>
+        </Card>
 
-        <div className="card">
+        <Card>
           <h2>Delivery</h2>
           <dl className="definition">
             <dt>Type</dt>
@@ -251,8 +223,8 @@ export default async function SessionDetailPage({
               </span>
             </p>
           )}
-        </div>
-      </div>
+        </Card>
+      </CardGrid>
 
       <AttendanceCard
         sessionRef={session.ref}
@@ -281,7 +253,7 @@ export default async function SessionDetailPage({
       />
 
       {events.length > 0 && (
-        <div className="card">
+        <Card>
           <h2>History</h2>
           <ol className="timeline">
             {events.map((event) => (
@@ -315,7 +287,7 @@ export default async function SessionDetailPage({
               </li>
             ))}
           </ol>
-        </div>
+        </Card>
       )}
     </>
   );

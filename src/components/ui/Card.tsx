@@ -13,11 +13,16 @@ export function Card({
   children,
   ...rest
 }: {
-  /** `section` where the card is a landmark worth naming, `div` otherwise. */
-  as?: "div" | "section";
+  /**
+   * `section` where the card is a landmark worth naming, `form` where the card
+   * *is* the form — a filter bar, say — and `div` otherwise. A form wrapped in
+   * a card div is one element more than the page needs.
+   */
+  as?: "div" | "section" | "form";
   className?: string;
   children: React.ReactNode;
-} & React.HTMLAttributes<HTMLElement>) {
+} & React.HTMLAttributes<HTMLElement> &
+  Pick<React.FormHTMLAttributes<HTMLFormElement>, "action" | "method">) {
   return (
     <Tag className={className ? `card ${className}` : "card"} {...rest}>
       {children}
@@ -50,4 +55,9 @@ export function PageHead({
       {actions}
     </div>
   );
+}
+
+/** Cards laid out in a row that wraps — the dashboard's figures, mostly. */
+export function CardGrid({ children }: { children: React.ReactNode }) {
+  return <div className="card-grid">{children}</div>;
 }

@@ -9,7 +9,7 @@
  */
 
 import { AddWindowForm } from "@/components/availability/AddWindowForm";
-import { EmptyState, VisuallyHidden } from "@/components/ui";
+import { Button, Card, EmptyState, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
@@ -97,18 +97,11 @@ export default async function AvailabilityPage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Availability</h1>
-          <p className="subtitle">
-            {displayName} · windows are stated as wall-clock time in {zone}, so they hold
-            across daylight-saving changes.
-          </p>
-        </div>
-      </div>
+      <PageHead title="Availability" subtitle={<>{displayName} · windows are stated as wall-clock time in {zone}, so they hold
+            across daylight-saving changes.</>} />
 
       {roster.length > 1 && (
-        <form className="card" method="get" action="/availability">
+        <Card as="form" method="get" action="/availability">
           <div className="filters">
             <div className="field grow">
               <label htmlFor="instructor">Show availability for</label>
@@ -120,14 +113,14 @@ export default async function AvailabilityPage({
                 ))}
               </select>
             </div>
-            <button className="btn" type="submit">
+            <Button type="submit">
               Show
-            </button>
+            </Button>
           </div>
-        </form>
+        </Card>
       )}
 
-      <div className="card">
+      <Card>
         <h2>Next two weeks</h2>
         <div className="matrix">
           {days.map((day) => (
@@ -152,36 +145,33 @@ export default async function AvailabilityPage({
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      <div className="card">
+      <Card>
         <h2>Weekly pattern</h2>
         {rules.length > 0 ? (
-          <div className="table-wrap">
-            <table>
-              <caption className="visually-hidden">Recurring availability windows</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Weekday</th>
-                  <th scope="col">From</th>
-                  <th scope="col">To</th>
-                  <th scope="col">Timezone</th>
+          <TableWrap caption="Recurring availability windows">
+            <thead>
+              <tr>
+                <th scope="col">Weekday</th>
+                <th scope="col">From</th>
+                <th scope="col">To</th>
+                <th scope="col">Timezone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((rule) => (
+                <tr key={String(rule.id)}>
+                  <td data-label="Weekday">
+                    {WEEKDAY_LABELS[rule.weekday] ?? rule.weekday}
+                  </td>
+                  <td data-label="From">{timeFromDb(rule.startTime)}</td>
+                  <td data-label="To">{timeFromDb(rule.endTime)}</td>
+                  <td data-label="Timezone">{rule.timezone || organization.timezone}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {rules.map((rule) => (
-                  <tr key={String(rule.id)}>
-                    <td data-label="Weekday">
-                      {WEEKDAY_LABELS[rule.weekday] ?? rule.weekday}
-                    </td>
-                    <td data-label="From">{timeFromDb(rule.startTime)}</td>
-                    <td data-label="To">{timeFromDb(rule.endTime)}</td>
-                    <td data-label="Timezone">{rule.timezone || organization.timezone}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </TableWrap>
         ) : (
           <EmptyState
             heading="No availability declared"
@@ -193,7 +183,7 @@ export default async function AvailabilityPage({
         {canEdit && (
           <AddWindowForm instructorRef={instructor.ref} csrfToken={await csrfToken()} />
         )}
-      </div>
+      </Card>
     </>
   );
 }

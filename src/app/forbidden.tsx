@@ -6,26 +6,25 @@
  * the disclosure the policy layer exists to prevent.
  */
 
-import Link from "next/link";
-
+import { Card, LinkButton } from "@/components/ui";
 export default function Forbidden() {
   return (
     <div className="auth-shell">
-      <div className="card auth-card">
+      <Card className="auth-card">
         <h1>Not permitted</h1>
         <p>
           Your roles do not allow this. If that is wrong, an administrator at your
           organization can grant it — the Help Center lists what you currently hold.
         </p>
         <p>
-          <Link className="btn btn-primary" href="/">
+          <LinkButton variant="primary" href="/">
             Back to the dashboard
-          </Link>{" "}
-          <Link className="btn" href="/help">
+          </LinkButton>{" "}
+          <LinkButton href="/help">
             What am I allowed to do?
-          </Link>
+          </LinkButton>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 
-import { EmptyState, When } from "@/components/ui";
+import { Card, EmptyState, PageHead, When } from "@/components/ui";
 import { AuditCategory } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -38,18 +38,11 @@ export default async function AuditPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Audit trail</h1>
-          <p className="subtitle">
-            Append-only. It records which fields changed and what they changed to — never
-            the content of notes, messages, or contact details.
-          </p>
-        </div>
-      </div>
+      <PageHead title="Audit trail" subtitle={<>Append-only. It records which fields changed and what they changed to — never
+            the content of notes, messages, or contact details.</>} />
 
       {events.length > 0 ? (
-        <div className="card">
+        <Card>
           <ol className="timeline">
             {events.map((event) => (
               <li key={String(event.id)}>
@@ -95,15 +88,15 @@ export default async function AuditPage() {
               </li>
             ))}
           </ol>
-        </div>
+        </Card>
       ) : (
-        <div className="card">
+        <Card>
           <EmptyState
             heading="Nothing recorded yet"
             message="Changes to sessions, attendance, and permissions will appear here."
             glyph="◫"
           />
-        </div>
+        </Card>
       )}
     </>
   );

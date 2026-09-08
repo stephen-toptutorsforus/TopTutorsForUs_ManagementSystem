@@ -17,7 +17,7 @@ import {
   createLocationAction,
   removeGroupMemberAction,
 } from "@/app/actions/structure";
-import { Hint } from "@/components/ui";
+import { Button, Card, Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -54,7 +54,7 @@ export function NewGroupForm({
   const [state, submit, pending] = useActionState(createGroupAction, {});
 
   return (
-    <div className="card">
+    <Card>
       <h2>New group</h2>
       <Result state={state} />
       <form action={submit}>
@@ -89,11 +89,11 @@ export function NewGroupForm({
             </select>
           </div>
         </div>
-        <button className="btn btn-primary" type="submit" disabled={pending}>
+        <Button variant="primary" type="submit" disabled={pending}>
           Create group
-        </button>
+        </Button>
       </form>
-    </div>
+    </Card>
   );
 }
 
@@ -114,7 +114,7 @@ export function AddMemberForms({
   );
 
   return (
-    <div className="card">
+    <Card>
       <h2>Add a member</h2>
       <Result state={state} />
       <form action={submit}>
@@ -133,9 +133,9 @@ export function AddMemberForms({
           </div>
         </div>
         <input type="hidden" name="member_role" value="student" />
-        <button className="btn btn-primary" type="submit" disabled={pending}>
+        <Button variant="primary" type="submit" disabled={pending}>
           Add student
-        </button>
+        </Button>
       </form>
 
       <form action={submit} className="section-gap">
@@ -154,26 +154,25 @@ export function AddMemberForms({
           </div>
         </div>
         <input type="hidden" name="member_role" value="instructor" />
-        <button className="btn" type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending}>
           Add instructor
-        </button>
+        </Button>
       </form>
-    </div>
+    </Card>
   );
 }
 
 /** A destructive action always confirms, naming what will happen. */
 function ConfirmButton({ label, message }: { label: string; message: string }) {
   return (
-    <button
-      className="btn btn-small"
+    <Button size="small"
       type="submit"
       onClick={(event) => {
         if (!window.confirm(message)) event.preventDefault();
       }}
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -234,7 +233,7 @@ export function NewLocationForm({
   const [state, submit, pending] = useActionState(createLocationAction, {});
 
   return (
-    <div className="card">
+    <Card>
       <h2>New location</h2>
       <Result state={state} />
       <form action={submit}>
@@ -264,11 +263,11 @@ export function NewLocationForm({
           <label htmlFor="location-address">Address</label>
           <textarea id="location-address" name="address" rows={2} />
         </div>
-        <button className="btn btn-primary" type="submit" disabled={pending}>
+        <Button variant="primary" type="submit" disabled={pending}>
           Create location
-        </button>
+        </Button>
       </form>
-    </div>
+    </Card>
   );
 }
 

@@ -17,6 +17,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { Button } from "@/components/ui";
 import type { FilterOption } from "@/lib/presentation";
 
 export function FilterMenu({
@@ -140,9 +141,9 @@ export function FilterMenu({
             in a `<noscript>` so it exists exactly when it is needed. */}
         <noscript>
           <p className="filtermenu-actions">
-            <button className="btn btn-small" type="submit">
+            <Button size="small" type="submit">
               Apply
-            </button>
+            </Button>
           </p>
         </noscript>
         {allLink !== undefined && noneLink !== undefined && (

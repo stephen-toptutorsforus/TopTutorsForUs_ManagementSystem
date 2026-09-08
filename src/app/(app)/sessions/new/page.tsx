@@ -8,6 +8,7 @@
  */
 
 import { BookingForm } from "@/components/booking/BookingForm";
+import { PageHead } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { MATRIX_MAX_DAYS, MATRIX_PAGE_DAYS, bookingContext } from "@/lib/web/booking";
@@ -40,11 +41,7 @@ export default async function NewSessionPage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Session Booking</h1>
-        </div>
-      </div>
+      <PageHead title="Session Booking" />
       <BookingForm
         csrfToken={await csrfToken()}
         initial={{

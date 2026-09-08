@@ -18,7 +18,7 @@
 import { useActionState, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Hint } from "@/components/ui";
+import { Button, Card, Hint } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { clockDuration, durationWords } from "@/lib/presentation";
 
@@ -102,7 +102,7 @@ export function BookingForm({
         </div>
       )}
 
-      <section className="card booking-card">
+      <Card as="section" className="booking-card">
         <h2>New Session</h2>
 
         {/* Four groups rather than one run of nineteen fields. Still one form
@@ -413,28 +413,27 @@ export function BookingForm({
             </Hint>
           </div>
         </fieldset>
-      </section>
+      </Card>
 
       {state.plan && <PreviewBlock plan={state.plan} canOverride={context.canOverride} />}
 
       <div className="booking-actions">
-        <button className="btn" type="submit" name="action" value="preview" disabled={pending}>
+        <Button type="submit" name="action" value="preview" disabled={pending}>
           {state.plan
             ? "Update preview"
             : `Preview session${counted === 1 ? "" : "s"}`}
-        </button>
+        </Button>
         {state.plan && (
           // Disabled when the plan cannot be booked. The override path is the
           // checkbox in the preview, which only an authorised person is shown.
-          <button
-            className="btn btn-primary"
+          <Button variant="primary"
             type="submit"
             name="action"
             value="confirm"
             disabled={pending || state.plan.blocked || state.plan.selfOverlaps}
           >
             Book Session{state.plan.total === 1 ? "" : "s"}
-          </button>
+          </Button>
         )}
       </div>
     </form>

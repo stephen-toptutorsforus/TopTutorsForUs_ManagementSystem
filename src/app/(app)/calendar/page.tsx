@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { EmptyState, Hint, StatusBadge, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, EmptyState, Hint, LinkButton, PageHead, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -166,14 +166,14 @@ export default async function CalendarPage({
       {/* Keep the status filter for the next bare visit, or forget it. */}
       <StatusCookieWriter statuses={filters.statuses.map((s) => s.toLowerCase())} />
 
-      <div className="page-head">
-        <div>
-          <h1>Calendar</h1>
-          <p className="subtitle">
+      <PageHead
+        title="Calendar"
+        subtitle={
+          <>
             {total} session{total === 1 ? "" : "s"} in view · times in {zone}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="cal-toolbar">
         <form className="cal-filters" method="get" action="/calendar" role="search">
@@ -209,16 +209,16 @@ export default async function CalendarPage({
               comes back for that case rather than the page quietly not
               working. */}
           <noscript>
-            <button className="btn" type="submit">
+            <Button type="submit">
               Apply
-            </button>
+            </Button>
           </noscript>
         </form>
 
         {principal.has(Permission.SESSION_BOOK) && (
-          <Link className="btn btn-primary cal-book" href="/sessions/new">
+          <LinkButton variant="primary" className="cal-book" href="/sessions/new">
             <span aria-hidden="true">＋</span> Book Session
-          </Link>
+          </LinkButton>
         )}
       </div>
 
@@ -226,23 +226,21 @@ export default async function CalendarPage({
         {/* The range being shown sits between the two arrows that move it, so
             the label and the controls that change it read as one thing. */}
         <nav className="cal-nav" aria-label="Change date range">
-          <Link
-            className="btn btn-small"
+          <LinkButton size="small"
             rel="prev"
             href={`/calendar?${link({ view, anchor: window.previous })}`}
           >
             <span aria-hidden="true">‹</span>
             <VisuallyHidden>Previous {view}</VisuallyHidden>
-          </Link>
+          </LinkButton>
           <h2 className="cal-heading">{window.heading}</h2>
-          <Link
-            className="btn btn-small"
+          <LinkButton size="small"
             rel="next"
             href={`/calendar?${link({ view, anchor: window.following })}`}
           >
             <span aria-hidden="true">›</span>
             <VisuallyHidden>Next {view}</VisuallyHidden>
-          </Link>
+          </LinkButton>
         </nav>
 
         {/* Today shares the group because that is where it is looked for, but
@@ -350,7 +348,7 @@ export default async function CalendarPage({
       )}
 
       {view === CalendarView.LIST && (
-        <div className="card">
+        <Card>
           {total > 0 ? (
             window.days.map((day) => {
               const rows = buckets.get(day) ?? [];
@@ -365,44 +363,41 @@ export default async function CalendarPage({
                       {rows.length} session{rows.length === 1 ? "" : "s"}
                     </Hint>
                   </h3>
-                  <div className="table-wrap">
-                    <table>
-                      <caption className="visually-hidden">Sessions on {longDate(day)}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Time</th>
-                          <th scope="col">Session</th>
-                          <th scope="col">Instructor</th>
-                          <th scope="col">Students</th>
-                          <th scope="col">Status</th>
+                  <TableWrap caption={<>Sessions on {longDate(day)}</>}>
+                    <thead>
+                      <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Session</th>
+                        <th scope="col">Instructor</th>
+                        <th scope="col">Students</th>
+                        <th scope="col">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={String(row.session.id)}>
+                          <td data-label="Time">
+                            <WhenTime
+                              instant={row.session.scheduledStart}
+                              zone={row.session.timezone}
+                            />
+                          </td>
+                          <td data-label="Session">
+                            <Link href={`/sessions/${row.session.ref}`}>
+                              {row.session.title}
+                            </Link>
+                          </td>
+                          <td data-label="Instructor">{row.instructorName ?? "—"}</td>
+                          <td data-label="Students">
+                            {row.studentNames.join(", ") || "—"}
+                          </td>
+                          <td data-label="Status">
+                            <StatusBadge status={row.session.status} />
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr key={String(row.session.id)}>
-                            <td data-label="Time">
-                              <WhenTime
-                                instant={row.session.scheduledStart}
-                                zone={row.session.timezone}
-                              />
-                            </td>
-                            <td data-label="Session">
-                              <Link href={`/sessions/${row.session.ref}`}>
-                                {row.session.title}
-                              </Link>
-                            </td>
-                            <td data-label="Instructor">{row.instructorName ?? "—"}</td>
-                            <td data-label="Students">
-                              {row.studentNames.join(", ") || "—"}
-                            </td>
-                            <td data-label="Status">
-                              <StatusBadge status={row.session.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </TableWrap>
                 </div>
               );
             })
@@ -413,7 +408,7 @@ export default async function CalendarPage({
               glyph="≡"
             />
           )}
-        </div>
+        </Card>
       )}
     </>
   );

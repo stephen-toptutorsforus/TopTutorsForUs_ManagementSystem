@@ -15,7 +15,7 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { EmptyState, Hint, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Badge, Button, Card, EmptyState, Hint, PageHead, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -116,17 +116,12 @@ export default async function PeoplePage({
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>User Management</h1>
-          <p className="subtitle">Everyone at {organization.name}.</p>
-        </div>
-      </div>
+      <PageHead title="User Management" subtitle={<>Everyone at {organization.name}.</>} />
 
       {/* One line: what narrows the list on the left, what adds to it on the
           right. The actions are not inside the search form — a button in a GET
           form would submit the search. */}
-      <div className="card people-toolbar">
+      <Card className="people-toolbar">
         <form className="people-filters" method="get" action="/people" role="search">
           <div className="field">
             <label htmlFor="q">Search by name or email</label>
@@ -149,157 +144,148 @@ export default async function PeoplePage({
 
         {canManage && (
           <div className="people-actions">
-            <a className="btn btn-primary" href="#create-user">
+            <AnchorButton variant="primary" href="#create-user">
               <span aria-hidden="true">＋</span> Create User
-            </a>
+            </AnchorButton>
             {/* Bulk import is not built. A disabled control says the feature
                 exists and is unavailable; a working-looking button that did
                 nothing, or a missing one, would each say something untrue. */}
-            <button
+            <Button className="is-disabled"
               type="button"
-              className="btn is-disabled"
               disabled
               title="Bulk import is not built yet — create users one at a time below"
             >
               <span aria-hidden="true">↥</span> Upload Users
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       {rows.length > 0 ? (
         <>
-          <div className="table-wrap">
-            <table className="people-table">
-              <caption className="visually-hidden">
-                People at {organization.name}
-                {(search || chosenRoles.length > 0) && ", filtered"}
-              </caption>
-              <thead>
-                <tr>
-                  {/* The avatar column is decorative — the name beside it is the
-                      label, and a heading here would be read out for every row. */}
-                  <th scope="col">
-                    <VisuallyHidden>Avatar</VisuallyHidden>
-                  </th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Email/Username</th>
-                  <th scope="col">Roles</th>
-                  <th scope="col">Relationships</th>
-                  <th scope="col">Groups</th>
-                  <th scope="col" className="numeric">Credits</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Actions</th>
-                  <th scope="col">Last Used</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const person = row.user;
-                  const displayName =
-                    `${person.firstName} ${person.lastName}`.trim() || person.ref;
-                  const isInstructor = row.roleNames.includes("Instructor");
-                  const active = person.status === "ACTIVE";
-                  return (
-                    <tr key={String(person.id)}>
-                      <td data-label="" className="people-avatar">
-                        <span className="avatar" aria-hidden="true">
-                          {row.initials}
-                        </span>
-                      </td>
-                      <td data-label="Name" className="people-name">
-                        {displayName}
-                      </td>
-                      <td data-label="Email/Username">
-                        {person.email ? (
-                          <a href={`mailto:${person.email}`}>{person.email}</a>
-                        ) : (
-                          // A student whose guardian has not set one yet. Saying
-                          // so beats an empty cell, which would read as a
-                          // missing value.
-                          <Hint>Awaiting parent setup</Hint>
-                        )}
-                      </td>
-                      <td data-label="Roles">
-                        {row.roleNames.length > 0 ? (
-                          row.roleNames.map((name) => (
-                            <Tag key={name}>
-                              {name}
-                            </Tag>
-                          ))
-                        ) : (
-                          <Hint>No roles</Hint>
-                        )}
-                      </td>
-                      <td data-label="Relationships">
-                        {row.connections.length > 0 ? (
-                          <ul className="stacked">
-                            {row.connections.map((link, index) => (
-                              <li key={`${link.kind}-${link.name}-${index}`}>
-                                <Hint>{link.kind}</Hint> {link.name}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <Hint>—</Hint>
-                        )}
-                      </td>
-                      <td data-label="Groups">
-                        {row.groups.length > 0 ? (
-                          row.groups.map((name) => (
-                            <Tag key={name}>
-                              {name}
-                            </Tag>
-                          ))
-                        ) : (
-                          <Hint>—</Hint>
-                        )}
-                      </td>
-                      <td data-label="Credits" className="numeric">
-                        {row.credits === null ? (
-                          // Not zero: a zero here would read as a balance of
-                          // nothing, which is a different claim from "there is
-                          // no ledger yet".
-                          <Hint title="Credits arrive with billing">
-                            —
-                          </Hint>
-                        ) : (
-                          row.credits
-                        )}
-                      </td>
-                      <td data-label="Status">
-                        <span className={`badge badge-${active ? "good" : "muted"}`}>
-                          <span className="glyph" aria-hidden="true">
-                            {active ? "✓" : "○"}
-                          </span>
-                          {titleCase(person.status)}
-                        </span>
-                      </td>
-                      <td data-label="Actions">
-                        {isInstructor ? (
-                          <Link href={`/sessions?instructor=${person.ref}`}>Sessions</Link>
-                        ) : canManage ? (
-                          <a href="#assign-people">Assign</a>
-                        ) : (
-                          <Hint>—</Hint>
-                        )}
-                      </td>
-                      <td data-label="Last Used">
-                        {row.lastLoginAt ? (
-                          <When
-                            instant={row.lastLoginAt}
-                            zone={person.timezone || organization.timezone}
-                          />
-                        ) : (
-                          <Hint>Never signed in</Hint>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TableWrap caption={<>People at {organization.name}
+                {(search || chosenRoles.length > 0) && ", filtered"}</>} className="people-table">
+            <thead>
+              <tr>
+                {/* The avatar column is decorative — the name beside it is the
+                    label, and a heading here would be read out for every row. */}
+                <th scope="col">
+                  <VisuallyHidden>Avatar</VisuallyHidden>
+                </th>
+                <th scope="col">Name</th>
+                <th scope="col">Email/Username</th>
+                <th scope="col">Roles</th>
+                <th scope="col">Relationships</th>
+                <th scope="col">Groups</th>
+                <th scope="col" className="numeric">Credits</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+                <th scope="col">Last Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const person = row.user;
+                const displayName =
+                  `${person.firstName} ${person.lastName}`.trim() || person.ref;
+                const isInstructor = row.roleNames.includes("Instructor");
+                const active = person.status === "ACTIVE";
+                return (
+                  <tr key={String(person.id)}>
+                    <td data-label="" className="people-avatar">
+                      <span className="avatar" aria-hidden="true">
+                        {row.initials}
+                      </span>
+                    </td>
+                    <td data-label="Name" className="people-name">
+                      {displayName}
+                    </td>
+                    <td data-label="Email/Username">
+                      {person.email ? (
+                        <a href={`mailto:${person.email}`}>{person.email}</a>
+                      ) : (
+                        // A student whose guardian has not set one yet. Saying
+                        // so beats an empty cell, which would read as a
+                        // missing value.
+                        <Hint>Awaiting parent setup</Hint>
+                      )}
+                    </td>
+                    <td data-label="Roles">
+                      {row.roleNames.length > 0 ? (
+                        row.roleNames.map((name) => (
+                          <Tag key={name}>
+                            {name}
+                          </Tag>
+                        ))
+                      ) : (
+                        <Hint>No roles</Hint>
+                      )}
+                    </td>
+                    <td data-label="Relationships">
+                      {row.connections.length > 0 ? (
+                        <ul className="stacked">
+                          {row.connections.map((link, index) => (
+                            <li key={`${link.kind}-${link.name}-${index}`}>
+                              <Hint>{link.kind}</Hint> {link.name}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <Hint>—</Hint>
+                      )}
+                    </td>
+                    <td data-label="Groups">
+                      {row.groups.length > 0 ? (
+                        row.groups.map((name) => (
+                          <Tag key={name}>
+                            {name}
+                          </Tag>
+                        ))
+                      ) : (
+                        <Hint>—</Hint>
+                      )}
+                    </td>
+                    <td data-label="Credits" className="numeric">
+                      {row.credits === null ? (
+                        // Not zero: a zero here would read as a balance of
+                        // nothing, which is a different claim from "there is
+                        // no ledger yet".
+                        <Hint title="Credits arrive with billing">
+                          —
+                        </Hint>
+                      ) : (
+                        row.credits
+                      )}
+                    </td>
+                    <td data-label="Status">
+                      <Badge tone={active ? "good" : "muted"} glyph={active ? "✓" : "○"}>
+                        {titleCase(person.status)}
+                      </Badge>
+                    </td>
+                    <td data-label="Actions">
+                      {isInstructor ? (
+                        <Link href={`/sessions?instructor=${person.ref}`}>Sessions</Link>
+                      ) : canManage ? (
+                        <a href="#assign-people">Assign</a>
+                      ) : (
+                        <Hint>—</Hint>
+                      )}
+                    </td>
+                    <td data-label="Last Used">
+                      {row.lastLoginAt ? (
+                        <When
+                          instant={row.lastLoginAt}
+                          zone={person.timezone || organization.timezone}
+                        />
+                      ) : (
+                        <Hint>Never signed in</Hint>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableWrap>
 
           {rows.length === PAGE_LIMIT && (
             <p className="hint">
@@ -308,13 +294,13 @@ export default async function PeoplePage({
           )}
         </>
       ) : (
-        <div className="card">
+        <Card>
           <EmptyState
             heading="Nobody matches"
             message="Try a different name or clear the role filter."
             glyph="◍"
           />
-        </div>
+        </Card>
       )}
 
       {canManage && (

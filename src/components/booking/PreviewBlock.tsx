@@ -7,7 +7,7 @@
  * that leaves the person to find it.
  */
 
-import { Tag, VisuallyHidden } from "@/components/ui";
+import { Badge, Card, Tag, VisuallyHidden } from "@/components/ui";
 import type { PlanView } from "@/lib/web/planView";
 
 export function PreviewBlock({
@@ -18,7 +18,7 @@ export function PreviewBlock({
   canOverride: boolean;
 }) {
   return (
-    <section className="card">
+    <Card as="section">
       <h2>
         Preview — {plan.total} session{plan.total === 1 ? "" : "s"}
       </h2>
@@ -102,28 +102,13 @@ export function PreviewBlock({
             <span>{item.when}</span>
             <Tag>→ {item.endsAt}</Tag>
             {item.shiftedByDst && (
-              <span className="badge badge-info">
-                <span className="glyph" aria-hidden="true">
-                  ◔
-                </span>
-                Adjusted for daylight saving
-              </span>
+              <Badge tone="info" glyph="◔">Adjusted for daylight saving</Badge>
             )}
             {item.blocked ? (
-              <span className="badge badge-bad">
-                <span className="glyph" aria-hidden="true">
-                  ✕
-                </span>
-                Cannot book
-              </span>
+              <Badge tone="bad" glyph="✕">Cannot book</Badge>
             ) : (
               item.hasConflicts && (
-                <span className="badge badge-warn">
-                  <span className="glyph" aria-hidden="true">
-                    !
-                  </span>
-                  Conflict
-                </span>
+                <Badge tone="warn" glyph="!">Conflict</Badge>
               )
             )}
             {item.conflicts.map((message) => (
@@ -164,6 +149,6 @@ export function PreviewBlock({
           </p>
         ))
       )}
-    </section>
+    </Card>
   );
 }

@@ -12,7 +12,7 @@
 import { useActionState } from "react";
 
 import { recordAttendance } from "@/app/actions/sessions";
-import { AttendanceBadge, Hint, WhenTime } from "@/components/ui";
+import { AttendanceBadge, Button, ButtonRow, Card, Hint, TableWrap, WhenTime } from "@/components/ui";
 import { AttendanceStatus } from "@/generated/prisma/enums";
 import { CSRF_FIELD } from "@/lib/names";
 import { attendanceMeta, durationLabel, percent } from "@/lib/presentation";
@@ -47,70 +47,67 @@ export function AttendanceCard({
   const [state, submit] = useActionState(recordAttendance.bind(null, sessionRef), {});
 
   const table = (
-    <div className="table-wrap">
-      <table>
-        <caption className="visually-hidden">Participants on this session</caption>
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Role</th>
-            <th scope="col">Joined</th>
-            <th scope="col">Left</th>
-            <th scope="col">Attended</th>
-            <th scope="col">Attendance</th>
+    <TableWrap caption="Participants on this session">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Role</th>
+          <th scope="col">Joined</th>
+          <th scope="col">Left</th>
+          <th scope="col">Attended</th>
+          <th scope="col">Attendance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {participants.map((participant) => (
+          <tr key={participant.id}>
+            <td data-label="Name">{participant.name}</td>
+            <td data-label="Role">
+              {participant.role.charAt(0) + participant.role.slice(1).toLowerCase()}
+            </td>
+            <td data-label="Joined">
+              <WhenTime
+                instant={participant.joinedAt ? new Date(participant.joinedAt) : null}
+                zone={timezone}
+              />
+            </td>
+            <td data-label="Left">
+              <WhenTime
+                instant={participant.leftAt ? new Date(participant.leftAt) : null}
+                zone={timezone}
+              />
+            </td>
+            <td data-label="Attended">{durationLabel(participant.attendedMinutes)}</td>
+            <td data-label="Attendance">
+              {editable ? (
+                <>
+                  <label className="visually-hidden" htmlFor={`att-${participant.id}`}>
+                    Attendance for {participant.name}
+                  </label>
+                  <select
+                    id={`att-${participant.id}`}
+                    name={`attendance_${participant.id}`}
+                    defaultValue={participant.attendance}
+                  >
+                    {ATTENDANCE_OPTIONS.map((option) => (
+                      <option key={option} value={option.toLowerCase()}>
+                        {attendanceMeta(option).label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <AttendanceBadge status={participant.attendance} />
+              )}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {participants.map((participant) => (
-            <tr key={participant.id}>
-              <td data-label="Name">{participant.name}</td>
-              <td data-label="Role">
-                {participant.role.charAt(0) + participant.role.slice(1).toLowerCase()}
-              </td>
-              <td data-label="Joined">
-                <WhenTime
-                  instant={participant.joinedAt ? new Date(participant.joinedAt) : null}
-                  zone={timezone}
-                />
-              </td>
-              <td data-label="Left">
-                <WhenTime
-                  instant={participant.leftAt ? new Date(participant.leftAt) : null}
-                  zone={timezone}
-                />
-              </td>
-              <td data-label="Attended">{durationLabel(participant.attendedMinutes)}</td>
-              <td data-label="Attendance">
-                {editable ? (
-                  <>
-                    <label className="visually-hidden" htmlFor={`att-${participant.id}`}>
-                      Attendance for {participant.name}
-                    </label>
-                    <select
-                      id={`att-${participant.id}`}
-                      name={`attendance_${participant.id}`}
-                      defaultValue={participant.attendance}
-                    >
-                      {ATTENDANCE_OPTIONS.map((option) => (
-                        <option key={option} value={option.toLowerCase()}>
-                          {attendanceMeta(option).label}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <AttendanceBadge status={participant.attendance} />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </TableWrap>
   );
 
   return (
-    <div className="card">
+    <Card>
       <h2>Participants and attendance</h2>
       <p className="subtitle">
         Overall attendance: <strong>{percent(attendanceRate)}</strong>{" "}
@@ -132,14 +129,14 @@ export function AttendanceCard({
         <form action={submit}>
           <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
           {table}
-          <div className="btn-row">
-            <button className="btn btn-primary" type="submit">
+          <ButtonRow>
+            <Button variant="primary" type="submit">
               Save attendance
-            </button>
-            <button className="btn" type="submit" name="bulk" value="all_present">
+            </Button>
+            <Button type="submit" name="bulk" value="all_present">
               Mark unmarked students present
-            </button>
-          </div>
+            </Button>
+          </ButtonRow>
           <p className="hint">
             Marking all present only fills places nobody has judged yet — it never
             overwrites an attendance you have already recorded.
@@ -148,6 +145,6 @@ export function AttendanceCard({
       ) : (
         table
       )}
-    </div>
+    </Card>
   );
 }
