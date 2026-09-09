@@ -16,7 +16,7 @@ import { redirect } from "next/navigation";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { AnchorButton, Badge, Button, Card, EmptyState, Field, Hint, PageHead, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Badge, Button, Card, EmptyState, Field, Hint, PageHeader, PageToolbar, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -118,49 +118,73 @@ export default async function PeoplePage({
 
   return (
     <>
-      <PageHead title="User Management" subtitle={<>Everyone at {organization.name}.</>} />
-
-      {/* One line: what narrows the list on the left, what adds to it on the
-          right. The actions are not inside the search form — a button in a GET
-          form would submit the search. */}
-      <Card className="people-toolbar">
-        <form className="people-filters" method="get" action="/people" role="search">
-          <Field id="q" label="Search by name or email">
-            {/* No submit button beside it. The form has exactly one field that
-                blocks implicit submission, so Enter still searches — and with
-                scripting off that is also what applies the role ticks. */}
-            <input id="q" name="q" type="search" defaultValue={search} placeholder="Search" />
-                    </Field>
-          <FilterMenu
-            name="role"
-            options={roleOptions}
-            selected={chosenRoles.map((role) => role.toLowerCase())}
-            singular="role"
-            plural="roles"
-            legend="Show these roles"
-            allLink={directoryLink(search, ROLE_FILTER_ORDER)}
-            noneLink={directoryLink(search, [])}
+      <PageHeader
+        title="User Management"
+        subtitle={<>Everyone at {organization.name}.</>}
+        toolbar={
+          <PageToolbar
+            form={{ action: "/people", label: "Search and filter people", role: "search" }}
+            filters={
+              <>
+                {/* The label is present and hidden, as it is on the calendar
+                    and the session grid. One pattern across the three, and the
+                    placeholder says which of the two fields somebody is in. */}
+                <Field
+                  id="q"
+                  label="Search by name or email"
+                  className="page-toolbar-search"
+                  labelClassName="visually-hidden"
+                >
+                  {/* No submit button beside it. The form has exactly one field
+                      that blocks implicit submission, so Enter still searches —
+                      and with scripting off that is also what applies the role
+                      ticks. */}
+                  <input
+                    id="q"
+                    name="q"
+                    type="search"
+                    defaultValue={search}
+                    placeholder="Name or email"
+                  />
+                </Field>
+                <FilterMenu
+                  name="role"
+                  options={roleOptions}
+                  selected={chosenRoles.map((role) => role.toLowerCase())}
+                  singular="role"
+                  plural="roles"
+                  legend="Show these roles"
+                  allLink={directoryLink(search, ROLE_FILTER_ORDER)}
+                  noneLink={directoryLink(search, [])}
+                />
+              </>
+            }
+            actions={
+              canManage ? (
+                <>
+                  <AnchorButton variant="primary" href="#create-user">
+                    <span aria-hidden="true">＋</span> Create User
+                  </AnchorButton>
+                  {/* Bulk import is not built. A disabled control says the
+                      feature exists and is unavailable; a working-looking
+                      button that did nothing, or a missing one, would each say
+                      something untrue. It is a `type="button"`, so being inside
+                      no form is not what keeps it from submitting — being
+                      disabled is. */}
+                  <Button
+                    className="is-disabled"
+                    type="button"
+                    disabled
+                    title="Bulk import is not built yet — create users one at a time below"
+                  >
+                    <span aria-hidden="true">↥</span> Upload Users
+                  </Button>
+                </>
+              ) : undefined
+            }
           />
-        </form>
-
-        {canManage && (
-          <div className="people-actions">
-            <AnchorButton variant="primary" href="#create-user">
-              <span aria-hidden="true">＋</span> Create User
-            </AnchorButton>
-            {/* Bulk import is not built. A disabled control says the feature
-                exists and is unavailable; a working-looking button that did
-                nothing, or a missing one, would each say something untrue. */}
-            <Button className="is-disabled"
-              type="button"
-              disabled
-              title="Bulk import is not built yet — create users one at a time below"
-            >
-              <span aria-hidden="true">↥</span> Upload Users
-            </Button>
-          </div>
-        )}
-      </Card>
+        }
+      />
 
       {rows.length > 0 ? (
         <>

@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 
-import { Card, EmptyState, PageHead, TableWrap, Tag } from "@/components/ui";
+import { Card, EmptyState, PageHeader, TableWrap, Tag } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { WEEKDAY_LABELS, durationLabel } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
@@ -27,7 +27,7 @@ export default async function SeriesPage() {
 
   return (
     <>
-      <PageHead
+      <PageHeader
         title="Series"
         subtitle={<>Recurring bookings and how their sessions have turned out. Times in {zone}.</>}
       />

@@ -15,7 +15,7 @@ import {
   ArchiveGroupForm,
   RemoveMemberForm,
 } from "@/components/structure/Forms";
-import { Badge, Card, EmptyState, LinkButton, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Badge, Card, EmptyState, LinkButton, PageHeader, TableWrap, VisuallyHidden } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -71,7 +71,7 @@ export default async function GroupDetailPage({
 
   return (
     <>
-      <PageHead
+      <PageHeader
         title={group.name}
         subtitle={
           <>

@@ -9,7 +9,7 @@
  */
 
 import { AddWindowForm } from "@/components/availability/AddWindowForm";
-import { Button, Card, EmptyState, Field, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Button, Card, EmptyState, Field, PageHeader, PageToolbar, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
@@ -97,27 +97,42 @@ export default async function AvailabilityPage({
 
   return (
     <>
-      <PageHead title="Availability" subtitle={<>{displayName} · windows are stated as wall-clock time in {zone}, so they hold
-            across daylight-saving changes.</>} />
-
-      {roster.length > 1 && (
-        <Card as="form" method="get" action="/availability">
-          <div className="filters">
-            <Field id="instructor" label="Show availability for" className="grow">
-              <select id="instructor" name="instructor" defaultValue={instructor.ref}>
-                {roster.map((person) => (
-                  <option value={person.ref} key={person.ref}>
-                    {`${person.firstName} ${person.lastName}`.trim() || person.ref}
-                  </option>
-                ))}
-              </select>
-                        </Field>
-            <Button type="submit">
-              Show
-            </Button>
-          </div>
-        </Card>
-      )}
+      <PageHeader
+        title="Availability"
+        subtitle={
+          <>
+            {displayName} · windows are stated as wall-clock time in {zone}, so they hold
+            across daylight-saving changes.
+          </>
+        }
+        toolbar={
+          roster.length > 1 ? (
+            <PageToolbar
+              form={{ action: "/availability", label: "Choose whose availability to show" }}
+              filters={
+                <>
+                  <Field
+                    id="instructor"
+                    label="Show availability for"
+                    className="page-toolbar-search"
+                  >
+                    <select id="instructor" name="instructor" defaultValue={instructor.ref}>
+                      {roster.map((person) => (
+                        <option value={person.ref} key={person.ref}>
+                          {`${person.firstName} ${person.lastName}`.trim() || person.ref}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Button type="submit">
+                    Show
+                  </Button>
+                </>
+              }
+            />
+          ) : undefined
+        }
+      />
 
       <Card>
         <h2>Next two weeks</h2>

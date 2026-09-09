@@ -11,19 +11,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AnchorButton, Button, ButtonRow, Card, EmptyState, Field, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, EmptyState, Field, LinkButton, MoreFilters, PageHeader, PageToolbar, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import {
-  STATUS_FILTER_ORDER,
-  durationLabel,
-  percent,
-  statusMeta,
-} from "@/lib/presentation";
+import { durationLabel, percent, statusFilterOptions } from "@/lib/presentation";
 import { actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
+import { FilterMenu } from "@/components/FilterMenu";
 import {
   AVAILABLE_COLUMNS,
+  DEFAULT_COLUMNS,
   firstIndex,
   hasNext,
   hasPrevious,
@@ -139,118 +136,158 @@ export default async function SessionsPage({
 
   const columns = filters.columns;
   const canExport = principal.has(Permission.EXPORT_SESSIONS);
+  const canBook = principal.has(Permission.SESSION_BOOK);
+
+  // What "More filters" says it is holding. The page counts it, not the
+  // component: knowing that a date range is a filter and a page number is not
+  // is exactly the kind of thing a shared header should never have an opinion
+  // about. Columns count as one however many are ticked — it is a single
+  // choice about the shape of the table, not five filters.
+  const advancedActive =
+    [filters.dateFrom, filters.dateTo, filters.instructorRef, filters.programRef].filter(
+      (value) => value !== null && value !== "",
+    ).length + (columns.join(",") === DEFAULT_COLUMNS.join(",") ? 0 : 1);
 
   return (
     <>
-      <PageHead title="Sessions" subtitle={<>All times in {zone}</>} actions={<ButtonRow>
-          {canExport && (
-            // A GET, so the current filters travel with it verbatim.
-            <AnchorButton href={exportHref}>
-              <span aria-hidden="true">⤓</span> Export CSV
-            </AnchorButton>
-          )}
-          {principal.has(Permission.SESSION_BOOK) && (
-            <LinkButton variant="primary" href="/sessions/new">
-              <span aria-hidden="true">＋</span> New session
-            </LinkButton>
-          )}
-        </ButtonRow>} />
-
-      <Card as="form" method="get" action="/sessions" role="search">
-        <div className="filters">
-          <Field id="q" label="Search titles" className="grow">
-            <input
-              id="q"
-              name="q"
-              type="search"
-              defaultValue={filters.search}
-              placeholder="Session title"
-            />
-                    </Field>
-          <Field id="from" label="From">
-            <input id="from" name="from" type="date" defaultValue={filters.dateFrom ?? ""} />
-                    </Field>
-          <Field id="to" label="To">
-            <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
-                    </Field>
-          <Field id="instructor" label="Instructor">
-            <select
-              id="instructor"
-              name="instructor"
-              defaultValue={filters.instructorRef ?? ""}
-            >
-              <option value="">Anyone</option>
-              {instructors.map((person) => (
-                <option key={person.ref} value={person.ref}>
-                  {`${person.firstName} ${person.lastName}`.trim()}
-                </option>
-              ))}
-            </select>
-                    </Field>
-          <Field id="program" label="Program">
-            <select id="program" name="program" defaultValue={filters.programRef ?? ""}>
-              <option value="">Any program</option>
-              {programs.map((program) => (
-                <option key={program.ref} value={program.ref}>
-                  {program.name}
-                </option>
-              ))}
-            </select>
-                    </Field>
-        </div>
-
-        <fieldset>
-          <legend>Status</legend>
-          <div className="choice-row">
-            {STATUS_FILTER_ORDER.map((status) => {
-              const meta = statusMeta(status);
-              return (
-                <label className="choice" key={status}>
+      <PageHeader
+        title="Sessions"
+        subtitle={<>All times in {zone}</>}
+        actions={
+          // Asked before the row is built, not inside it: a `ButtonRow` holding
+          // two refused permissions is still an element, so the header would
+          // wrap it and a student would get an empty box where the actions go.
+          canExport || canBook ? (
+            <ButtonRow>
+              {canExport && (
+                // A GET, so the current filters travel with it verbatim.
+                <AnchorButton href={exportHref}>
+                  <span aria-hidden="true">⤓</span> Export CSV
+                </AnchorButton>
+              )}
+              {canBook && (
+                <LinkButton variant="primary" href="/sessions/new">
+                  <span aria-hidden="true">＋</span> New session
+                </LinkButton>
+              )}
+            </ButtonRow>
+          ) : undefined
+        }
+        toolbar={
+          <PageToolbar
+            form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
+            filters={
+              <>
+                <Field
+                  id="q"
+                  label="Search titles"
+                  className="page-toolbar-search"
+                  labelClassName="visually-hidden"
+                >
                   <input
-                    type="checkbox"
-                    name="status"
-                    value={status.toLowerCase()}
-                    defaultChecked={filters.statuses.includes(status)}
+                    id="q"
+                    name="q"
+                    type="search"
+                    defaultValue={filters.search}
+                    placeholder="Session title"
                   />
-                  <span>
-                    {meta.label} <span aria-hidden="true">{meta.icon}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
+                </Field>
 
-        <details>
-          <summary>Choose columns</summary>
-          <div className="choice-row">
-            {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
-              <label className="choice" key={key}>
-                <input
-                  type="checkbox"
-                  name="columns"
-                  value={key}
-                  defaultChecked={columns.includes(key)}
+                {/* The same control the calendar and the directory use, and the
+                    same repeated `status=` parameters the checkbox row it
+                    replaces submitted. `applyOnClose` is off because this form
+                    has five other filters and an Apply of its own. */}
+                <FilterMenu
+                  name="status"
+                  options={statusFilterOptions()}
+                  selected={filters.statuses.map((status) => status.toLowerCase())}
+                  singular="status"
+                  plural="statuses"
+                  legend="Show these statuses"
+                  applyOnClose={false}
                 />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-          <p className="hint">
-            Untick a column to hide it. Choices apply when you press Apply filters, and
-            travel with the link so a filtered view can be shared as-is.
-          </p>
-        </details>
 
-        <ButtonRow>
-          <Button variant="primary" type="submit">
-            Apply filters
-          </Button>
-          <LinkButton href="/sessions">
-            Clear
-          </LinkButton>
-        </ButtonRow>
-      </Card>
+                <ButtonRow>
+                  <Button variant="primary" type="submit">
+                    Apply filters
+                  </Button>
+                  <LinkButton href="/sessions">
+                    Clear
+                  </LinkButton>
+                </ButtonRow>
+              </>
+            }
+            advancedFilters={
+              <MoreFilters active={advancedActive}>
+                <div className="page-toolbar-grid">
+                  <Field id="from" label="From">
+                    <input
+                      id="from"
+                      name="from"
+                      type="date"
+                      defaultValue={filters.dateFrom ?? ""}
+                    />
+                  </Field>
+                  <Field id="to" label="To">
+                    <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
+                  </Field>
+                  <Field id="instructor" label="Instructor">
+                    <select
+                      id="instructor"
+                      name="instructor"
+                      defaultValue={filters.instructorRef ?? ""}
+                    >
+                      <option value="">Anyone</option>
+                      {instructors.map((person) => (
+                        <option key={person.ref} value={person.ref}>
+                          {`${person.firstName} ${person.lastName}`.trim()}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field id="program" label="Program">
+                    <select
+                      id="program"
+                      name="program"
+                      defaultValue={filters.programRef ?? ""}
+                    >
+                      <option value="">Any program</option>
+                      {programs.map((program) => (
+                        <option key={program.ref} value={program.ref}>
+                          {program.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <fieldset>
+                  <legend>Columns</legend>
+                  <div className="choice-row">
+                    {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
+                      <label className="choice" key={key}>
+                        <input
+                          type="checkbox"
+                          name="columns"
+                          value={key}
+                          defaultChecked={columns.includes(key)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <p className="hint">
+                  Untick a column to hide it. Everything here applies when you press Apply
+                  filters, and travels with the link so a filtered view can be shared
+                  as-is.
+                </p>
+              </MoreFilters>
+            }
+          />
+        }
+      />
 
       {results.rows.length > 0 ? (
         <>

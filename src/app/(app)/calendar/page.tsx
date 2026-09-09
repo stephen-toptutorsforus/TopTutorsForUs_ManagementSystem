@@ -15,7 +15,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, EmptyState, Field, Hint, LinkButton, PageHead, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Hint, LinkButton, PageHeader, PageToolbar, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -183,133 +183,145 @@ export default async function CalendarPage({
       {/* Keep the status filter for the next bare visit, or forget it. */}
       <StatusCookieWriter statuses={filters.statuses.map((s) => s.toLowerCase())} />
 
-      <PageHead
+      <PageHeader
         title="Calendar"
         subtitle={
           <>
             {total} session{total === 1 ? "" : "s"} in view · times in {zone}
           </>
         }
-      />
+        toolbar={
+          <PageToolbar
+            form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}
+            filters={
+              <>
+                {/* The month needs no hidden field: it is what an absent `view`
+                    draws, and submitting it would only be tidied away again. */}
+                {view !== CalendarView.MONTH && (
+                  <input type="hidden" name="view" value={view} />
+                )}
+                <input type="hidden" name="date" value={window.anchor} />
 
-      <div className="cal-toolbar">
-        <form className="cal-filters" method="get" action="/calendar" role="search">
-          {/* The month needs no hidden field: it is what an absent `view`
-              draws, and submitting it would only be tidied away again. */}
-          {view !== CalendarView.MONTH && (
-            <input type="hidden" name="view" value={view} />
-          )}
-          <input type="hidden" name="date" value={window.anchor} />
+                <Field
+                  id="q"
+                  label="Search session titles"
+                  className="page-toolbar-search"
+                  labelClassName="visually-hidden"
+                >
+                  <input
+                    id="q"
+                    name="q"
+                    type="search"
+                    defaultValue={filters.search}
+                    placeholder="Session title"
+                  />
+                </Field>
 
-          <Field id="q" label="Search session titles" className="cal-search" labelClassName="visually-hidden">
-            <input
-              id="q"
-              name="q"
-              type="search"
-              defaultValue={filters.search}
-              placeholder="Search"
-            />
-                    </Field>
+                <FilterMenu
+                  name="status"
+                  options={statusFilterOptions()}
+                  selected={filters.statuses.map((status) => status.toLowerCase())}
+                  singular="status"
+                  plural="statuses"
+                  legend="Show these statuses"
+                  allLink={allStatuses}
+                  noneLink={noStatuses}
+                />
 
-          <FilterMenu
-            name="status"
-            options={statusFilterOptions()}
-            selected={filters.statuses.map((status) => status.toLowerCase())}
-            singular="status"
-            plural="statuses"
-            legend="Show these statuses"
-            allLink={allStatuses}
-            noneLink={noStatuses}
+                {/* The menu applies itself on close, so there is no Apply
+                    button. Without JavaScript nothing would submit the form, so
+                    the button comes back for that case rather than the page
+                    quietly not working. */}
+                <noscript>
+                  <Button type="submit">
+                    Apply
+                  </Button>
+                </noscript>
+              </>
+            }
+            actions={
+              principal.has(Permission.SESSION_BOOK) ? (
+                <LinkButton variant="primary" href="/sessions/new">
+                  <span aria-hidden="true">＋</span> Book Session
+                </LinkButton>
+              ) : undefined
+            }
           />
+        }
+        secondary={
+          <>
+            {/* The range being shown sits between the two arrows that move it,
+                so the label and the controls that change it read as one
+                thing. */}
+            <nav className="cal-nav" aria-label="Change date range">
+              <LinkButton size="small"
+                rel="prev"
+                href={link({ view, anchor: window.previous })}
+              >
+                <span aria-hidden="true">‹</span>
+                <VisuallyHidden>Previous {view}</VisuallyHidden>
+              </LinkButton>
+              <h2 className="cal-heading">{window.heading}</h2>
+              <LinkButton size="small"
+                rel="next"
+                href={link({ view, anchor: window.following })}
+              >
+                <span aria-hidden="true">›</span>
+                <VisuallyHidden>Next {view}</VisuallyHidden>
+              </LinkButton>
+            </nav>
 
-          {/* The menu applies itself on close, so there is no Apply button.
-              Without JavaScript nothing would submit the form, so the button
-              comes back for that case rather than the page quietly not
-              working. */}
-          <noscript>
-            <Button type="submit">
-              Apply
-            </Button>
-          </noscript>
-        </form>
+            {/* Today shares the group because that is where it is looked for, but
+                it is a jump rather than a view: it never takes `aria-current`, and
+                it keeps its own accessible name so it is not read as a fifth way of
+                showing the calendar. */}
+            <div className="cal-views" role="group" aria-label="Calendar view and date">
+              {Object.values(CalendarView).map((option) => (
+                <Link
+                  key={option}
+                  className={`cal-view ${option === view ? "is-current" : ""}`}
+                  href={link({ view: option, anchor: window.anchor })}
+                  aria-current={option === view ? "true" : undefined}
+                >
+                  {option.charAt(0).toUpperCase() + option.slice(1)}
+                </Link>
+              ))}
+              {/* Today keeps its place at the end of the group in every view, so
+                  the group does not change width as the view changes and the
+                  control never moves out from under the pointer. It is only
+                  *available* in the day view: in month, week, or list the range
+                  already contains today more often than not, so the button would
+                  look broken by doing nothing.
 
-        {principal.has(Permission.SESSION_BOOK) && (
-          <LinkButton variant="primary" className="cal-book" href="/sessions/new">
-            <span aria-hidden="true">＋</span> Book Session
-          </LinkButton>
-        )}
-      </div>
-
-      <div className="cal-bar">
-        {/* The range being shown sits between the two arrows that move it, so
-            the label and the controls that change it read as one thing. */}
-        <nav className="cal-nav" aria-label="Change date range">
-          <LinkButton size="small"
-            rel="prev"
-            href={link({ view, anchor: window.previous })}
-          >
-            <span aria-hidden="true">‹</span>
-            <VisuallyHidden>Previous {view}</VisuallyHidden>
-          </LinkButton>
-          <h2 className="cal-heading">{window.heading}</h2>
-          <LinkButton size="small"
-            rel="next"
-            href={link({ view, anchor: window.following })}
-          >
-            <span aria-hidden="true">›</span>
-            <VisuallyHidden>Next {view}</VisuallyHidden>
-          </LinkButton>
-        </nav>
-
-        {/* Today shares the group because that is where it is looked for, but
-            it is a jump rather than a view: it never takes `aria-current`, and
-            it keeps its own accessible name so it is not read as a fifth way of
-            showing the calendar. */}
-        <div className="cal-views" role="group" aria-label="Calendar view and date">
-          {Object.values(CalendarView).map((option) => (
-            <Link
-              key={option}
-              className={`cal-view ${option === view ? "is-current" : ""}`}
-              href={link({ view: option, anchor: window.anchor })}
-              aria-current={option === view ? "true" : undefined}
-            >
-              {option.charAt(0).toUpperCase() + option.slice(1)}
-            </Link>
-          ))}
-          {/* Today keeps its place at the end of the group in every view, so
-              the group does not change width as the view changes and the
-              control never moves out from under the pointer. It is only
-              *available* in the day view: in month, week, or list the range
-              already contains today more often than not, so the button would
-              look broken by doing nothing.
-
-              Unavailable is a disabled button rather than a missing one —
-              assistive technology announces it as present but unavailable,
-              which is the truth, where hiding it would say the control does not
-              exist. */}
-          {view === CalendarView.DAY ? (
-            <Link
-              className={`cal-view cal-view-today ${
-                window.anchor === today ? "is-on-today" : ""
-              }`}
-              href={link({ view: "day", anchor: today })}
-            >
-              Today
-              <VisuallyHidden>— show today</VisuallyHidden>
-            </Link>
-          ) : (
-            <button
-              type="button"
-              className="cal-view cal-view-today is-disabled"
-              disabled
-              title="Switch to the day view to jump to today"
-            >
-              Today
-              <VisuallyHidden>— available in the day view</VisuallyHidden>
-            </button>
-          )}
-        </div>
-      </div>
+                  Unavailable is a disabled button rather than a missing one —
+                  assistive technology announces it as present but unavailable,
+                  which is the truth, where hiding it would say the control does not
+                  exist. */}
+              {view === CalendarView.DAY ? (
+                <Link
+                  className={`cal-view cal-view-today ${
+                    window.anchor === today ? "is-on-today" : ""
+                  }`}
+                  href={link({ view: "day", anchor: today })}
+                >
+                  Today
+                  <VisuallyHidden>— show today</VisuallyHidden>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="cal-view cal-view-today is-disabled"
+                  disabled
+                  title="Switch to the day view to jump to today"
+                >
+                  Today
+                  <VisuallyHidden>— available in the day view</VisuallyHidden>
+                </button>
+              )}
+            </div>
+          </>
+        }
+      />
 
       {view === CalendarView.MONTH && (
         <div className="cal-month">

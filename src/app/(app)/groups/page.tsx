@@ -8,7 +8,7 @@
 import Link from "next/link";
 
 import { NewGroupForm } from "@/components/structure/Forms";
-import { Badge, Card, EmptyState, Hint, LinkButton, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Badge, Card, EmptyState, Hint, LinkButton, PageHeader, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -44,7 +44,7 @@ export default async function GroupsPage() {
 
   return (
     <>
-      <PageHead
+      <PageHeader
         title="Groups"
         subtitle="Named cohorts. Booking a group adds its current members to each session as it is created, so a later change never rewrites a session already booked."
       />

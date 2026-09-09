@@ -112,6 +112,14 @@ edges have a stated, tested policy — gaps shift forward, overlaps take the fir
 **Preview and creation share one function.** What somebody is shown before
 pressing the button is by construction what gets written.
 
+**One header shape, and the page fills the slots.** `PageHeader` renders the
+title, the toolbar and the secondary row for every administration screen;
+`PageToolbar` owns the filter form, with the page-level actions kept outside it
+because "Create User" opens a modal with a form of its own. A page passes
+`ReactNode` slots and nothing else — no page-specific rule reaches the
+component, and no query parsing happens inside it. What was `.page-head`,
+`.cal-toolbar`, `.people-toolbar` and `.filters` is one set of `.page-*` classes.
+
 **The URL says the state, and only the state.** Filter state lives in the query
 string, so a refresh, a back button, a bookmark and a link sent to a colleague
 all mean the same thing, and every filter form can be a plain GET that works
@@ -126,8 +134,8 @@ Nothing on a URL identifies anybody: the parameters that name a record carry an
 opaque `ref`.
 
 **The interface has a vocabulary.** `src/components/ui/` holds what every
-screen is built from — Card, PageHead, TableWrap, Button, Field, Badge, Modal —
-and pages import from it rather than combining class names by hand. Each module
+screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal
+— and pages import from it rather than combining class names by hand. Each module
 says why it exists, not just what it renders: why a badge is a glyph *and* a
 colour *and* a word, why the modal is `:target` and not `<dialog>`, why
 `Button`, `LinkButton` and `AnchorButton` are three components and not one with
@@ -175,11 +183,11 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-388 tests — 188 pure, 200 database-backed — plus differential runs of 29,200
+402 tests — 202 pure, 200 database-backed — plus differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 388), and the
+The reference still has more tests than this does (509 against 402), and the
 difference is almost entirely its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,

@@ -12,10 +12,11 @@ export { Badge, StatusBadge, AttendanceBadge, DeliveryBadge, Tag } from "./Badge
 export type { Tone } from "./Badge";
 export { Button, LinkButton, AnchorButton, ButtonRow } from "./Button";
 export type { ButtonVariant, ButtonSize } from "./Button";
-export { Card, CardGrid, PageHead } from "./Card";
+export { Card, CardGrid } from "./Card";
 export { EmptyState } from "./EmptyState";
 export { Field, Hint, VisuallyHidden } from "./Field";
 export { Modal } from "./Modal";
+export { MoreFilters, PageHeader, PageToolbar } from "./PageHeader";
 export { Notice } from "./Notice";
 export { ScopeChoice } from "./ScopeChoice";
 export { TableWrap } from "./Table";

@@ -9,7 +9,7 @@
  * instead of somebody else's contact address.
  */
 
-import { Card, CardGrid, EmptyState, PageHead } from "@/components/ui";
+import { Card, CardGrid, EmptyState, PageHeader } from "@/components/ui";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Help Center · TopTutorsForUs" };
@@ -30,7 +30,7 @@ export default async function HelpPage() {
 
   return (
     <>
-      <PageHead title="Help Center" subtitle="How this workspace behaves, and who to ask." />
+      <PageHeader title="Help Center" subtitle="How this workspace behaves, and who to ask." />
 
       <CardGrid>
         <Card>

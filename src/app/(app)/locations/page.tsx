@@ -6,7 +6,7 @@
  */
 
 import { ArchiveLocationForm, NewLocationForm } from "@/components/structure/Forms";
-import { Card, EmptyState, PageHead, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Card, EmptyState, PageHeader, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -37,7 +37,7 @@ export default async function LocationsPage() {
 
   return (
     <>
-      <PageHead
+      <PageHeader
         title="Locations"
         subtitle="Rooms an in-person session can occupy. A location holds one session at a time — the database refuses a second, so a double-booked room is not possible rather than merely discouraged."
       />

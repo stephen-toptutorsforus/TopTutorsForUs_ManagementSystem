@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 
-import { Card, EmptyState, PageHead, When } from "@/components/ui";
+import { Card, EmptyState, PageHeader, When } from "@/components/ui";
 import { AuditCategory } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -38,7 +38,7 @@ export default async function AuditPage() {
 
   return (
     <>
-      <PageHead title="Audit trail" subtitle={<>Append-only. It records which fields changed and what they changed to — never
+      <PageHeader title="Audit trail" subtitle={<>Append-only. It records which fields changed and what they changed to — never
             the content of notes, messages, or contact details.</>} />
 
       {events.length > 0 ? (

@@ -14,7 +14,7 @@
 
 import { notFound } from "next/navigation";
 
-import { Card, EmptyState, LinkButton, PageHead, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { Card, EmptyState, LinkButton, PageHeader, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS, durationLabel, percent } from "@/lib/presentation";
@@ -51,7 +51,7 @@ export default async function SeriesDetailPage({
 
   return (
     <>
-      <PageHead title={series.title} subtitle={<>{rows.length} session{rows.length === 1 ? "" : "s"} ·{" "}
+      <PageHeader title={series.title} subtitle={<>{rows.length} session{rows.length === 1 ? "" : "s"} ·{" "}
             {weekdays.map((day) => (
               <Tag key={day}>
                 {WEEKDAY_LABELS[day] ?? day}

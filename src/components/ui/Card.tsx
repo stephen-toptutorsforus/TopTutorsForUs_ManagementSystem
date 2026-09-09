@@ -1,10 +1,10 @@
 /**
- * The two boxes every screen is built from.
+ * The surface every screen is built on.
  *
- * `Card` is a surface on the page; `PageHead` is the title block above it. Both
- * were hand-written on every screen, which is how the same heading ended up
- * with a subtitle in a `<p class="subtitle">` on one page and a bare paragraph
- * on another.
+ * Hand-written on every screen before this, which is how three of them ended up
+ * with a border and a shadow and the rest with just a border. The title block
+ * that used to live here has grown into `PageHeader`, which owns the toolbar and
+ * the navigation row as well.
  */
 
 export function Card({
@@ -27,33 +27,6 @@ export function Card({
     <Tag className={className ? `card ${className}` : "card"} {...rest}>
       {children}
     </Tag>
-  );
-}
-
-/**
- * The title, what the page is for, and anything acting on the whole of it.
- *
- * `actions` rather than free children on the right, because the layout only
- * works with exactly two boxes: without the wrapper the title and subtitle
- * become separate flex items and the subtitle lands beside the heading.
- */
-export function PageHead({
-  title,
-  subtitle,
-  actions,
-}: {
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <div className="page-head">
-      <div>
-        <h1>{title}</h1>
-        {subtitle !== undefined && <p className="subtitle">{subtitle}</p>}
-      </div>
-      {actions}
-    </div>
   );
 }
 

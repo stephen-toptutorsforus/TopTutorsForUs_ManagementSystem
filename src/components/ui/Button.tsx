@@ -10,6 +10,8 @@
  * incidental to whichever tag was nearest.
  */
 
+import { Children } from "react";
+
 import Link from "next/link";
 
 export type ButtonVariant = "default" | "primary" | "danger";
@@ -89,6 +91,12 @@ export function ButtonRow({
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement> &
   Pick<React.FormHTMLAttributes<HTMLFormElement>, "action" | "method">) {
+  // A row of buttons with no buttons in it is not a row. Call sites write
+  // `{canExport && <Button/>}`, so a row can end up holding nothing but refused
+  // permissions — and an empty `.btn-row` still has a gap and a margin above
+  // it. `Children.toArray` drops the `false`s for us.
+  if (Children.toArray(children).length === 0) return null;
+
   return (
     <Tag className={className ? `btn-row ${className}` : "btn-row"} {...rest}>
       {children}

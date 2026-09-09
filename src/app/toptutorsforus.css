@@ -362,12 +362,101 @@ a:hover { color: var(--brand-700); }
    take what they need and one child — the calendar grid — takes the rest. */
 .main-fill { display: flex; flex-direction: column; padding-bottom: 1.5rem; overflow: hidden; }
 .main-fill > .cal-grid-card { flex: 1 1 auto; min-height: 0; display: flex; }
-.page-head {
+/* --- The page header ------------------------------------------------------
+ *
+ * One shape for the top of every administration screen: the title and whatever
+ * acts on the page, a bar of filters under it, and — on the calendar alone so
+ * far — a row of controls that changes the range being shown rather than
+ * narrowing it.
+ *
+ * Four names for these three boxes are gone. `.page-head` was the title row.
+ * `.cal-toolbar` and `.people-toolbar` were the same bar with 0.6rem of gap on
+ * one and 1rem on the other, `align-items: center` on one and `flex-end` on the
+ * other. `.filters` was that bar a third time, inside a card, with the search
+ * box elastic instead of fixed. `.cal-bar` was the secondary row. None of those
+ * differences was ever a decision.
+ */
+
+.page-header { margin-bottom: 1.25rem; }
+.page-header-main {
   display: flex; flex-wrap: wrap; gap: 1rem;
   align-items: flex-start; justify-content: space-between;
-  margin-bottom: 1.25rem;
 }
-.page-head .subtitle { color: var(--ink-500); margin: 0; }
+.page-header-title { min-width: 0; }
+.page-header .subtitle { color: var(--ink-500); margin: 0; }
+.page-header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
+
+/* A bar on the page, not a card. It is chrome for the list below it, and the
+   card's shadow made two floating surfaces stacked on one another — see the
+   note on `.card` for what `--shadow` is reserved for. */
+.page-toolbar {
+  margin-top: 0.9rem; padding: 0.75rem;
+  background: var(--paper); border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg);
+}
+.page-toolbar-row {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  align-items: flex-start; justify-content: space-between;
+}
+/* The form is the left half of the row, and it holds every control that
+   submits — including the ones inside "More filters". */
+.page-toolbar-filters { flex: 1 1 auto; min-width: 0; margin: 0; }
+/* `nowrap`, with `min-width: 0` on what is inside it. A wrapping flex container
+   nested in another one resolves to the width of a single line and then wraps
+   its own contents into whatever that leaves — which is how the role filter
+   ended up on a line of its own at every width, with 314px of room for 379px of
+   controls. The search box shrinks instead. */
+.page-toolbar-fields {
+  display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end;
+  min-width: 0;
+}
+.page-toolbar-fields .field { margin: 0; }
+/* The toolbar's leading field: the search box on three screens and the
+   instructor picker on the fourth. Sized to what goes into it — a name, a
+   session title — rather than stretched to whatever room the toolbar has. It
+   still shrinks on a narrow screen; it never grows, so the fields stay a group
+   on the left instead of pushing the actions to the far edge. The 200px floor
+   is what stops the session grid, which has the most in this row, from
+   squeezing it to 83px at 768px. */
+.page-toolbar-search { flex: 0 1 260px; min-width: 200px; }
+.page-toolbar-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
+
+/* The filters that are not worth a permanent row. A disclosure at every width;
+   `PageHeader.tsx` records why it is not a row on a wide screen. */
+.page-toolbar-more { margin-top: 0.55rem; border-top: 1px solid var(--ink-100); }
+.page-toolbar-more > summary {
+  display: flex; align-items: center; gap: 0.45rem;
+  min-height: 44px; padding: 0 0.15rem;
+  color: var(--ink-700); font-weight: 600; font-size: 0.9rem;
+  cursor: pointer; list-style: none;
+}
+.page-toolbar-more > summary::-webkit-details-marker { display: none; }
+.page-toolbar-more > summary::after { content: "\25be"; color: var(--ink-500); }
+.page-toolbar-more[open] > summary::after { content: "\25b4"; }
+/* How many advanced filters are set. A number in a shape, with the count also
+   written out for a screen reader in the markup — the badge rule again, never
+   colour on its own. */
+.page-toolbar-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 21px; height: 21px; padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand-600); color: var(--on-brand);
+  font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.page-toolbar-more-body { padding: 0.15rem 0 0.35rem; }
+/* Inside the disclosure the fields do wrap: nothing is competing for the width,
+   so there is no squeezed line to protect. */
+.page-toolbar-grid {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
+  margin-bottom: 0.9rem;
+}
+.page-toolbar-grid .field { margin: 0; flex: 1 1 170px; min-width: 0; }
+
+/* Controls that change what is shown rather than which records are shown. */
+.page-header-secondary {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  align-items: center; justify-content: space-between; margin-top: 0.9rem;
+}
 
 /* --- Cards and surfaces -------------------------------------------------- */
 
@@ -653,29 +742,19 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 
 /* --- Calendar ------------------------------------------------------------
  *
- * Four views share one toolbar. The status filter is a native <details>
- * disclosure holding real checkboxes, so it opens, closes, and tabs correctly
- * with no script — and each option shows a colour swatch AND a glyph AND a
- * word, so the filter stays usable without colour vision.
+ * Four views share one header, and it is `.page-toolbar` above — the same one
+ * every other screen uses. What is left here is what no other page has: the
+ * range navigation, the view switcher, and the grids themselves.
+ *
+ * The status filter is a native <details> disclosure holding real checkboxes,
+ * so it opens, closes, and tabs correctly with no script — and each option
+ * shows a colour swatch AND a glyph AND a word, so the filter stays usable
+ * without colour vision.
  *
  * `.filtermenu` is deliberately not prefixed `cal-`: the directory's role
  * filter is the same control, and a class named after the first screen to want
  * it is the reason a second screen ends up with a copy instead.
  */
-
-.cal-toolbar {
-  display: flex; flex-wrap: wrap; gap: 0.6rem;
-  align-items: center; justify-content: space-between;
-  padding: 0.75rem; margin-bottom: 0.9rem;
-  background: var(--paper); border: 1px solid var(--ink-200);
-  border-radius: var(--radius-lg);
-}
-.cal-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
-.cal-toolbar .field { margin: 0; }
-/* Fixed width rather than flex-grow: a search box that stretches to fill the
-   row changes size every time the toolbar's other contents do. */
-.cal-search { flex: 0 0 260px; max-width: 100%; }
-.cal-book { flex: none; margin-left: auto; }
 
 .filtermenu { position: relative; }
 .filtermenu > summary {
@@ -720,10 +799,6 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 }
 .filtermenu-actions span { color: var(--ink-400); }
 
-.cal-bar {
-  display: flex; flex-wrap: wrap; gap: 0.75rem;
-  align-items: center; justify-content: space-between; margin-bottom: 0.9rem;
-}
 .cal-nav { display: flex; align-items: center; gap: 0.4rem; }
 .cal-nav .btn { min-width: 40px; }
 /* Centred between the arrows, with a floor wide enough that stepping from
@@ -848,10 +923,39 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
   .cal-cell { border-radius: var(--radius); margin-bottom: 0.4rem; min-height: 0; }
   .cal-cell.is-outside { display: none; }
   .cal-daynum { text-align: left; }
-  .filtermenu { flex: 1 1 100%; }
+  .filtermenu { flex: 1 1 auto; }
   .filtermenu-panel { position: static; box-shadow: none; }
-  .cal-search { flex: 1 1 100%; }
-  .cal-book { width: 100%; margin-left: 0; }
+
+  /* The header becomes rows rather than a squeezed line. Search keeps one of
+     its own, because search is how records are found on every screen that has
+     this toolbar; the rest of the filters share the next. Everything that gets
+     tapped is already at least 44px — inputs, selects, `.btn` and the two
+     disclosure summaries all set it — except the two below, which are 34px and
+     38px on a desktop where they are clicked with a pointer. */
+  .page-toolbar-row { flex-direction: column; align-items: stretch; }
+  .page-toolbar-fields { flex-wrap: wrap; }
+  .page-toolbar-search { flex: 1 1 100%; }
+  .page-toolbar-fields > .btn-row { width: 100%; }
+  .page-toolbar-fields > .btn-row .btn { flex: 1 1 auto; }
+  .page-toolbar-actions { width: 100%; }
+  .page-toolbar-actions .btn { flex: 1 1 auto; }
+  .page-toolbar-grid .field { flex: 1 1 100%; }
+
+  /* The secondary row: the range arrows either side of the heading, then the
+     view switcher on its own line at full width. */
+  .page-header-secondary { flex-direction: column; align-items: stretch; }
+  .cal-nav { justify-content: space-between; }
+  .cal-views { display: flex; }
+  .cal-view { flex: 1 1 auto; justify-content: center; padding: 0 0.5rem; }
+}
+
+/* The range arrows and the view pills are 34px and 38px, which is a comfortable
+   pointer target and a poor finger one. Width is the wrong question for that —
+   a tablet held at 900px is still a finger — so the floor follows the input
+   rather than the viewport. */
+@media (pointer: coarse) {
+  .cal-nav .btn { min-height: 44px; min-width: 44px; }
+  .cal-view { min-height: 44px; }
 }
 
 /* --- Session booking ------------------------------------------------------
@@ -1249,28 +1353,6 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 
 /* --- People directory ----------------------------------------------------- */
 
-/* Filters and the create actions share a line. The actions sit outside the
-   search form, so they are laid out beside it rather than within it. */
-.people-toolbar {
-  display: flex; flex-wrap: wrap; gap: 1rem;
-  align-items: flex-end; justify-content: space-between;
-}
-/* One line, always: the role filter belongs beside the search box, not under
-   it. `nowrap` because a wrapping flex container nested inside another one
-   resolves to the width of a single line and then wraps its own contents into
-   the space that leaves — 314px for 379px of controls. The search box shrinks
-   instead, which is what `min-width: 0` below is for. */
-.people-filters {
-  display: flex; flex-wrap: nowrap; gap: 0.75rem; align-items: flex-end;
-  flex: 1 1 auto; margin: 0;
-}
-/* Sized to the text somebody types into it — a name — rather than stretched to
-   whatever room the toolbar has. It still shrinks on a narrow screen, but it
-   never grows, so the filters stay a group on the left instead of pushing the
-   actions to the far edge. */
-.people-filters .field { margin: 0; flex: 0 1 260px; min-width: 0; }
-.people-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-
 /* Ten columns is wider than most screens, so the wrapper scrolls rather than
    the page. Cleared below the breakpoint by the card-mode rules — see the
    `min-width` reset there before adding a second table with a width like
@@ -1581,12 +1663,6 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .empty { text-align: center; padding: 2.5rem 1rem; color: var(--ink-500); }
 .empty .glyph { font-size: 1.75rem; display: block; margin-bottom: 0.5rem; opacity: 0.6; }
 .empty h3 { color: var(--ink-700); }
-
-/* --- Filters ------------------------------------------------------------- */
-
-.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
-.filters .field { margin: 0; min-width: 150px; flex: 1 1 150px; }
-.filters .field.grow { flex: 3 1 240px; }
 
 .pagination { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin-top: 1rem; flex-wrap: wrap; }
 .pagination .count { color: var(--ink-500); font-size: 0.88rem; }

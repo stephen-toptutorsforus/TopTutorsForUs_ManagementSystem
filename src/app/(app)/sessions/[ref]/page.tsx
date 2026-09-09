@@ -14,7 +14,7 @@ import { notFound } from "next/navigation";
 
 import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
-import { Badge, Card, CardGrid, DeliveryBadge, LinkButton, PageHead, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
+import { Badge, Card, CardGrid, DeliveryBadge, LinkButton, PageHeader, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -104,7 +104,7 @@ export default async function SessionDetailPage({
 
   return (
     <>
-      <PageHead title={session.title} subtitle={<><StatusBadge status={session.status} />{" "}
+      <PageHeader title={session.title} subtitle={<><StatusBadge status={session.status} />{" "}
             <DeliveryBadge delivery={session.deliveryType} />{" "}
             {series && session.seriesIndex && seriesTotal && (
               <Link className="tag" href={`/series/${series.ref}`}>

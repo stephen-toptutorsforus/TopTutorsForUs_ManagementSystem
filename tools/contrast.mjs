@@ -60,6 +60,7 @@ const PAIRS = [
   ["link:hover", "--brand-700", "--paper", 4.5],
   ["btn-primary label", "--on-brand", "--brand-600", 4.5],
   ["btn-primary:hover label", "--on-brand", "--brand-700", 4.5],
+  ["active filter count", "--on-brand", "--brand-600", 4.5],
   ["skip-link label", "--on-brand", "--brand-700", 4.5],
   ["active nav row", "--brand-700", "--brand-100", 4.5],
   ["selected choice", "--brand-700", "--brand-100", 4.5],

@@ -14,7 +14,7 @@ import {
   ParticipantRole,
   SessionStatus,
 } from "@/generated/prisma/enums";
-import { Card, CardGrid, EmptyState, LinkButton, PageHead, StatusBadge, TableWrap, Tag, When, WhenTime } from "@/components/ui";
+import { Card, CardGrid, EmptyState, LinkButton, PageHeader, StatusBadge, TableWrap, Tag, When, WhenTime } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { durationLabel } from "@/lib/presentation";
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHead
+      <PageHeader
         title={<>Today at {organization.name}</>}
         subtitle={
           <>

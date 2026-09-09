@@ -13,6 +13,12 @@
  * should be one navigation, not three. The reference does it with a script and
  * falls back to an Apply button; here the submit is in the component and the
  * `<noscript>` button is still rendered, so the page works either way.
+ *
+ * `applyOnClose` turns that off for the one place it is wrong. On the calendar
+ * and the directory this menu is the only thing in the form, so closing it is
+ * unambiguously "apply". The session grid has five other filters and an Apply
+ * button of its own: submitting there the moment the status panel closed would
+ * throw away a half-filled date range, so the menu defers to the form.
  */
 
 import { useEffect, useRef } from "react";
@@ -29,6 +35,7 @@ export function FilterMenu({
   legend,
   allLink,
   noneLink,
+  applyOnClose = true,
 }: {
   name: string;
   options: FilterOption[];
@@ -38,12 +45,14 @@ export function FilterMenu({
   legend: string;
   allLink?: string;
   noneLink?: string;
+  /** False where the surrounding form has its own submit. See above. */
+  applyOnClose?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     const node = details.current;
-    if (node === null) return;
+    if (node === null || !applyOnClose) return;
 
     const onToggle = () => {
       // Only on close, and only when something actually changed — reopening a
@@ -58,7 +67,7 @@ export function FilterMenu({
 
     node.addEventListener("toggle", onToggle);
     return () => node.removeEventListener("toggle", onToggle);
-  }, [name, selected]);
+  }, [applyOnClose, name, selected]);
 
   useEffect(() => {
     const node = details.current;
@@ -67,8 +76,8 @@ export function FilterMenu({
     // A `<details>` closes only when its own summary is pressed, so a click on
     // the page behind it leaves the panel hanging open over the content it
     // covers. Dismissing on an outside press makes it behave like the menu it
-    // is drawn as. Closing is the same event as applying, so the press that
-    // dismisses the menu also commits the ticks — one navigation, as before.
+    // is drawn as. Where closing applies, the press that dismisses the menu
+    // also commits the ticks — one navigation, as before.
     const onOutside = (event: PointerEvent) => {
       if (!node.open) return;
       const target = event.target;
@@ -138,14 +147,17 @@ export function FilterMenu({
         </fieldset>
         {/* With scripting off nothing applies the ticks — no toggle listener,
             and the surrounding form has no submit button of its own. Rendered
-            in a `<noscript>` so it exists exactly when it is needed. */}
-        <noscript>
-          <p className="filtermenu-actions">
-            <Button size="small" type="submit">
-              Apply
-            </Button>
-          </p>
-        </noscript>
+            in a `<noscript>` so it exists exactly when it is needed, and not at
+            all where the form already has one. */}
+        {applyOnClose && (
+          <noscript>
+            <p className="filtermenu-actions">
+              <Button size="small" type="submit">
+                Apply
+              </Button>
+            </p>
+          </noscript>
+        )}
         {allLink !== undefined && noneLink !== undefined && (
           // Plain links, not scripted buttons, so they work like the rest.
           <p className="filtermenu-actions">
@@ -155,8 +167,11 @@ export function FilterMenu({
           </p>
         )}
         <p className="hint">
-          Tick as many as you like — the filter applies when you close this menu. With
-          none ticked, every {singular} is shown.
+          Tick as many as you like —{" "}
+          {applyOnClose
+            ? "the filter applies when you close this menu"
+            : "then press Apply filters"}
+          . With none ticked, every {singular} is shown.
         </p>
       </div>
     </details>
