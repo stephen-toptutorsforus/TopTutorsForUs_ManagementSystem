@@ -39,7 +39,6 @@ export default async function LocationsPage() {
     <>
       <PageHeader
         title="Locations"
-        subtitle="Rooms an in-person session can occupy. A location holds one session at a time — the database refuses a second, so a double-booked room is not possible rather than merely discouraged."
       />
 
       {locations.length > 0 ? (

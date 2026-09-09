@@ -87,11 +87,6 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title={<>Today at {organization.name}</>}
-        subtitle={
-          <>
-            {LONG_DATE.format(new Date(`${today}T00:00:00Z`))} · all times shown in {zone}
-          </>
-        }
         actions={
           principal.has(Permission.SESSION_BOOK) && (
             <LinkButton variant="primary" href="/sessions/new">

@@ -30,7 +30,7 @@ export default async function HelpPage() {
 
   return (
     <>
-      <PageHeader title="Help Center" subtitle="How this workspace behaves, and who to ask." />
+      <PageHeader title="Help Center"  />
 
       <CardGrid>
         <Card>

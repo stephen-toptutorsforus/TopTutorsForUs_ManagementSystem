@@ -185,11 +185,6 @@ export default async function CalendarPage({
 
       <PageHeader
         title="Calendar"
-        subtitle={
-          <>
-            {total} session{total === 1 ? "" : "s"} in view · times in {zone}
-          </>
-        }
         toolbar={
           <PageToolbar
             form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}

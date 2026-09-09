@@ -152,7 +152,6 @@ export default async function SessionsPage({
     <>
       <PageHeader
         title="Sessions"
-        subtitle={<>All times in {zone}</>}
         actions={
           // Asked before the row is built, not inside it: a `ButtonRow` holding
           // two refused permissions is still an element, so the header would

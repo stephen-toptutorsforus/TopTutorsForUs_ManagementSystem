@@ -120,7 +120,6 @@ export default async function PeoplePage({
     <>
       <PageHeader
         title="User Management"
-        subtitle={<>Everyone at {organization.name}.</>}
         toolbar={
           <PageToolbar
             form={{ action: "/people", label: "Search and filter people", role: "search" }}

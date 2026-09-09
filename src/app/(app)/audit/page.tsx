@@ -38,8 +38,7 @@ export default async function AuditPage() {
 
   return (
     <>
-      <PageHeader title="Audit trail" subtitle={<>Append-only. It records which fields changed and what they changed to — never
-            the content of notes, messages, or contact details.</>} />
+      <PageHeader title="Audit trail" />
 
       {events.length > 0 ? (
         <Card>

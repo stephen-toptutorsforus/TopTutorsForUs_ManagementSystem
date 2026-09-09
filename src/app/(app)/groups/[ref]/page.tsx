@@ -73,24 +73,6 @@ export default async function GroupDetailPage({
     <>
       <PageHeader
         title={group.name}
-        subtitle={
-          <>
-            {studentCount} student{studentCount === 1 ? "" : "s"}
-            {group.capacity ? (
-              <>
-                {" "}
-                of {group.capacity}
-                {studentCount >= group.capacity && (
-                  <Badge tone="warn" glyph="!">
-                    Full
-                  </Badge>
-                )}
-              </>
-            ) : (
-              <> · no capacity limit</>
-            )}
-          </>
-        }
         actions={<LinkButton href="/groups">Back to groups</LinkButton>}
       />
 

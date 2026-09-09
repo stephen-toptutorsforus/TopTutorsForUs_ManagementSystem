@@ -46,7 +46,6 @@ export default async function GroupsPage() {
     <>
       <PageHeader
         title="Groups"
-        subtitle="Named cohorts. Booking a group adds its current members to each session as it is created, so a later change never rewrites a session already booked."
       />
 
       {groups.length > 0 ? (

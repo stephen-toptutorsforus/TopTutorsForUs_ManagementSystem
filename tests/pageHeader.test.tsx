@@ -25,7 +25,6 @@ describe("PageHeader", () => {
     const markup = html(
       <PageHeader
         title="Calendar"
-        subtitle={<>9 sessions in view</>}
         actions={<button type="button">Export</button>}
         toolbar={<PageToolbar filters={<input name="q" />} />}
         secondary={<nav aria-label="Change date range">arrows</nav>}

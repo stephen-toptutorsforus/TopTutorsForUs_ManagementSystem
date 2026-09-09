@@ -383,7 +383,6 @@ a:hover { color: var(--brand-700); }
   align-items: flex-start; justify-content: space-between;
 }
 .page-header-title { min-width: 0; }
-.page-header .subtitle { color: var(--ink-500); margin: 0; }
 .page-header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
 
 /* A bar on the page, not a card. It is chrome for the list below it, and the

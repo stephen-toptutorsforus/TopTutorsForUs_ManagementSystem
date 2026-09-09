@@ -41,14 +41,12 @@ import { VisuallyHidden } from "./Field";
  */
 export function PageHeader({
   title,
-  subtitle,
   actions,
   toolbar,
   secondary,
   className,
 }: {
   title: React.ReactNode;
-  subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   toolbar?: React.ReactNode;
   secondary?: React.ReactNode;
@@ -59,12 +57,7 @@ export function PageHeader({
       <div className="page-header-main">
         <div className="page-header-title">
           <h1>{title}</h1>
-          {subtitle !== undefined && <p className="subtitle">{subtitle}</p>}
         </div>
-        {/* Only when there is something to put in it. An empty flex item still
-            takes part in the row's justification, which is how a page with no
-            actions ended up with its title in a different place from one that
-            had them. */}
         {isPresent(actions) && <div className="page-header-actions">{actions}</div>}
       </div>
       {toolbar}

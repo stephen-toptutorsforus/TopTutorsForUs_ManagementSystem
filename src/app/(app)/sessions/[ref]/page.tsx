@@ -104,21 +104,7 @@ export default async function SessionDetailPage({
 
   return (
     <>
-      <PageHeader title={session.title} subtitle={<><StatusBadge status={session.status} />{" "}
-            <DeliveryBadge delivery={session.deliveryType} />{" "}
-            {series && session.seriesIndex && seriesTotal && (
-              <Link className="tag" href={`/series/${series.ref}`}>
-                Session {session.seriesIndex} of {seriesTotal} in this series
-              </Link>
-            )}
-            {session.detachedFromSeries && (
-              <Tag>Edited on its own — series edits skip it</Tag>
-            )}
-            {session.conflictOverridden && (
-              <Badge tone="warn" glyph="!">Booked over a conflict</Badge>
-            )}</>} actions={<LinkButton href="/sessions">
-          Back to sessions
-        </LinkButton>} />
+      <PageHeader title={session.title}  />
 
       <CardGrid>
         <Card>

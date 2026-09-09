@@ -29,7 +29,7 @@ export default async function SeriesPage() {
     <>
       <PageHeader
         title="Series"
-        subtitle={<>Recurring bookings and how their sessions have turned out. Times in {zone}.</>}
+        
       />
 
       {rows.length > 0 ? (

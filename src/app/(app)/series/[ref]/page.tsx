@@ -51,15 +51,8 @@ export default async function SeriesDetailPage({
 
   return (
     <>
-      <PageHeader title={series.title} subtitle={<>{rows.length} session{rows.length === 1 ? "" : "s"} ·{" "}
-            {weekdays.map((day) => (
-              <Tag key={day}>
-                {WEEKDAY_LABELS[day] ?? day}
-              </Tag>
-            ))}{" "}
-            at {timeFromDb(series.startTime)} <Tag>{series.timezone}</Tag></>} actions={<LinkButton href="/series">
-          Back to series
-        </LinkButton>} />
+      <PageHeader title={series.title} 
+ />
 
       <Card>
         <h2>Rule</h2>

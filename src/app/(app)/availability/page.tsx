@@ -99,12 +99,6 @@ export default async function AvailabilityPage({
     <>
       <PageHeader
         title="Availability"
-        subtitle={
-          <>
-            {displayName} · windows are stated as wall-clock time in {zone}, so they hold
-            across daylight-saving changes.
-          </>
-        }
         toolbar={
           roster.length > 1 ? (
             <PageToolbar
