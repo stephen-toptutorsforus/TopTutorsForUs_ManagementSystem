@@ -4,6 +4,8 @@
  * Always asked, never inferred — see the note on the component itself.
  */
 
+import { Choice, ChoiceGroup } from "./Field";
+
 /**
  * Which occurrences an edit reaches.
  *
@@ -20,32 +22,29 @@ export function ScopeChoice({
   legend?: string;
 }) {
   return (
-    <fieldset>
-      <legend>{legend}</legend>
-      <div className="choice-row">
-        <label className="choice">
-          <input type="radio" name={name} value="this" defaultChecked />
-          <span>Only this session</span>
-        </label>
-        {series && (
-          <>
-            <label className="choice">
-              <input type="radio" name={name} value="this_and_future" />
-              <span>This and all later sessions</span>
-            </label>
-            <label className="choice">
-              <input type="radio" name={name} value="all" />
-              <span>The whole series</span>
-            </label>
-          </>
-        )}
-      </div>
+    <ChoiceGroup
+      legend={legend}
+      hint={
+        series && (
+          <p className="hint">
+            Sessions that have already run, been cancelled, or been edited on their own
+            are never changed by a series-wide edit.
+          </p>
+        )
+      }
+    >
+      <Choice type="radio" name={name} value="this" defaultChecked label="Only this session" />
       {series && (
-        <p className="hint">
-          Sessions that have already run, been cancelled, or been edited on their own are
-          never changed by a series-wide edit.
-        </p>
+        <>
+          <Choice
+            type="radio"
+            name={name}
+            value="this_and_future"
+            label="This and all later sessions"
+          />
+          <Choice type="radio" name={name} value="all" label="The whole series" />
+        </>
       )}
-    </fieldset>
+    </ChoiceGroup>
   );
 }

@@ -15,7 +15,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, EmptyState, Field, Hint, LinkButton, PageHeader, PageToolbar, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, EmptyState, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -197,20 +197,11 @@ export default async function CalendarPage({
                 )}
                 <input type="hidden" name="date" value={window.anchor} />
 
-                <Field
-                  id="q"
+                <SearchField
                   label="Search session titles"
-                  className="page-toolbar-search"
-                  labelClassName="visually-hidden"
-                >
-                  <input
-                    id="q"
-                    name="q"
-                    type="search"
-                    defaultValue={filters.search}
-                    placeholder="Session title"
-                  />
-                </Field>
+                  placeholder="Session title"
+                  defaultValue={filters.search}
+                />
 
                 <FilterMenu
                   name="status"

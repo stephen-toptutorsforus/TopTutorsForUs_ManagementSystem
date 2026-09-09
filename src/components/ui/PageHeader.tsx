@@ -27,7 +27,7 @@
  * application's real banner and is untouched by any of this.
  */
 
-import { VisuallyHidden } from "./Field";
+import { Field, VisuallyHidden } from "./Field";
 
 /**
  * Title, subtitle, and the three rows that may follow.
@@ -58,6 +58,10 @@ export function PageHeader({
         <div className="page-header-title">
           <h1>{title}</h1>
         </div>
+        {/* Only when there is something to put in it. An empty flex item still
+            takes part in the row's justification, which is how a page with no
+            actions ended up with its title in a different place from one that
+            had them. */}
         {isPresent(actions) && <div className="page-header-actions">{actions}</div>}
       </div>
       {toolbar}
@@ -156,6 +160,57 @@ export function PageToolbar({
         {isPresent(actions) && <div className="page-toolbar-actions">{actions}</div>}
       </div>
     </div>
+  );
+}
+
+/**
+ * The toolbar's search box.
+ *
+ * Three pages were each writing out the same ten lines and each deciding for
+ * themselves whether the label was drawn — it was on the directory and hidden
+ * on the other two, so one toolbar sat lower than the others. The `id`, the
+ * `name`, the type, the width class and the hidden label are settled here now,
+ * and a page says only what it searches.
+ *
+ * `label` and `placeholder` are both required and both say something different:
+ * the label is the accessible name, and the placeholder is what tells somebody
+ * which of two fields they are typing in. A default for either would be a
+ * worse answer than the page's own.
+ *
+ * No submit button beside it. Every form this appears in has exactly one field
+ * that blocks implicit submission, so Enter still searches — and with scripting
+ * off that is also what applies the filter menu's ticks.
+ */
+export function SearchField({
+  label,
+  placeholder,
+  defaultValue,
+  name = "q",
+  id = "q",
+}: {
+  /** The accessible name — "Search by name or email", not "Search". */
+  label: string;
+  /** Drawn in the empty field, and the only visible clue to what it searches. */
+  placeholder: string;
+  defaultValue?: string;
+  name?: string;
+  id?: string;
+}) {
+  return (
+    <Field
+      id={id}
+      label={label}
+      className="page-toolbar-search"
+      labelClassName="visually-hidden"
+    >
+      <input
+        id={id}
+        name={name}
+        type="search"
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+      />
+    </Field>
   );
 }
 

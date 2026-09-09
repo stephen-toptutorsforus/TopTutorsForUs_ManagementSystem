@@ -40,6 +40,97 @@ export function Field({
   );
 }
 
+/**
+ * A select over a list of records, with an optional "none chosen" first entry.
+ *
+ * Twenty of the twenty-two selects in the application are this: map a list to
+ * options, sometimes after a `<option value="">Anyone</option>`. What differed
+ * between them was nothing — one wrote `key` on the option and another did not,
+ * one put the empty option inside the map and another outside.
+ *
+ * The list arrives already shaped as `{ value, label }` because only the page
+ * knows whether a person's label is their name, their name and address, or
+ * their reference. Every other select attribute passes straight through, so a
+ * controlled select, an `aria-describedby`, a `required` and a `key` all still
+ * work exactly as they did.
+ */
+export function OptionSelect({
+  options,
+  placeholder,
+  ...select
+}: {
+  options: readonly { value: string; label: string }[];
+  /** The label on the empty first option. Omitted where a choice is required. */
+  placeholder?: string;
+} & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select {...select}>
+      {placeholder !== undefined && <option value="">{placeholder}</option>}
+      {options.map((option) => (
+        <option value={option.value} key={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * One tick or one radio, with its label beside it.
+ *
+ * `<label class="choice"><input/><span/></label>`, written out twenty-odd times
+ * across the session grid's columns, the create-user modal and the scope
+ * chooser. The wrapper is the whole point of the pattern — it makes the words
+ * part of the hit area — and it was the part most often retyped.
+ */
+export function Choice({
+  label,
+  ...input
+}: {
+  label: React.ReactNode;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="choice">
+      <input {...input} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+/**
+ * A named group of them.
+ *
+ * A `<fieldset>` and a `<legend>`, because that is what tells a screen reader
+ * which question a row of ticks answers — reading "Scheduled, Completed,
+ * Missed" with no legend says nothing about what is being chosen.
+ */
+export function ChoiceGroup({
+  legend,
+  legendClassName,
+  hint,
+  children,
+  className,
+}: {
+  legend: React.ReactNode;
+  legendClassName?: string;
+  /**
+   * What follows the row, inside the fieldset. Two of the three groups have
+   * one, and it belongs to the question rather than to the form around it — so
+   * it goes inside, where a screen reader reads it with the legend.
+   */
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <fieldset className={className}>
+      <legend className={legendClassName}>{legend}</legend>
+      <div className="choice-row">{children}</div>
+      {hint}
+    </fieldset>
+  );
+}
+
 /** Secondary text: a unit, a caveat, an explanation of an empty cell. */
 export function Hint({
   className,

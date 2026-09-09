@@ -17,7 +17,7 @@ import {
   createLocationAction,
   removeGroupMemberAction,
 } from "@/app/actions/structure";
-import { Button, Card, Field, Hint } from "@/components/ui";
+import { Button, Card, Field, Hint, OptionSelect } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -76,14 +76,12 @@ export function NewGroupForm({
             </Hint>
                     </Field>
           <Field id="group-program" label="Program">
-            <select id="group-program" name="program_ref">
-              <option value="">No program</option>
-              {programs.map((program) => (
-                <option value={program.ref} key={program.ref}>
-                  {program.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="group-program"
+              name="program_ref"
+              placeholder="No program"
+              options={programs.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
         </div>
         <Button variant="primary" type="submit" disabled={pending}>
@@ -118,14 +116,12 @@ export function AddMemberForms({
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
           <Field id="member-student" label="Student">
-            <select id="member-student" name="user_ref">
-              <option value="">Choose a student</option>
-              {students.map((person) => (
-                <option value={person.ref} key={person.ref}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="member-student"
+              name="user_ref"
+              placeholder="Choose a student"
+              options={students.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
         </div>
         <input type="hidden" name="member_role" value="student" />
@@ -138,14 +134,12 @@ export function AddMemberForms({
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
           <Field id="member-instructor" label="Instructor">
-            <select id="member-instructor" name="user_ref">
-              <option value="">Choose an instructor</option>
-              {instructors.map((person) => (
-                <option value={person.ref} key={person.ref}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="member-instructor"
+              name="user_ref"
+              placeholder="Choose an instructor"
+              options={instructors.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
         </div>
         <input type="hidden" name="member_role" value="instructor" />
@@ -241,14 +235,12 @@ export function NewLocationForm({
             <input id="location-capacity" name="capacity" type="number" min={1} />
                     </Field>
           <Field id="location-school" label="School">
-            <select id="location-school" name="school_ref">
-              <option value="">No school</option>
-              {schools.map((school) => (
-                <option value={school.ref} key={school.ref}>
-                  {school.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="location-school"
+              name="school_ref"
+              placeholder="No school"
+              options={schools.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
         </div>
         <Field id="location-address" label="Address">

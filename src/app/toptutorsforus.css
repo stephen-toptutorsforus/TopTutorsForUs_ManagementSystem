@@ -383,6 +383,10 @@ a:hover { color: var(--brand-700); }
   align-items: flex-start; justify-content: space-between;
 }
 .page-header-title { min-width: 0; }
+/* Not `.page-header .subtitle`. The page header has no subtitle any more, but
+   the modal and the attendance card still draw one, and scoping the only
+   definition to the header left theirs with no rule at all. */
+.subtitle { color: var(--ink-500); margin: 0; }
 .page-header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
 
 /* A bar on the page, not a card. It is chrome for the list below it, and the

@@ -12,7 +12,7 @@
 import { useActionState } from "react";
 
 import { recordAttendance } from "@/app/actions/sessions";
-import { AttendanceBadge, Button, ButtonRow, Card, Hint, TableWrap, WhenTime } from "@/components/ui";
+import { AttendanceBadge, Button, ButtonRow, Card, Hint, OptionSelect, TableWrap, WhenTime } from "@/components/ui";
 import { AttendanceStatus } from "@/generated/prisma/enums";
 import { CSRF_FIELD } from "@/lib/names";
 import { attendanceMeta, durationLabel, percent } from "@/lib/presentation";
@@ -84,17 +84,15 @@ export function AttendanceCard({
                   <label className="visually-hidden" htmlFor={`att-${participant.id}`}>
                     Attendance for {participant.name}
                   </label>
-                  <select
+                  <OptionSelect
                     id={`att-${participant.id}`}
                     name={`attendance_${participant.id}`}
                     defaultValue={participant.attendance}
-                  >
-                    {ATTENDANCE_OPTIONS.map((option) => (
-                      <option key={option} value={option.toLowerCase()}>
-                        {attendanceMeta(option).label}
-                      </option>
-                    ))}
-                  </select>
+                    options={ATTENDANCE_OPTIONS.map((option) => ({
+                      value: option.toLowerCase(),
+                      label: attendanceMeta(option).label,
+                    }))}
+                  />
                 </>
               ) : (
                 <AttendanceBadge status={participant.attendance} />

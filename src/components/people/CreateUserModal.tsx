@@ -21,7 +21,7 @@
 import { useActionState, useState } from "react";
 
 import { createPersonAction } from "@/app/actions/people";
-import { Button, Field, Hint, Modal } from "@/components/ui";
+import { Button, Choice, ChoiceGroup, Field, Hint, Modal, OptionSelect } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 import { Picker, type PickerOption } from "./Picker";
@@ -176,20 +176,15 @@ export function CreateUserModal(props: CreateUserModalProps) {
                         </Field>
           </div>
           <Field id="new-role" label="Role">
-            <select
+            <OptionSelect
               id="new-role"
               name="role"
               required
               value={role}
               onChange={(event) => setRole(event.target.value)}
-            >
-              <option value="">Choose a role</option>
-              {props.creatableRoles.map((option) => (
-                <option value={option.value} key={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              placeholder="Choose a role"
+              options={props.creatableRoles}
+            />
             <Hint>
               One role now. A person may hold several — add the rest once the account
               exists, so they keep one account and one history.
@@ -212,55 +207,46 @@ export function CreateUserModal(props: CreateUserModalProps) {
         <section {...panel(2)}>
           {role === "student" && (
             <>
-              <fieldset>
-                <legend className="fieldset-legend">
-                  Does this student require a parent?
-                </legend>
-                <div className="choice-row">
-                  <label className="choice">
-                    <input
-                      type="radio"
-                      name="requires_guardian"
-                      value="yes"
-                      checked={requiresGuardian === "yes"}
-                      onChange={() => setRequiresGuardian("yes")}
-                    />
-                    <span>Yes</span>
-                  </label>
-                  <label className="choice">
-                    <input
-                      type="radio"
-                      name="requires_guardian"
-                      value="no"
-                      checked={requiresGuardian === "no"}
-                      onChange={() => setRequiresGuardian("no")}
-                    />
-                    <span>No</span>
-                  </label>
-                </div>
-                <p className="hint">
-                  If <strong>Yes</strong>, the parent will be in charge of setting the
-                  student&rsquo;s email or username and the student&rsquo;s password
-                  during the account creation process. To send the onboarding email
-                  directly to the student, select <strong>No</strong>.
-                </p>
-              </fieldset>
+              <ChoiceGroup
+                legend="Does this student require a parent?"
+                legendClassName="fieldset-legend"
+                hint={
+                  <p className="hint">
+                    If <strong>Yes</strong>, the parent will be in charge of setting the
+                    student&rsquo;s email or username and the student&rsquo;s password
+                    during the account creation process. To send the onboarding email
+                    directly to the student, select <strong>No</strong>.
+                  </p>
+                }
+              >
+                <Choice
+                  type="radio"
+                  name="requires_guardian"
+                  value="yes"
+                  checked={requiresGuardian === "yes"}
+                  onChange={() => setRequiresGuardian("yes")}
+                  label="Yes"
+                />
+                <Choice
+                  type="radio"
+                  name="requires_guardian"
+                  value="no"
+                  checked={requiresGuardian === "no"}
+                  onChange={() => setRequiresGuardian("no")}
+                  label="No"
+                />
+              </ChoiceGroup>
 
               {requiresGuardian === "yes" ? (
                 <Field id="guardian_ref" label="Select parent">
-                  <select
+                  <OptionSelect
                     id="guardian_ref"
                     name="guardian_ref"
                     value={guardianRef}
                     onChange={(event) => setGuardianRef(event.target.value)}
-                  >
-                    <option value="">Choose a parent</option>
-                    {props.parents.map((parent) => (
-                      <option value={parent.ref} key={parent.ref}>
-                        {parent.label}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Choose a parent"
+                    options={props.parents.map(({ ref, label }) => ({ value: ref, label }))}
+                  />
                   {props.parents.length === 0 && (
                     <Hint>
                       No parents yet — create one first, or choose <strong>No</strong> to
@@ -365,18 +351,13 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 />
                             </Field>
               <Field id="relationship" label="Relationship">
-                <select
+                <OptionSelect
                   id="relationship"
                   name="relationship"
                   value={relationship}
                   onChange={(event) => setRelationship(event.target.value)}
-                >
-                  {props.guardianRelationships.map((kind) => (
-                    <option value={kind.value} key={kind.value}>
-                      {kind.label}
-                    </option>
-                  ))}
-                </select>
+                  options={props.guardianRelationships}
+                />
                 <Hint>
                   What this person is to the student. All four can be shown the
                   student&rsquo;s sessions; a report tells them apart.

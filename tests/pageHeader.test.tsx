@@ -15,7 +15,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MoreFilters, PageHeader, PageToolbar } from "@/components/ui";
+import { MoreFilters, PageHeader, PageToolbar, SearchField } from "@/components/ui";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
 const count = (markup: string, needle: string) => markup.split(needle).length - 1;
@@ -32,7 +32,6 @@ describe("PageHeader", () => {
     );
 
     expect(markup).toContain("<h1>Calendar</h1>");
-    expect(markup).toContain('<p class="subtitle">9 sessions in view</p>');
     expect(markup).toContain('<div class="page-header-actions">');
     expect(markup).toContain('<div class="page-toolbar">');
     expect(markup).toContain('<div class="page-header-secondary">');
@@ -188,5 +187,42 @@ describe("MoreFilters", () => {
     expect(html(<MoreFilters label="Filters" active={2}>x</MoreFilters>)).toContain(
       "<span>Filters</span>",
     );
+  });
+});
+
+describe("SearchField", () => {
+  it("settles the wiring three pages were each deciding for themselves", () => {
+    // The id, the name, the type, the width class and the hidden label. What
+    // varies is only what the page searches.
+    expect(
+      html(
+        <SearchField
+          label="Search by name or email"
+          placeholder="Name or email"
+          defaultValue="mercer"
+        />,
+      ),
+    ).toBe(
+      '<div class="field page-toolbar-search">' +
+        '<label class="visually-hidden" for="q">Search by name or email</label>' +
+        '<input id="q" type="search" placeholder="Name or email" name="q" value="mercer"/>' +
+        "</div>",
+    );
+  });
+
+  it("keeps a name for a screen reader even though none is drawn", () => {
+    const markup = html(<SearchField label="Search session titles" placeholder="Session title" />);
+
+    expect(markup).toContain('class="visually-hidden" for="q"');
+    expect(markup).toContain("Search session titles");
+  });
+
+  it("can be a second search box on a page that needs one", () => {
+    const markup = html(
+      <SearchField id="student-q" name="student_q" label="Find a student" placeholder="Name" />,
+    );
+
+    expect(markup).toContain('for="student-q"');
+    expect(markup).toContain('name="student_q"');
   });
 });

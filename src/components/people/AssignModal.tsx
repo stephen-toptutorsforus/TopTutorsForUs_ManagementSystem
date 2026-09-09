@@ -11,7 +11,7 @@
 import { useActionState } from "react";
 
 import { assignStudentAction } from "@/app/actions/people";
-import { AnchorButton, Button, Field, Modal } from "@/components/ui";
+import { AnchorButton, Button, Field, Modal, OptionSelect } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 export function AssignModal({
@@ -47,22 +47,20 @@ export function AssignModal({
         <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
         <div className="form-row">
           <Field id="assign-instructor" label="Instructor">
-            <select id="assign-instructor" name="instructor_ref" required>
-              {instructors.map((person) => (
-                <option value={person.ref} key={person.ref}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="assign-instructor"
+              name="instructor_ref"
+              required
+              options={instructors.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
           <Field id="assign-student" label="Student">
-            <select id="assign-student" name="student_ref" required>
-              {students.map((person) => (
-                <option value={person.ref} key={person.ref}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="assign-student"
+              name="student_ref"
+              required
+              options={students.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
         </div>
         <div className="modal-actions">

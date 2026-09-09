@@ -18,7 +18,7 @@
 import { useActionState, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Field, Hint } from "@/components/ui";
+import { Button, Card, Field, Hint, OptionSelect } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { clockDuration, durationWords } from "@/lib/presentation";
 
@@ -117,18 +117,13 @@ export function BookingForm({
 
           <div className="booking-row booking-row-type">
             <Field id="delivery_type" label="Type">
-              <select
+              <OptionSelect
                 id="delivery_type"
                 name="delivery_type"
                 defaultValue={value("delivery_type", "external_link")}
                 key={`delivery-${value("delivery_type", "external_link")}`}
-              >
-                {context.deliveryTypes.map((type) => (
-                  <option value={type.value} key={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
+                options={context.deliveryTypes}
+              />
                         </Field>
             {/* The Billable switch is not offered here, but the value still has to
                 be sent: the action reads `billable == "on"`, so simply dropping
@@ -201,7 +196,7 @@ export function BookingForm({
               />
                         </Field>
             <Field id="duration_minutes" label="Session length">
-              <select
+              <OptionSelect
                 id="duration_minutes"
                 name="duration_minutes"
                 required
@@ -209,13 +204,11 @@ export function BookingForm({
                 key={`len-${context.chosenDuration}`}
                 defaultValue={String(context.chosenDuration)}
                 onChange={() => refresh()}
-              >
-                {context.durations.map((minutes) => (
-                  <option value={minutes} key={minutes}>
-                    {durationWords(minutes)}
-                  </option>
-                ))}
-              </select>
+                options={context.durations.map((minutes) => ({
+                  value: String(minutes),
+                  label: durationWords(minutes),
+                }))}
+              />
               <Hint className="hint-end" id="length-hint">
                 min. {clockDuration(context.durationLimits[0])}, max.{" "}
                 {clockDuration(context.durationLimits[1])}
@@ -279,37 +272,27 @@ export function BookingForm({
         <fieldset className="booking-section">
           <legend className="booking-subhead">Instructor</legend>
           <Field id="program_ref" label="Program">
-            <select
+            <OptionSelect
               id="program_ref"
               name="program_ref"
               defaultValue={value("program_ref")}
               key={`prog-${value("program_ref")}`}
-            >
-              <option value="">No program</option>
-              {context.programs.map((program) => (
-                <option value={program.ref} key={program.ref}>
-                  {program.label}
-                </option>
-              ))}
-            </select>
+              placeholder="No program"
+              options={context.programs.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
 
           <Field id="instructor_ref" label="Instructor">
-            <select
+            <OptionSelect
               id="instructor_ref"
               name="instructor_ref"
               required
               key={`inst-${context.chosenInstructorRef}`}
               defaultValue={context.chosenInstructorRef}
               onChange={() => refresh()}
-            >
-              <option value="">Choose an instructor</option>
-              {context.instructors.map((person) => (
-                <option value={person.ref} key={person.ref}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
+              placeholder="Choose an instructor"
+              options={context.instructors.map(({ ref, label }) => ({ value: ref, label }))}
+            />
                     </Field>
 
           {/* Before a date is chosen, the useful question is which day to look at.
@@ -339,7 +322,7 @@ export function BookingForm({
                 of check boxes, and it cannot start at the height of every other
                 control on the form. Choosing somebody moves them into the chip
                 list below, which is what grows as students are added. */}
-            <select
+            <OptionSelect
               id="student_picker"
               aria-describedby="students-hint"
               value=""
@@ -347,16 +330,11 @@ export function BookingForm({
                 const ref = event.target.value;
                 if (ref && !students.includes(ref)) setStudents([...students, ref]);
               }}
-            >
-              <option value="">Choose a student</option>
-              {context.students
+              placeholder="Choose a student"
+              options={context.students
                 .filter((person) => !students.includes(person.ref))
-                .map((person) => (
-                  <option value={person.ref} key={person.ref}>
-                    {person.displayName}
-                  </option>
-                ))}
-            </select>
+                .map((person) => ({ value: person.ref, label: person.displayName }))}
+            />
             <Hint id="students-hint">
               Choose one at a time. Each is added below.
             </Hint>
@@ -380,20 +358,15 @@ export function BookingForm({
                     </Field>
 
           <Field id="group_ref" label="Group">
-            <select
+            <OptionSelect
               id="group_ref"
               name="group_ref"
               aria-describedby="group-hint"
               defaultValue={value("group_ref")}
               key={`grp-${value("group_ref")}`}
-            >
-              <option value="">No group</option>
-              {context.groups.map((group) => (
-                <option value={group.ref} key={group.ref}>
-                  {group.label}
-                </option>
-              ))}
-            </select>
+              placeholder="No group"
+              options={context.groups.map(({ ref, label }) => ({ value: ref, label }))}
+            />
             <Hint id="group-hint">
               Members are added to each session as it is created. Later changes to the group
               do not alter sessions already booked.

@@ -9,7 +9,7 @@
  */
 
 import { AddWindowForm } from "@/components/availability/AddWindowForm";
-import { Button, Card, EmptyState, Field, PageHeader, PageToolbar, TableWrap, VisuallyHidden } from "@/components/ui";
+import { Button, Card, EmptyState, Field, OptionSelect, PageHeader, PageToolbar, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
@@ -110,13 +110,15 @@ export default async function AvailabilityPage({
                     label="Show availability for"
                     className="page-toolbar-search"
                   >
-                    <select id="instructor" name="instructor" defaultValue={instructor.ref}>
-                      {roster.map((person) => (
-                        <option value={person.ref} key={person.ref}>
-                          {`${person.firstName} ${person.lastName}`.trim() || person.ref}
-                        </option>
-                      ))}
-                    </select>
+                    <OptionSelect
+                      id="instructor"
+                      name="instructor"
+                      defaultValue={instructor.ref}
+                      options={roster.map((person) => ({
+                        value: person.ref,
+                        label: `${person.firstName} ${person.lastName}`.trim() || person.ref,
+                      }))}
+                    />
                   </Field>
                   <Button type="submit">
                     Show

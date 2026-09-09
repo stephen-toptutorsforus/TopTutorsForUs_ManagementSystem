@@ -7,7 +7,7 @@
  * that leaves the person to find it.
  */
 
-import { Badge, Card, Tag, VisuallyHidden } from "@/components/ui";
+import { Badge, Card, Choice, Tag, VisuallyHidden } from "@/components/ui";
 import type { PlanView } from "@/lib/web/planView";
 
 export function PreviewBlock({
@@ -132,10 +132,11 @@ export function PreviewBlock({
         plan.needsOverride &&
         (canOverride ? (
           <>
-            <label className="choice">
-              <input type="checkbox" name="override_conflicts" />
-              <span>Book anyway, despite the conflicts above</span>
-            </label>
+            <Choice
+              type="checkbox"
+              name="override_conflicts"
+              label="Book anyway, despite the conflicts above"
+            />
             <p className="hint">
               The override is recorded on each session and in the audit trail.
             </p>

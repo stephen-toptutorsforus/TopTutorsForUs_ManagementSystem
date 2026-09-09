@@ -22,7 +22,7 @@ import {
   editSession,
   rescheduleSession,
 } from "@/app/actions/sessions";
-import { Button, ButtonRow, Card, Field, Hint, ScopeChoice } from "@/components/ui";
+import { Button, ButtonRow, Card, Choice, Field, Hint, OptionSelect, ScopeChoice } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import type { FormResult } from "@/lib/web/formState";
 
@@ -143,10 +143,12 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 defaultValue={props.description ?? ""}
               />
                         </Field>
-            <label className="choice">
-              <input type="checkbox" name="billable" defaultChecked={props.billable} />
-              <span>Billable</span>
-            </label>
+            <Choice
+              type="checkbox"
+              name="billable"
+              defaultChecked={props.billable}
+              label="Billable"
+            />
             <ScopeChoice series={series} />
             <Button variant="primary" type="submit">
               Save changes
@@ -247,13 +249,15 @@ export function ActionsPanel(props: ActionsPanelProps) {
           <form action={cancel}>
             <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
             <Field id="cancel-reason" label="Reason">
-              <select id="cancel-reason" name="reason" required>
-                {props.cancellationReasons.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {sentenceCase(reason)}
-                  </option>
-                ))}
-              </select>
+              <OptionSelect
+                id="cancel-reason"
+                name="reason"
+                required
+                options={props.cancellationReasons.map((reason) => ({
+                  value: reason,
+                  label: sentenceCase(reason),
+                }))}
+              />
                         </Field>
             <Field id="cancel-note" label="Note (optional)">
               <textarea id="cancel-note" name="note" />
@@ -309,13 +313,15 @@ export function ActionsPanel(props: ActionsPanelProps) {
             <label className="visually-hidden" htmlFor="missed-reason">
               Missed reason
             </label>
-            <select id="missed-reason" name="reason" className="field-auto">
-              {props.missedReasons.map((reason) => (
-                <option key={reason} value={reason}>
-                  {sentenceCase(reason)}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="missed-reason"
+              name="reason"
+              className="field-auto"
+              options={props.missedReasons.map((reason) => ({
+                value: reason,
+                label: sentenceCase(reason),
+              }))}
+            />
             <Button type="submit">
               Mark missed
             </Button>

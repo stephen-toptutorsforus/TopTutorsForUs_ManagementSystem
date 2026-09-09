@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AnchorButton, Button, ButtonRow, Card, EmptyState, Field, LinkButton, MoreFilters, PageHeader, PageToolbar, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, LinkButton, MoreFilters, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -177,20 +177,11 @@ export default async function SessionsPage({
             form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
             filters={
               <>
-                <Field
-                  id="q"
-                  label="Search titles"
-                  className="page-toolbar-search"
-                  labelClassName="visually-hidden"
-                >
-                  <input
-                    id="q"
-                    name="q"
-                    type="search"
-                    defaultValue={filters.search}
-                    placeholder="Session title"
-                  />
-                </Field>
+                <SearchField
+                  label="Search session titles"
+                  placeholder="Session title"
+                  defaultValue={filters.search}
+                />
 
                 {/* The same control the calendar and the directory use, and the
                     same repeated `status=` parameters the checkbox row it
@@ -231,51 +222,43 @@ export default async function SessionsPage({
                     <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
                   </Field>
                   <Field id="instructor" label="Instructor">
-                    <select
+                    <OptionSelect
                       id="instructor"
                       name="instructor"
                       defaultValue={filters.instructorRef ?? ""}
-                    >
-                      <option value="">Anyone</option>
-                      {instructors.map((person) => (
-                        <option key={person.ref} value={person.ref}>
-                          {`${person.firstName} ${person.lastName}`.trim()}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Anyone"
+                      options={instructors.map((person) => ({
+                        value: person.ref,
+                        label: `${person.firstName} ${person.lastName}`.trim(),
+                      }))}
+                    />
                   </Field>
                   <Field id="program" label="Program">
-                    <select
+                    <OptionSelect
                       id="program"
                       name="program"
                       defaultValue={filters.programRef ?? ""}
-                    >
-                      <option value="">Any program</option>
-                      {programs.map((program) => (
-                        <option key={program.ref} value={program.ref}>
-                          {program.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Any program"
+                      options={programs.map((program) => ({
+                        value: program.ref,
+                        label: program.name,
+                      }))}
+                    />
                   </Field>
                 </div>
 
-                <fieldset>
-                  <legend>Columns</legend>
-                  <div className="choice-row">
-                    {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
-                      <label className="choice" key={key}>
-                        <input
-                          type="checkbox"
-                          name="columns"
-                          value={key}
-                          defaultChecked={columns.includes(key)}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
+                <ChoiceGroup legend="Columns">
+                  {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
+                    <Choice
+                      key={key}
+                      type="checkbox"
+                      name="columns"
+                      value={key}
+                      defaultChecked={columns.includes(key)}
+                      label={label}
+                    />
+                  ))}
+                </ChoiceGroup>
 
                 <p className="hint">
                   Untick a column to hide it. Everything here applies when you press Apply

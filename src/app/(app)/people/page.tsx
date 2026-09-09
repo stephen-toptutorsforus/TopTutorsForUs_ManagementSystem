@@ -16,7 +16,7 @@ import { redirect } from "next/navigation";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { AnchorButton, Badge, Button, Card, EmptyState, Field, Hint, PageHeader, PageToolbar, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Badge, Button, Card, EmptyState, Hint, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -125,27 +125,11 @@ export default async function PeoplePage({
             form={{ action: "/people", label: "Search and filter people", role: "search" }}
             filters={
               <>
-                {/* The label is present and hidden, as it is on the calendar
-                    and the session grid. One pattern across the three, and the
-                    placeholder says which of the two fields somebody is in. */}
-                <Field
-                  id="q"
+                <SearchField
                   label="Search by name or email"
-                  className="page-toolbar-search"
-                  labelClassName="visually-hidden"
-                >
-                  {/* No submit button beside it. The form has exactly one field
-                      that blocks implicit submission, so Enter still searches —
-                      and with scripting off that is also what applies the role
-                      ticks. */}
-                  <input
-                    id="q"
-                    name="q"
-                    type="search"
-                    defaultValue={search}
-                    placeholder="Name or email"
-                  />
-                </Field>
+                  placeholder="Name or email"
+                  defaultValue={search}
+                />
                 <FilterMenu
                   name="role"
                   options={roleOptions}
