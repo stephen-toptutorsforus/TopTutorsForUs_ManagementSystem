@@ -18,6 +18,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { Role, UserStatus } from "@/generated/prisma/enums";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
+import { ROLE_FILTER_ORDER, USER_STATUS_FILTER_ORDER } from "@/lib/presentation";
+import { narrows } from "@/lib/selection";
 import { readableQuery } from "@/lib/urlState";
 import type { Db } from "@/lib/services/people";
 
@@ -154,12 +156,12 @@ export function parseDirectoryFilters(params: URLSearchParams): DirectoryFilters
  * `role=instructor,parent` says what `role=instructor&role=parent` says in less
  * room, and both are read.
  *
- * A complete set of roles *is* written down, unlike the calendar's statuses.
- * The menu offers four of the six roles, so ticking all four still excludes
- * somebody who only holds `payer` or `regional_admin`: it looks complete and is
- * a real filter. Only a set covering every role in the enum narrows nothing,
- * because `listPeople` narrows only when the list is non-empty. Statuses follow
- * the same rule against their own enum.
+ * A complete set is not written down, for either list. Every box starts ticked,
+ * so "all four roles" is what an untouched filter looks like rather than a
+ * decision somebody made, and spelling it out would put a parameter naming
+ * every role on the address of a directory nobody had filtered. Complete is
+ * measured against what each menu offers — four roles, five states — which is
+ * the set a person can actually have ticked. See `lib/selection.ts`.
  *
  * A region, a district and a school can all be set at once. They are not
  * collapsed into "the narrowest one wins": somebody may hold a school in one
@@ -170,17 +172,11 @@ export function directoryQuery(filters: DirectoryFilters): string {
   const params = new URLSearchParams();
   if (filters.search) params.append("q", filters.search);
 
-  const everyRole = (Object.values(Role) as Role[]).every((role) =>
-    filters.roles.includes(role),
-  );
-  if (filters.roles.length > 0 && !everyRole) {
+  if (narrows(filters.roles, ROLE_FILTER_ORDER)) {
     params.append("role", filters.roles.map((role) => role.toLowerCase()).join(","));
   }
 
-  const everyStatus = (Object.values(UserStatus) as UserStatus[]).every((status) =>
-    filters.statuses.includes(status),
-  );
-  if (filters.statuses.length > 0 && !everyStatus) {
+  if (narrows(filters.statuses, USER_STATUS_FILTER_ORDER)) {
     params.append("status", filters.statuses.map((status) => status.toLowerCase()).join(","));
   }
 
@@ -211,13 +207,16 @@ export const NO_DIRECTORY_FILTERS: DirectoryFilters = {
  *
  * Drawn on the filter button, so somebody who has scrolled past the toolbar can
  * still see that the list is narrowed. Each parameter counts once however many
- * values it holds: three ticked roles are one decision about roles.
+ * values it holds: three ticked roles are one decision about roles. A complete
+ * set of ticks is not a decision at all — it is the resting state — so it
+ * counts as nothing, and the badge is what it was before anybody opened the
+ * menu.
  */
 export function activeDirectoryFilters(filters: DirectoryFilters): number {
   return [
     filters.search !== "",
-    filters.roles.length > 0,
-    filters.statuses.length > 0,
+    narrows(filters.roles, ROLE_FILTER_ORDER),
+    narrows(filters.statuses, USER_STATUS_FILTER_ORDER),
     filters.regionRef !== null,
     filters.districtRef !== null,
     filters.schoolRef !== null,

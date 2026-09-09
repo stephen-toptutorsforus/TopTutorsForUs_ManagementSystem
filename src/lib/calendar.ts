@@ -16,6 +16,8 @@
 import { SessionStatus } from "@/generated/prisma/enums";
 import type { SessionFilters } from "@/lib/services/sessionQuery";
 import { type CivilDate, addDays, isoWeekday } from "@/lib/time";
+import { STATUS_FILTER_ORDER } from "@/lib/presentation";
+import { narrows } from "@/lib/selection";
 import { canonicalUrl, readableQuery } from "@/lib/urlState";
 
 export enum CalendarView {
@@ -364,17 +366,16 @@ export function step(view: CalendarView): string {
 /**
  * Whether a status selection actually excludes anything.
  *
- * Complete means every status in the enum, not every status the filter menu
- * offers. The menu leaves `in_progress` out because nothing reaches it yet, so
- * a tick in all seven boxes still excludes a status the query would otherwise
- * return; collapsing that to "no filter" would quietly change what the calendar
- * shows on the day Phase 5 starts setting it.
+ * Complete means every status the menu **offers**, which is not every status in
+ * the enum: `in_progress` is left out because nothing sets it yet. Every box
+ * ticked is now the resting state of the control rather than a deliberate act,
+ * so it has to mean what an untouched filter means — everything, including the
+ * status the menu cannot show. Counting it as a filter instead would stamp a
+ * parameter naming all seven statuses onto the address of a calendar nobody had
+ * filtered. See `lib/selection.ts`.
  */
 export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
-  if (statuses.length === 0) return false;
-  return !(Object.values(SessionStatus) as SessionStatus[]).every((status) =>
-    statuses.includes(status),
-  );
+  return narrows(statuses, STATUS_FILTER_ORDER);
 }
 
 /**

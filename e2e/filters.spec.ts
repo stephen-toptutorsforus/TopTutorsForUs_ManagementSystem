@@ -165,7 +165,11 @@ test.describe("the filter drawer", () => {
     // Apply must not drop the text the toolbar was showing.
     await page.goto("/people?role=student#edit-filter");
     await page.locator("#filter-q").fill("vasquez");
-    await page.locator('.filterdrawer input[name="status"][value="active"]').check();
+    // Every box starts ticked, so narrowing to Active means unticking the rest
+    // rather than ticking one.
+    for (const value of ["invited", "pending_invite", "bounced", "disabled"]) {
+      await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).uncheck();
+    }
     await page.getByRole("button", { name: "Apply" }).click();
 
     await page.waitForURL(/q=vasquez/);
@@ -188,7 +192,7 @@ test.describe("the filter drawer", () => {
 
   test("clears everything from inside itself", async ({ page }) => {
     await page.goto("/people?q=holm&role=instructor#edit-filter");
-    await page.getByRole("link", { name: "Clear all" }).click();
+    await page.getByRole("link", { name: "Reset filter" }).click();
 
     await page.waitForURL(/\/people$/);
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
@@ -288,11 +292,68 @@ test.describe("the calendar's remembered filter", () => {
 test.describe("what the address ends up saying", () => {
   test.use({ storageState: statePath("admin") });
 
+  test("starts with every box ticked, on every screen that filters", async ({
+    page,
+    context,
+  }) => {
+    // The resting state of a filter is everything shown, and that is drawn
+    // rather than explained. It used to be an empty set of boxes under a hint.
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+
+    await page.goto("/calendar#edit-filter");
+    for (const box of await page.locator('.filterdrawer input[name="status"]').all()) {
+      await expect(box).toBeChecked();
+    }
+
+    await page.goto("/sessions#edit-filter");
+    for (const box of await page.locator('.filterdrawer input[name="status"]').all()) {
+      await expect(box).toBeChecked();
+    }
+
+    await page.goto("/people#edit-filter");
+    for (const name of ["role", "status"]) {
+      for (const box of await page.locator(`.filterdrawer input[name="${name}"]`).all()) {
+        await expect(box).toBeChecked();
+      }
+    }
+
+    // And a full set of ticks is not a filter: nothing is counted, and nothing
+    // is written down.
+    await expect(page.locator(".filteractions-count")).toHaveCount(0);
+    expect(new URL(page.url()).search).toBe("");
+  });
+
+  test("ticking the last empty box says nothing, rather than everything", async ({
+    page,
+    context,
+  }) => {
+    // Arriving under one status and ticking the rest is the resting state
+    // reached the long way round. It has to write what the resting state
+    // writes: nothing.
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    await page.goto("/calendar?status=missed#edit-filter");
+    for (const value of [
+      "scheduled",
+      "rescheduled",
+      "cancelled",
+      "completed",
+      "requested",
+      "rejected",
+    ]) {
+      await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).check();
+    }
+    await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
+
+    await page.waitForURL(/\/calendar$/);
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator(".filteractions-count")).toHaveCount(0);
+  });
+
   test("holds one status parameter, not one per status", async ({ page, context }) => {
     await context.clearCookies({ name: "toptutorsforus_calendar_status" });
     await page.goto("/calendar#edit-filter");
-    for (const value of ["scheduled", "completed", "missed"]) {
-      await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).check();
+    for (const value of ["rescheduled", "cancelled", "requested", "rejected"]) {
+      await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).uncheck();
     }
     await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
     await page.waitForURL(/status=/);
@@ -311,7 +372,16 @@ test.describe("what the address ends up saying", () => {
     await context.clearCookies({ name: "toptutorsforus_calendar_status" });
     await page.goto("/calendar");
     await page.locator(".page-toolbar-fields .filtermenu > summary").click();
-    await page.locator('.page-toolbar input[name="status"][value="missed"]').check();
+    for (const value of [
+      "scheduled",
+      "rescheduled",
+      "cancelled",
+      "completed",
+      "requested",
+      "rejected",
+    ]) {
+      await page.locator(`.page-toolbar input[name="status"][value="${value}"]`).uncheck();
+    }
     await page.locator("h1").click();
     await page.waitForURL(/status=/);
 

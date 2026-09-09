@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Role, UserStatus } from "@/generated/prisma/enums";
-import { ROLE_FILTER_ORDER } from "@/lib/presentation";
+import { ROLE_FILTER_ORDER, USER_STATUS_FILTER_ORDER } from "@/lib/presentation";
 import {
   NO_DIRECTORY_FILTERS,
   activeDirectoryFilters,
@@ -60,16 +60,29 @@ describe("the directory's address", () => {
     expect(tidy("q=&role=instructor")).toBe("/people?role=instructor");
   });
 
-  it("keeps every role the menu offers, because four of six is a filter", () => {
-    // Ticking all four still hides somebody who only holds `payer` or
-    // `regional_admin`, so collapsing it would show people the ticks exclude.
-    // One parameter, values joined: `role=instructor,student,parent,admin`.
-    const everyOffered = `role=${ROLE_FILTER_ORDER.map((role) => role.toLowerCase()).join(",")}`;
-
-    expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, roles: [...ROLE_FILTER_ORDER] })).toBe(
-      everyOffered,
-    );
+  it("writes nothing for every role the menu offers, because that is the resting state", () => {
+    // Every box starts ticked, so all four roles is what an untouched filter
+    // looks like — writing it down would put `role=instructor,student,parent,
+    // admin` on the address of a directory nobody had filtered.
+    expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, roles: [...ROLE_FILTER_ORDER] })).toBe("");
     expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, roles: Object.values(Role) })).toBe("");
+
+    // Three of the four is a decision, and it is written down.
+    expect(
+      directoryQuery({ ...NO_DIRECTORY_FILTERS, roles: ROLE_FILTER_ORDER.slice(1) }),
+    ).toBe(`role=${ROLE_FILTER_ORDER.slice(1).map((role) => role.toLowerCase()).join(",")}`);
+  });
+
+  it("does not count a full set of ticks as an active filter", () => {
+    // The badge on the filter button counts decisions, and "everything" is not
+    // one — it is the screen somebody arrived at.
+    expect(
+      activeDirectoryFilters({
+        ...NO_DIRECTORY_FILTERS,
+        roles: [...ROLE_FILTER_ORDER],
+        statuses: [...USER_STATUS_FILTER_ORDER],
+      }),
+    ).toBe(0);
   });
 
   it("is a fixed point, or the page redirects to itself for ever", () => {

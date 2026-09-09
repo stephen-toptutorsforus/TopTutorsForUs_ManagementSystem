@@ -42,7 +42,7 @@ export function FilterDrawer({
   title?: React.ReactNode;
   /** Where the filter submits — the page's own path. */
   action: string;
-  /** Where "Clear all" inside the drawer goes. */
+  /** Where "Reset filter" inside the drawer goes. */
   resetHref: string;
   children: React.ReactNode;
 }) {
@@ -61,7 +61,10 @@ export function FilterDrawer({
         <div className="filterdrawer-body">{children}</div>
 
         <div className="filterdrawer-foot">
-          <LinkButton href={resetHref}>Clear all</LinkButton>
+          {/* "Reset filter", not "Clear all": every box in here starts ticked,
+              so clearing the filter *ticks* boxes rather than emptying them,
+              and the menu outside calls the same destination by this name. */}
+          <LinkButton href={resetHref}>Reset filter</LinkButton>
           <span className="filterdrawer-gap" />
           {/* Cancel is a link to `#`, which un-targets the drawer and leaves
               the page exactly as it was — no submit, so nothing typed here

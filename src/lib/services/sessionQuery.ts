@@ -17,6 +17,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { AttendanceStatus, ParticipantRole, SessionStatus } from "@/generated/prisma/enums";
+import { narrowsByStatus } from "@/lib/calendar";
 import type { Db } from "@/lib/db";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
@@ -152,7 +153,9 @@ export function parseFilters(params: URLSearchParams): SessionFilters {
 export function activeSessionFilters(filters: SessionFilters): number {
   return [
     filters.search !== "",
-    filters.statuses.length > 0,
+    // A full set of ticks is the resting state of the menu, not a decision, so
+    // it does not light the badge — see `lib/selection.ts`.
+    narrowsByStatus(filters.statuses),
     filters.dateFrom !== null,
     filters.dateTo !== null,
     filters.instructorRef !== null,
@@ -172,7 +175,12 @@ export function toQuery(
     // Joined, not repeated: `status=scheduled,missed` says what
     // `status=scheduled&status=missed` says in half the address. `columns` has
     // always been written this way; this is the rest catching up.
-    status: filters.statuses.map((status) => status.toLowerCase()).join(","),
+    //
+    // A complete set is written as nothing, for the same reason the default
+    // columns are: it is what the address already means when it says nothing.
+    status: narrowsByStatus(filters.statuses)
+      ? filters.statuses.map((status) => status.toLowerCase()).join(",")
+      : "",
     from: filters.dateFrom ?? "",
     to: filters.dateTo ?? "",
     instructor: filters.instructorRef ?? "",

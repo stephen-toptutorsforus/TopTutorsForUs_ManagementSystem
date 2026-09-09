@@ -17,11 +17,12 @@ import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
 import { AnchorButton, Badge, Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
-import { GuardianRelationship, Role, UserStatus } from "@/generated/prisma/enums";
+import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import { ROLE_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
+import { ROLE_FILTER_ORDER, USER_STATUS_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
+import { ticked } from "@/lib/selection";
 import {
   NO_DIRECTORY_FILTERS,
   PAGE_LIMIT,
@@ -51,20 +52,6 @@ const CREATABLE_ROLES: Role[] = [
   Role.INSTRUCTOR,
   Role.ADMIN,
   Role.REGIONAL_ADMIN,
-];
-
-/**
- * The statuses the filter drawer offers, in lifecycle order rather than the
- * enum's. Every one of them, unlike the role list: a status is a state the
- * platform puts somebody in, so there is none a person would never want to
- * look for.
- */
-const STATUS_FILTER_ORDER: UserStatus[] = [
-  UserStatus.ACTIVE,
-  UserStatus.INVITED,
-  UserStatus.PENDING_INVITE,
-  UserStatus.BOUNCED,
-  UserStatus.DISABLED,
 ];
 
 function titleCase(value: string): string {
@@ -172,7 +159,6 @@ export default async function PeoplePage({
                   plural="roles"
                   legend="Show these roles"
                   allLink={directoryLink({ ...filters, roles: [...ROLE_FILTER_ORDER] })}
-                  noneLink={directoryLink({ ...filters, roles: [] })}
                 />
               </>
             }
@@ -242,16 +228,14 @@ export default async function PeoplePage({
                 />
               </Field>
 
-              <ChoiceGroup legend="Role">
+              <ChoiceGroup legend="Role" hint={<p className="hint">Untick a role to hide it.</p>}>
                 {roleOptions.map((option) => (
                   <Choice
                     key={option.value}
                     type="checkbox"
                     name="role"
                     value={option.value}
-                    defaultChecked={chosenRoles.some(
-                      (role) => role.toLowerCase() === option.value,
-                    )}
+                    defaultChecked={ticked(chosenRoles, option.value)}
                     label={option.label}
                   />
                 ))}
@@ -259,15 +243,15 @@ export default async function PeoplePage({
 
               <ChoiceGroup
                 legend="User status"
-                hint={<p className="hint">With none ticked, every status is shown.</p>}
+                hint={<p className="hint">Untick a status to hide it.</p>}
               >
-                {STATUS_FILTER_ORDER.map((status) => (
+                {USER_STATUS_FILTER_ORDER.map((status) => (
                   <Choice
                     key={status}
                     type="checkbox"
                     name="status"
                     value={status.toLowerCase()}
-                    defaultChecked={filters.statuses.includes(status)}
+                    defaultChecked={ticked(filters.statuses, status)}
                     label={titleCase(status)}
                   />
                 ))}

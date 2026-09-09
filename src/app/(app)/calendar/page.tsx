@@ -16,7 +16,6 @@ import { redirect } from "next/navigation";
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
 import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
-import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
   MONTH_CELL_LIMIT,
@@ -34,6 +33,7 @@ import {
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { statusFilterOptions, statusMeta } from "@/lib/presentation";
+import { ticked } from "@/lib/selection";
 import { Moment } from "@/lib/rendering";
 import { calendarRange, parseFilters, type SessionRow } from "@/lib/services/sessionQuery";
 import { build } from "@/lib/timegrid";
@@ -144,6 +144,30 @@ export default async function CalendarPage({
   const window = buildWindow(view, anchor);
   const filters = parseFilters(params);
 
+  // Where a reset goes: through the route that *forgets* the remembered status,
+  // because a bare `/calendar` is what restores it. `keepSearch` is the
+  // difference between widening the status filter and clearing the lot.
+  const resetLink = (options: { keepSearch: boolean }) => {
+    const back = new URLSearchParams();
+    if (view !== CalendarView.MONTH) back.set("view", view);
+    if (window.anchor !== today) back.set("date", window.anchor);
+    if (options.keepSearch && filters.search) back.set("q", filters.search);
+    return back.size > 0 ? `/calendar/reset?${back}` : "/calendar/reset";
+  };
+
+  // A status parameter that narrows nothing is somebody asking for everything —
+  // by ticking the last box, or through "Select all". Tidying alone would send
+  // them to a bare `/calendar`, which is precisely what restores the remembered
+  // filter they had just widened out of, and they would watch it come back. So
+  // it goes the way the reset menu item goes: forget, then land. The search
+  // text is not what they widened, so it stays.
+  //
+  // No loop: the address this leads to carries no `status`, so it cannot arrive
+  // here again.
+  if (params.has("status") && !narrowsByStatus(filters.statuses)) {
+    redirect(resetLink({ keepSearch: true }));
+  }
+
   // Whatever produced this address — a link, the filter form, a cookie restore,
   // or something typed by hand — the bar ends up showing the least that still
   // says what is on screen.
@@ -163,37 +187,16 @@ export default async function CalendarPage({
   const link = (options: { view: CalendarView | string; anchor?: CivilDate | null }) =>
     calendarLink(filters, { ...options, today });
 
-  // Both of these come out as the same address, because a complete selection
-  // and an empty one ask the query for the same thing. They are still two
-  // links: "Select all" ticks every box, "Clear all" empties them, and the
-  // menu is shared with the directory's role filter.
-  const allStatuses = calendarLink(
-    { search: filters.search, statuses: Object.values(SessionStatus) },
-    { view, anchor, today },
-  );
-  const noStatuses = calendarLink(
-    { search: filters.search, statuses: [] },
-    { view, anchor, today },
-  );
+  // "Select all" — one gesture back to the resting state after unticking a few.
+  // Not a link to the unfiltered calendar: that is a bare `/calendar`, which
+  // would restore the very filter this is asking to be rid of. It forgets it
+  // instead, and keeps the search text, which is a different filter.
+  const allStatuses = resetLink({ keepSearch: true });
 
-  // Resetting clears the filter and leaves the range alone: the week somebody
-  // is reading is not something they asked to filter by.
-  //
-  // The date is carried whether or not it arrived, which is the one place this
-  // link differs from every other. A reset with no state parameters at all is a
-  // bare `/calendar`, and a bare `/calendar` is exactly what restores the
-  // remembered status — so the reset would arrive and be undone by the filter
-  // it had just cleared. `STATE_PARAMS` says the same thing about "Clear all".
-  // Through `/calendar/reset`, which forgets the remembered status rather than
-  // trying to out-argue it with a parameter — see the route for why a link
-  // straight back to `/calendar` cannot work. The range rides along, so
-  // clearing a filter leaves you on the week you were reading.
-  const resetParams = new URLSearchParams();
-  if (view !== CalendarView.MONTH) resetParams.set("view", view);
-  if (window.anchor !== today) resetParams.set("date", window.anchor);
-  const unfiltered = resetParams.size > 0
-    ? `/calendar/reset?${resetParams}`
-    : "/calendar/reset";
+  // "Reset filter" — the lot, search included. The range is not among it: the
+  // week somebody is reading is not something they asked to filter by, so it
+  // rides along.
+  const unfiltered = resetLink({ keepSearch: false });
 
   const isGrid = view === CalendarView.WEEK || view === CalendarView.DAY;
   const grid = isGrid ? build(buckets, window.days, zone) : null;
@@ -240,7 +243,6 @@ export default async function CalendarPage({
                   plural="statuses"
                   legend="Show these statuses"
                   allLink={allStatuses}
-                  noneLink={noStatuses}
                 />
 
                 {/* The menu applies itself on close, so there is no Apply
@@ -290,7 +292,7 @@ export default async function CalendarPage({
 
               <ChoiceGroup
                 legend="Status"
-                hint={<p className="hint">With none ticked, every status is shown.</p>}
+                hint={<p className="hint">Untick a status to hide it.</p>}
               >
                 {statusFilterOptions().map((option) => (
                   <Choice
@@ -298,8 +300,9 @@ export default async function CalendarPage({
                     type="checkbox"
                     name="status"
                     value={option.value}
-                    defaultChecked={filters.statuses.some(
-                      (status) => status.toLowerCase() === option.value,
+                    defaultChecked={ticked(
+                      filters.statuses.map((status) => status.toLowerCase()),
+                      option.value,
                     )}
                     label={option.label}
                   />

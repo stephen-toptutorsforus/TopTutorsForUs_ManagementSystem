@@ -16,6 +16,7 @@ import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { durationLabel, percent, statusFilterOptions } from "@/lib/presentation";
+import { ticked } from "@/lib/selection";
 import { actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
 import { FilterMenu } from "@/components/FilterMenu";
 import {
@@ -119,6 +120,14 @@ export default async function SessionsPage({
   // The export takes the filters as they stand, and an unfiltered grid now
   // serialises to nothing at all — `export.csv?` is not a URL to hand a browser.
   const exportHref = query ? `/sessions/export.csv?${query}` : "/sessions/export.csv";
+
+  // "Select all" in the status menu: this grid with the status narrowing
+  // dropped and everything else kept, back on the first page because the row
+  // count changes under it.
+  const allStatuses = (() => {
+    const rest = toQuery(filters, { status: "", page: 1 });
+    return rest ? `/sessions?${rest}` : "/sessions";
+  })();
   const results = await listSessions(prisma, principal, filters, { zone });
 
   const [instructors, programs] = await Promise.all([
@@ -193,6 +202,7 @@ export default async function SessionsPage({
                   singular="status"
                   plural="statuses"
                   legend="Show these statuses"
+                  allLink={allStatuses}
                 />
               </>
             }
@@ -212,7 +222,7 @@ export default async function SessionsPage({
               </Field>
               <ChoiceGroup
                 legend="Status"
-                hint={<p className="hint">With none ticked, every status is shown.</p>}
+                hint={<p className="hint">Untick a status to hide it.</p>}
               >
                 {statusFilterOptions().map((option) => (
                   <Choice
@@ -220,8 +230,9 @@ export default async function SessionsPage({
                     type="checkbox"
                     name="status"
                     value={option.value}
-                    defaultChecked={filters.statuses.some(
-                      (status) => status.toLowerCase() === option.value,
+                    defaultChecked={ticked(
+                      filters.statuses.map((status) => status.toLowerCase()),
+                      option.value,
                     )}
                     label={option.label}
                   />

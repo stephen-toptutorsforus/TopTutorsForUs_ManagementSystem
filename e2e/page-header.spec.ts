@@ -99,14 +99,16 @@ test.describe("as an administrator", () => {
     await expect(toolbar.locator('input[name="role"][value="instructor"]')).toBeChecked();
     await expect(toolbar.locator('input[name="role"][value="parent"]')).toBeChecked();
     await expect(toolbar.locator('input[name="role"][value="admin"]')).not.toBeChecked();
-    // Select all and clear all still lead somewhere, and somewhere different.
-    // Inside the closed disclosure, so they are not in the accessibility tree
-    // until it is opened — which is the disclosure working, not a missing link.
+    // "Select all" leads back to the resting state — every role, which is
+    // written as no role parameter at all — while keeping the search text.
+    // There is no "Clear all" beside it any more: with every box ticked by
+    // default the two would be one link. Inside the closed disclosure, so they
+    // are not in the accessibility tree until it is opened — which is the
+    // disclosure working, not a missing link.
     await toolbar.locator(".filtermenu > summary").click();
     const all = toolbar.getByRole("link", { name: "Select all" });
-    const none = toolbar.getByRole("link", { name: "Clear all" });
-    await expect(all).toHaveAttribute("href", /role=/);
-    await expect(await none.getAttribute("href")).not.toEqual(await all.getAttribute("href"));
+    await expect(all).toHaveAttribute("href", "/people?q=a");
+    await expect(toolbar.getByRole("link", { name: "Clear all" })).toHaveCount(0);
   });
 
   test("the directory's actions are not inside its search form", async ({ page }) => {

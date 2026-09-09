@@ -131,6 +131,16 @@ and its own reset link; none of that reaches the component. All of it works
 with scripting off: the menu is a `<details>`, the drawer is `:target`, Apply is
 a submit and Cancel is a link back to `#`.
 
+**A filter starts with every box ticked.** The resting state of a filter is
+everything shown, so that is what the control is drawn as rather than what a
+hint explains. Underneath, an empty selection still means no narrowing — every
+query reads it that way and so do the links already in people's bookmarks — so
+`src/lib/selection.ts` is the join between the two spellings: `ticked` draws an
+empty selection as a full one, `narrows` collapses a full one back to nothing.
+Complete is measured against what each menu **offers**, not against the enum;
+the two differ deliberately, and `tests/presentation.test.ts` is the tripwire
+for the day a value is added to one and not the other.
+
 **The URL says the state, and only the state.** Filter state lives in the query
 string, so a refresh, a back button, a bookmark and a link sent to a colleague
 all mean the same thing, and every filter form can be a plain GET that works

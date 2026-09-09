@@ -22,6 +22,7 @@ import {
   restoredLink,
   writeStatuses,
 } from "@/lib/calendar";
+import { STATUS_FILTER_ORDER } from "@/lib/presentation";
 import { parseFilters } from "@/lib/services/sessionQuery";
 import { isoWeekday } from "@/lib/time";
 
@@ -191,18 +192,28 @@ describe("links", () => {
     );
   });
 
-  it("counts a full menu of ticks as a filter, because in_progress is not on it", () => {
-    // The menu offers seven of the eight statuses. Ticking them all excludes
-    // the eighth, so it is a real narrowing however complete it looks — and
-    // collapsing it would change what the calendar shows the day Phase 5
-    // starts setting `in_progress`.
-    const offered = (Object.values(SessionStatus) as SessionStatus[]).filter(
-      (status) => status !== SessionStatus.IN_PROGRESS,
-    );
-
-    expect(narrowsByStatus(offered)).toBe(true);
+  it("counts a full menu of ticks as no filter, because that is the resting state", () => {
+    // Every box starts ticked, so a complete selection is what an untouched
+    // filter looks like rather than something somebody chose. Counting it
+    // would stamp all seven statuses onto the address of a calendar nobody had
+    // filtered. Complete is measured against what the menu offers, which is
+    // seven of the eight — `in_progress` is not on it.
+    expect(narrowsByStatus([...STATUS_FILTER_ORDER])).toBe(false);
     expect(narrowsByStatus(Object.values(SessionStatus))).toBe(false);
     expect(narrowsByStatus([])).toBe(false);
+
+    // One box unticked is a filter, and so is one box ticked.
+    expect(narrowsByStatus(STATUS_FILTER_ORDER.slice(1))).toBe(true);
+    expect(narrowsByStatus([SessionStatus.SCHEDULED])).toBe(true);
+  });
+
+  it("writes nothing for a full menu of ticks, so the address stays bare", () => {
+    expect(
+      calendarLink(
+        { search: "", statuses: [...STATUS_FILTER_ORDER] },
+        { view: CalendarView.MONTH },
+      ),
+    ).toBe("/calendar");
   });
 
   it("gives a path without a bare question mark for the default screen", () => {

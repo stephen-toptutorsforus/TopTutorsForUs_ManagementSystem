@@ -9,6 +9,10 @@
  * the same control, so they are one component over one shape rather than two
  * blocks of markup that drift apart the first time either is touched.
  *
+ * **Every box starts ticked** — the resting state of a filter is everything
+ * shown, so that is what it is drawn as rather than explained as. The rule and
+ * its consequences are in `lib/selection.ts`.
+ *
  * "Applies when it closes" is the behaviour worth keeping: ticking three boxes
  * should be one navigation, not three. The reference does it with a script and
  * falls back to an Apply button; here the submit is in the component and the
@@ -27,6 +31,7 @@ import { useMenuDismissal } from "@/components/menuDismissal";
 
 import { Button } from "@/components/ui";
 import type { FilterOption } from "@/lib/presentation";
+import { narrows, ticked } from "@/lib/selection";
 
 export function FilterMenu({
   name,
@@ -36,7 +41,6 @@ export function FilterMenu({
   plural,
   legend,
   allLink,
-  noneLink,
 }: {
   name: string;
   options: FilterOption[];
@@ -45,13 +49,22 @@ export function FilterMenu({
   plural: string;
   legend: string;
   allLink?: string;
-  noneLink?: string;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
 
   // Dismissed by a press outside it, like any menu. Choosing does not close it:
   // the items are checkboxes and closing is what applies them.
   useMenuDismissal(details);
+
+  // Two spellings of the same state have to compare equal, or opening the menu
+  // and closing it again would navigate: the arriving filter is empty while the
+  // boxes it drew are all ticked. Both collapse to "".
+  const values = options.map((option) => option.value);
+  const signature = (chosen: readonly string[]) =>
+    narrows(chosen.map((value) => value.toLowerCase()), values)
+      ? [...chosen].map((value) => value.toLowerCase()).sort().join(",")
+      : "";
+  const applied = signature(selected);
 
   useEffect(() => {
     const node = details.current;
@@ -63,22 +76,27 @@ export function FilterMenu({
       if (node.open) return;
       const form = node.closest("form");
       if (form === null) return;
-      const now = new FormData(form).getAll(name).map(String).sort().join(",");
-      if (now === [...selected].sort().join(",")) return;
+      if (signature(new FormData(form).getAll(name).map(String)) === applied) return;
       form.requestSubmit();
     };
 
     node.addEventListener("toggle", onToggle);
     return () => node.removeEventListener("toggle", onToggle);
-  }, [name, selected]);
+    // `signature` is rebuilt each render; `applied` is the value it produces,
+    // and it is what actually decides whether this fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, applied]);
 
   // `selected` may name something the menu does not offer — a link filtering by
   // a role the directory does not list, say. The count follows the selection so
   // the summary never reads "All" over a filtered page; the swatches follow the
   // options, because only they carry a colour to draw.
+  //
+  // "All" covers both spellings of the unfiltered screen: nothing selected, and
+  // everything selected. They show the same page, so they read the same.
   const chosen = options.filter((option) => selected.includes(option.value));
   const summary =
-    selected.length === 0
+    applied === ""
       ? `All ${plural}`
       : selected.length === 1
         ? `1 ${singular}`
@@ -112,7 +130,7 @@ export function FilterMenu({
                 type="checkbox"
                 name={name}
                 value={option.value}
-                defaultChecked={selected.includes(option.value)}
+                defaultChecked={ticked(selected, option.value)}
               />
               <span className="filtermenu-label">{option.label}</span>
               {option.tone && option.icon && (
@@ -136,17 +154,17 @@ export function FilterMenu({
             </Button>
           </p>
         </noscript>
-        {allLink !== undefined && noneLink !== undefined && (
-          // Plain links, not scripted buttons, so they work like the rest.
+        {allLink !== undefined && (
+          // A plain link, not a scripted button, so it works like the rest.
+          // There is no "Clear all" beside it any more: with every box ticked
+          // as the resting state, clearing and selecting all arrive at the same
+          // screen, and two links to one place is one link too many.
           <p className="filtermenu-actions">
             <a href={allLink}>Select all</a>
-            <span aria-hidden="true">|</span>
-            <a href={noneLink}>Clear all</a>
           </p>
         )}
         <p className="hint">
-          Tick as many as you like — the filter applies when you close this menu. With
-          none ticked, every {singular} is shown.
+          Untick a {singular} to hide it — the filter applies when you close this menu.
         </p>
       </div>
     </details>

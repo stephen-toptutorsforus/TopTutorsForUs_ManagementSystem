@@ -13,6 +13,7 @@ import {
   DeliveryType,
   Role,
   SessionStatus,
+  UserStatus,
 } from "@/generated/prisma/enums";
 
 export interface Badge {
@@ -42,6 +43,13 @@ export const STATUS_META: Record<SessionStatus, Badge> = {
  * Phase 5 — and a filter option that can never match anything is worse than no
  * option. It stays in the enum, and its badge stays defined, so a session that
  * reaches it still displays correctly; it is only missing from the filter.
+ *
+ * **This list defines the unfiltered screen**, because a full set of ticks is
+ * what an untouched filter looks like and a full set of ticks means "no
+ * narrowing" — see `lib/selection.ts`. So the day `in_progress` starts being
+ * set it has to be added here, or a live session will be filterable by nothing
+ * and hidden by any tick somebody removes. `tests/presentation.test.ts` fails
+ * when a status is added to the enum and not answered for here.
  */
 export const STATUS_FILTER_ORDER: readonly SessionStatus[] = [
   SessionStatus.SCHEDULED,
@@ -146,6 +154,21 @@ export const ROLE_FILTER_ORDER: readonly Role[] = [
   Role.STUDENT,
   Role.PARENT,
   Role.ADMIN,
+];
+
+/**
+ * The account states the directory filters by — every one in the enum, unlike
+ * the roles. Here so the page that draws the ticks and the query that reads
+ * them share one list; two copies would disagree about what "all of them"
+ * means, and that is the thing that decides whether a filter is written to the
+ * address at all.
+ */
+export const USER_STATUS_FILTER_ORDER: readonly UserStatus[] = [
+  UserStatus.ACTIVE,
+  UserStatus.INVITED,
+  UserStatus.PENDING_INVITE,
+  UserStatus.BOUNCED,
+  UserStatus.DISABLED,
 ];
 
 export function roleFilterOptions(): FilterOption[] {

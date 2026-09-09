@@ -18,7 +18,9 @@
  *
  * The range travels with it. Resetting a filter should leave you on the week
  * you were reading — the same reason `activeCalendarFilters` does not count the
- * view or the date.
+ * view or the date. So does the search text, when the caller sends it: this is
+ * also where "Select all" in the status menu goes, which widens the statuses
+ * without touching what somebody typed.
  */
 
 import { NextResponse } from "next/server";
@@ -33,9 +35,18 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (view !== CalendarView.MONTH) back.set("view", view);
   // Passed through unvalidated on purpose: the calendar parses it properly on
   // arrival and falls back to today, and duplicating that here would be a
-  // second answer to the same question.
+  // second answer to the same question. Bounded, though — that is not a second
+  // answer, it is a limit on how long a `Location` header this can be made to
+  // emit.
   const date = asked.searchParams.get("date");
-  if (date) back.set("date", date);
+  if (date) back.set("date", date.slice(0, 40));
+
+  // The search text rides along when it is sent, and is not when it is not.
+  // That is the whole difference between "Select all", which widens the status
+  // filter and keeps the search, and "Reset filter", which clears both. The
+  // route does not decide which of those it is being used for.
+  const search = asked.searchParams.get("q");
+  if (search) back.set("q", search.slice(0, 100));
 
   // A relative `Location`, not `NextResponse.redirect`, which insists on an
   // absolute URL and builds it from `request.url` — whose host is whatever
