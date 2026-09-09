@@ -382,6 +382,7 @@ describeDb("the directory", () => {
   let org: { id: bigint; timezone: string };
   let otherOrg: { id: bigint; timezone: string };
   let principal: Principal;
+  let refs: { region: string; district: string; school: string };
 
   beforeAll(() => {
     db = testClient();
@@ -530,5 +531,112 @@ describeDb("the directory", () => {
     await db.user.update({ where: { id: gone.id }, data: { archivedAt: new Date() } });
 
     expect(surnames(await listPeople(db, principal)).has("Haddad")).toBe(false);
+  });
+
+  describe("the filters the drawer adds", () => {
+    /** A region, a district under it, a school under that, and who is where. */
+    beforeEach(async () => {
+      const region = await db.region.create({
+        data: { ref: `reg_${Date.now().toString(36)}`, organizationId: org.id, name: "North" },
+      });
+      const district = await db.district.create({
+        data: {
+          ref: `dis_${Date.now().toString(36)}`,
+          organizationId: org.id,
+          regionId: region.id,
+          name: "Riverside",
+        },
+      });
+      const school = await db.school.create({
+        data: {
+          ref: `sch_${Date.now().toString(36)}`,
+          organizationId: org.id,
+          districtId: district.id,
+          name: "Northgate High",
+        },
+      });
+
+      const okafor = await db.user.findFirstOrThrow({ where: { lastName: "Okafor" } });
+      const vasquez = await db.user.findFirstOrThrow({ where: { lastName: "Vasquez" } });
+
+      await db.userRegion.create({
+        data: { organizationId: org.id, userId: okafor.id, regionId: region.id },
+      });
+      await db.userDistrict.create({
+        data: { organizationId: org.id, userId: okafor.id, districtId: district.id },
+      });
+      await db.userSchool.create({
+        data: { organizationId: org.id, userId: vasquez.id, schoolId: school.id },
+      });
+
+      refs = { region: region.ref, district: district.ref, school: school.ref };
+    });
+
+    it("narrows to the people attached to a place", async () => {
+      expect(surnames(await listPeople(db, principal, { regionRef: refs.region }))).toEqual(
+        new Set(["Okafor"]),
+      );
+      expect(surnames(await listPeople(db, principal, { districtRef: refs.district }))).toEqual(
+        new Set(["Okafor"]),
+      );
+      expect(surnames(await listPeople(db, principal, { schoolRef: refs.school }))).toEqual(
+        new Set(["Vasquez"]),
+      );
+    });
+
+    it("asks for all of the places at once, not the narrowest", async () => {
+      // Nobody holds both this region and this school, so the answer is nobody
+      // — not "the school wins". Dropping a filter somebody set would show them
+      // people they had excluded.
+      const rows = await listPeople(db, principal, {
+        regionRef: refs.region,
+        schoolRef: refs.school,
+      });
+
+      expect(rows).toEqual([]);
+    });
+
+    it("narrows by status", async () => {
+      const holm = await db.user.findFirstOrThrow({ where: { lastName: "Holm" } });
+      await db.user.update({ where: { id: holm.id }, data: { status: UserStatus.DISABLED } });
+
+      expect(surnames(await listPeople(db, principal, { statuses: [UserStatus.DISABLED] }))).toEqual(
+        new Set(["Holm"]),
+      );
+      expect(
+        surnames(await listPeople(db, principal, { statuses: [UserStatus.ACTIVE] })).has("Holm"),
+      ).toBe(false);
+    });
+
+    it("shows every status when none is ticked", async () => {
+      const holm = await db.user.findFirstOrThrow({ where: { lastName: "Holm" } });
+      await db.user.update({ where: { id: holm.id }, data: { status: UserStatus.DISABLED } });
+
+      expect(surnames(await listPeople(db, principal, { statuses: [] })).has("Holm")).toBe(true);
+    });
+
+    it("combines a place, a role and a status", async () => {
+      const rows = await listPeople(db, principal, {
+        schoolRef: refs.school,
+        roles: [Role.STUDENT],
+        statuses: [UserStatus.ACTIVE],
+      });
+
+      expect(surnames(rows)).toEqual(new Set(["Vasquez"]));
+    });
+
+    it("cannot be pointed at another tenant's place", async () => {
+      // A ref from elsewhere matches nothing rather than reaching across: the
+      // outer `where` is tenant-scoped, so the join simply finds no row.
+      const theirRegion = await db.region.create({
+        data: { ref: `reg_other_${Date.now().toString(36)}`, organizationId: otherOrg.id, name: "South" },
+      });
+      const theirs = await makeUser(db, otherOrg.id, { last: "Fischer", roles: [Role.ADMIN] });
+      await db.userRegion.create({
+        data: { organizationId: otherOrg.id, userId: theirs.id, regionId: theirRegion.id },
+      });
+
+      expect(await listPeople(db, principal, { regionRef: theirRegion.ref })).toEqual([]);
+    });
   });
 });

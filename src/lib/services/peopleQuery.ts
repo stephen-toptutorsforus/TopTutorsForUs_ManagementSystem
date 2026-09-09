@@ -15,7 +15,7 @@
  */
 
 import type { Prisma } from "@/generated/prisma/client";
-import { Role } from "@/generated/prisma/enums";
+import { Role, UserStatus } from "@/generated/prisma/enums";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
 import type { Db } from "@/lib/services/people";
@@ -89,6 +89,58 @@ export function parseRoles(values: readonly string[]): Role[] {
 }
 
 /**
+ * Statuses read from query parameters, ignoring anything unrecognised.
+ *
+ * The same rule as `parseRoles`: every status in the enum is accepted, whatever
+ * the filter drawer chooses to offer, so a link naming one it does not show
+ * still filters by it.
+ */
+export function parseStatuses(values: readonly string[]): UserStatus[] {
+  const known = Object.values(UserStatus) as string[];
+  const seen: UserStatus[] = [];
+  for (const value of values.slice(0, known.length)) {
+    const match = known.find((status) => status === value || status.toLowerCase() === value);
+    if (match === undefined) continue;
+    if (!seen.includes(match as UserStatus)) seen.push(match as UserStatus);
+  }
+  return seen;
+}
+
+/**
+ * Everything the directory can be narrowed by.
+ *
+ * The toolbar reaches the first two and the filter drawer reaches all of them.
+ * They are one set of parameters either way, so a filter set in the drawer and
+ * one typed into the search box produce the same address and the same page.
+ */
+export interface DirectoryFilters {
+  search: string;
+  roles: Role[];
+  statuses: UserStatus[];
+  /** A `ref`, not an id: refs are what the address bar is allowed to carry. */
+  regionRef: string | null;
+  districtRef: string | null;
+  schoolRef: string | null;
+}
+
+/** A trimmed, bounded `ref` from the query, or null. */
+function parseRef(raw: string | null): string | null {
+  const value = (raw ?? "").trim().slice(0, 24);
+  return value === "" ? null : value;
+}
+
+export function parseDirectoryFilters(params: URLSearchParams): DirectoryFilters {
+  return {
+    search: (params.get("q") ?? "").trim().slice(0, 100),
+    roles: parseRoles(params.getAll("role")),
+    statuses: parseStatuses(params.getAll("status")),
+    regionRef: parseRef(params.get("region")),
+    districtRef: parseRef(params.get("district")),
+    schoolRef: parseRef(params.get("school")),
+  };
+}
+
+/**
  * The directory's whole state, and the only spelling of it.
  *
  * An empty search is not written down: the filter form submits its empty
@@ -99,28 +151,73 @@ export function parseRoles(values: readonly string[]): Role[] {
  * The menu offers four of the six roles, so ticking all four still excludes
  * somebody who only holds `payer` or `regional_admin`: it looks complete and is
  * a real filter. Only a set covering every role in the enum narrows nothing,
- * because `listPeople` narrows only when the list is non-empty.
+ * because `listPeople` narrows only when the list is non-empty. Statuses follow
+ * the same rule against their own enum.
+ *
+ * A region, a district and a school can all be set at once. They are not
+ * collapsed into "the narrowest one wins": somebody may hold a school in one
+ * district and a district in another, and quietly dropping a filter the person
+ * set is worse than returning nothing.
  */
-export function directoryQuery(search: string, roles: readonly Role[]): string {
+export function directoryQuery(filters: DirectoryFilters): string {
   const params = new URLSearchParams();
-  if (search) params.append("q", search);
-  const everyRole = (Object.values(Role) as Role[]).every((role) => roles.includes(role));
-  if (roles.length > 0 && !everyRole) {
-    for (const role of roles) params.append("role", role.toLowerCase());
+  if (filters.search) params.append("q", filters.search);
+
+  const everyRole = (Object.values(Role) as Role[]).every((role) =>
+    filters.roles.includes(role),
+  );
+  if (filters.roles.length > 0 && !everyRole) {
+    for (const role of filters.roles) params.append("role", role.toLowerCase());
   }
+
+  const everyStatus = (Object.values(UserStatus) as UserStatus[]).every((status) =>
+    filters.statuses.includes(status),
+  );
+  if (filters.statuses.length > 0 && !everyStatus) {
+    for (const status of filters.statuses) params.append("status", status.toLowerCase());
+  }
+
+  if (filters.regionRef) params.append("region", filters.regionRef);
+  if (filters.districtRef) params.append("district", filters.districtRef);
+  if (filters.schoolRef) params.append("school", filters.schoolRef);
   return params.toString();
 }
 
-/** A directory URL keeping the search text and naming a set of roles. */
-export function directoryLink(search: string, roles: readonly Role[]): string {
-  const query = directoryQuery(search, roles);
+/** A directory URL carrying a whole filter. */
+export function directoryLink(filters: DirectoryFilters): string {
+  const query = directoryQuery(filters);
   return query ? `/people?${query}` : "/people";
 }
 
-export interface ListPeopleOptions {
-  search?: string;
-  roles?: readonly Role[];
+/** The unfiltered directory — what "Reset filter" goes to. */
+export const NO_DIRECTORY_FILTERS: DirectoryFilters = {
+  search: "",
+  roles: [],
+  statuses: [],
+  regionRef: null,
+  districtRef: null,
+  schoolRef: null,
+};
+
+/**
+ * How many of them are set.
+ *
+ * Drawn on the filter button, so somebody who has scrolled past the toolbar can
+ * still see that the list is narrowed. Each parameter counts once however many
+ * values it holds: three ticked roles are one decision about roles.
+ */
+export function activeDirectoryFilters(filters: DirectoryFilters): number {
+  return [
+    filters.search !== "",
+    filters.roles.length > 0,
+    filters.statuses.length > 0,
+    filters.regionRef !== null,
+    filters.districtRef !== null,
+    filters.schoolRef !== null,
+  ].filter(Boolean).length;
 }
+
+export type ListPeopleOptions = Partial<DirectoryFilters>;
 
 /** The directory, one finished row per person. */
 export async function listPeople(
@@ -130,6 +227,7 @@ export async function listPeople(
 ): Promise<PersonRow[]> {
   const search = (options.search ?? "").trim();
   const roles = options.roles ?? [];
+  const statuses = options.statuses ?? [];
 
   const where: Prisma.UserWhereInput = { ...scoped(principal), archivedAt: null };
 
@@ -165,6 +263,22 @@ export async function listPeople(
     // who are either, which is what a person reading a list of checkboxes
     // expects. Somebody holding both appears once.
     where.roles = { some: { role: { in: [...roles] } } };
+  }
+
+  if (statuses.length > 0) where.status = { in: [...statuses] };
+
+  // Where somebody is placed. Each is a join row rather than a column, because
+  // a person can be attached to more than one school; `some` asks whether any
+  // of their rows matches. The nested `ref` is still tenant-scoped — the outer
+  // `where` is, and a ref from another tenant simply matches nothing.
+  if (options.regionRef) {
+    where.regions = { some: { region: { ref: options.regionRef } } };
+  }
+  if (options.districtRef) {
+    where.districts = { some: { district: { ref: options.districtRef } } };
+  }
+  if (options.schoolRef) {
+    where.schools = { some: { school: { ref: options.schoolRef } } };
   }
 
   const people = await db.user.findMany({

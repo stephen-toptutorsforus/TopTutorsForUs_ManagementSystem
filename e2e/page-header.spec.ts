@@ -88,15 +88,19 @@ test.describe("as an administrator", () => {
     await page.goto("/people?q=a&role=instructor&role=parent");
 
     await expect(page.locator("#q")).toHaveValue("a");
-    await expect(page.locator('input[name="role"][value="instructor"]')).toBeChecked();
-    await expect(page.locator('input[name="role"][value="parent"]')).toBeChecked();
-    await expect(page.locator('input[name="role"][value="admin"]')).not.toBeChecked();
+    // Scoped to the toolbar: the filter drawer restates the same roles, so an
+    // unscoped selector now finds each checkbox twice — which is itself the
+    // point, the two are one filter.
+    const toolbar = page.locator(".page-toolbar");
+    await expect(toolbar.locator('input[name="role"][value="instructor"]')).toBeChecked();
+    await expect(toolbar.locator('input[name="role"][value="parent"]')).toBeChecked();
+    await expect(toolbar.locator('input[name="role"][value="admin"]')).not.toBeChecked();
     // Select all and clear all still lead somewhere, and somewhere different.
     // Inside the closed disclosure, so they are not in the accessibility tree
     // until it is opened — which is the disclosure working, not a missing link.
-    await page.locator('.filtermenu[data-apply-on-close] > summary').click();
-    const all = page.getByRole("link", { name: "Select all" });
-    const none = page.getByRole("link", { name: "Clear all" });
+    await toolbar.locator(".filtermenu > summary").click();
+    const all = toolbar.getByRole("link", { name: "Select all" });
+    const none = toolbar.getByRole("link", { name: "Clear all" });
     await expect(all).toHaveAttribute("href", /role=/);
     await expect(await none.getAttribute("href")).not.toEqual(await all.getAttribute("href"));
   });

@@ -116,3 +116,26 @@ test.describe("on a wide screen", () => {
     await expect(page.locator(".drawer-close")).toBeHidden();
   });
 });
+
+test.describe("the navigation drawer's own controls", () => {
+  test.use({ storageState: statePath("admin") });
+
+  test("keeps its close button to the drawer it belongs to", async ({ page, viewport }) => {
+    // A regression guard with a specific cause: the filter drawer was first
+    // written with `.drawer-close`, which the navigation already owned and
+    // hides above the breakpoint. Defined later in the stylesheet, it un-hid
+    // the sidebar's close button on every desktop screen — a class collision no
+    // markup snapshot would notice, because no markup changed.
+    await page.goto("/people");
+
+    const shown = await page
+      .locator(".sidebar .drawer-close")
+      .evaluate((el) => getComputedStyle(el).display);
+
+    if ((viewport?.width ?? 0) > 720) {
+      expect(shown, "the sidebar's close button belongs to the phone drawer").toBe("none");
+    } else {
+      expect(shown).not.toBe("none");
+    }
+  });
+});

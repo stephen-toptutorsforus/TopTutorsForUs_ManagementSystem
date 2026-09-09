@@ -424,6 +424,147 @@ a:hover { color: var(--brand-700); }
 .page-toolbar-search { flex: 0 1 260px; min-width: 200px; }
 .page-toolbar-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
 
+/* The filter button before the search box, and the menu it opens.
+   Its own class rather than `.filtermenu`: that one is a menu of checkboxes
+   that narrows a list, this one is a menu of actions performed on the filter as
+   a whole, and giving them one name is how they would end up with one shape. */
+.page-toolbar-menu { flex: none; }
+.filteractions { position: relative; flex: none; }
+.filteractions > summary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
+  min-height: 44px; min-width: 44px; padding: 0 0.55rem;
+  border: 1px solid var(--ink-400); border-radius: var(--radius);
+  background: var(--paper); color: var(--ink-700);
+  cursor: pointer; list-style: none;
+}
+.filteractions > summary::-webkit-details-marker { display: none; }
+.filteractions[open] > summary { border-color: var(--brand-600); color: var(--brand-700); }
+/* How many filters are set, on the button that opens them — so a narrowed list
+   says so even when the toolbar has scrolled away. A number, not a dot. */
+.filteractions-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 999px;
+  background: var(--brand-600); color: var(--on-brand);
+  font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.filteractions-menu {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0;
+  min-width: 240px; padding: 0.4rem;
+  background: var(--paper); border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+}
+.filteractions-item {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%;
+  min-height: 44px; padding: 0 0.6rem;
+  border: 0; border-radius: var(--radius);
+  background: none; color: var(--brand-700);
+  font: inherit; font-weight: 600; text-align: left; text-decoration: none;
+  cursor: pointer;
+}
+.filteractions-item:hover { background: var(--brand-100); color: var(--brand-700); }
+.filteractions-item .glyph { display: inline-flex; color: var(--brand-600); }
+.filteractions-item.is-disabled,
+.filteractions-item:disabled {
+  color: var(--ink-400); cursor: not-allowed; background: none;
+}
+.filteractions-item:disabled .glyph { color: var(--ink-400); }
+.filteractions-menu hr { margin: 0.35rem 0.6rem; border: 0; border-top: 1px solid var(--ink-200); }
+.filteractions-note { margin: 0.2rem 0.6rem; color: var(--ink-500); font-size: 0.82rem; }
+.filteractions-note:empty { display: none; }
+.filteractions-note code { word-break: break-all; }
+
+/* The magnifier inside the search box. Absolutely placed against the field, so
+   it does not take part in the flex row and cannot push the input; the input is
+   padded to leave room for it rather than shortened. */
+.page-toolbar-search { position: relative; }
+.page-toolbar-search-icon {
+  position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%);
+  display: inline-flex; color: var(--ink-500); pointer-events: none;
+}
+/* `input[type=...]` and not `input`: the two would tie on specificity with the
+   global control rule further down the file, and a tie is settled by source
+   order — which this rule loses. */
+.page-toolbar-search input[type="search"] { padding-left: 2.4rem; }
+
+/* --- The filter drawer -----------------------------------------------------
+ *
+ * A panel over the page, opened by `:target` from the filter menu and closed by
+ * a link back to `#`. The same idiom as the navigation drawer and the modals,
+ * and for the same reason: a filter panel that only opens under a script is a
+ * filter nobody can reach when the script fails.
+ *
+ * `visibility` as well as `transform`, so the panel is not a tab stop while it
+ * is off screen — a translated element is still focusable.
+ *
+ * `filterdrawer-` and not `drawer-`: the navigation already owns `.drawer-close`
+ * and `.drawer-backdrop`, and hides the first of them above the breakpoint. A
+ * second `.drawer-close` defined later in this file un-hid the sidebar's on
+ * every desktop screen, which is what a shared prefix buys you.
+ */
+.filterdrawer {
+  position: fixed; inset: 0; z-index: 60;
+  visibility: hidden;
+}
+.filterdrawer:target { visibility: visible; }
+.filterdrawer-scrim {
+  position: absolute; inset: 0;
+  background: rgba(16, 22, 29, 0.45);
+  opacity: 0; transition: opacity 0.16s ease;
+}
+.filterdrawer:target .filterdrawer-scrim { opacity: 1; }
+.filterdrawer-panel {
+  position: absolute; inset: 0 0 0 auto;
+  display: flex; flex-direction: column;
+  width: min(420px, 100%);
+  background: var(--paper); border-left: 1px solid var(--ink-200);
+  box-shadow: var(--shadow);
+  transform: translateX(100%); transition: transform 0.18s ease;
+}
+.filterdrawer:target .filterdrawer-panel { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .filterdrawer-scrim, .filterdrawer-panel { transition: none; }
+}
+.filterdrawer-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.1rem; border-bottom: 1px solid var(--ink-200); flex: none;
+}
+.filterdrawer-head h2 { margin: 0; font-size: 1.15rem; }
+.filterdrawer-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; min-width: 44px; border-radius: var(--radius);
+  color: var(--ink-700); text-decoration: none; font-size: 1.3rem;
+}
+.filterdrawer-close:hover { background: var(--ink-100); color: var(--ink-900); }
+/* The one scrolling part, so the heading and the buttons stay put while a long
+   filter is read — which is the whole reason this is a drawer and not a modal. */
+.filterdrawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 1.1rem; }
+.filterdrawer-foot {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.85rem 1.1rem; border-top: 1px solid var(--ink-200);
+  background: var(--ink-050); flex: none;
+}
+.filterdrawer-gap { flex: 1 1 auto; }
+
+.filterdrawer-section { border: 0; margin: 0 0 1.4rem; padding: 0; }
+.filterdrawer-section > legend {
+  padding: 0; margin-bottom: 0.6rem;
+  color: var(--ink-500); font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.filterdrawer-section-body {
+  display: flex; flex-direction: column; gap: 0.9rem;
+  padding: 0.9rem 1rem; border: 1px solid var(--ink-200); border-radius: var(--radius-lg);
+}
+.filterdrawer-section-body .field { margin: 0; }
+.filterdrawer-section-body fieldset { border: 0; margin: 0; padding: 0; }
+.filterdrawer-section-body fieldset > legend { padding: 0; }
+
+@media (max-width: 480px) {
+  /* Full width, because 420px of panel on a 390px screen is the page. */
+  .filterdrawer-panel { width: 100%; }
+}
+
 /* The filters that are not worth a permanent row. A disclosure at every width;
    `PageHeader.tsx` records why it is not a row on a wide screen. */
 .page-toolbar-more { margin-top: 0.55rem; border-top: 1px solid var(--ink-100); }

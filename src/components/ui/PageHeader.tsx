@@ -28,6 +28,7 @@
  */
 
 import { Field, VisuallyHidden } from "./Field";
+import { SearchIcon } from "./icons";
 
 /**
  * Title, subtitle, and the three rows that may follow.
@@ -44,12 +45,19 @@ export function PageHeader({
   actions,
   toolbar,
   secondary,
+  drawer,
   className,
 }: {
   title: React.ReactNode;
   actions?: React.ReactNode;
   toolbar?: React.ReactNode;
   secondary?: React.ReactNode;
+  /**
+   * A `FilterDrawer`. Rendered last and positioned over the page, so where it
+   * sits in the markup decides nothing about the layout — but it belongs to the
+   * header, because the button that opens it does.
+   */
+  drawer?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -66,6 +74,7 @@ export function PageHeader({
       </div>
       {toolbar}
       {isPresent(secondary) && <div className="page-header-secondary">{secondary}</div>}
+      {drawer}
     </header>
   );
 }
@@ -104,12 +113,19 @@ function isPresent(slot: React.ReactNode): boolean {
  * bar with nothing in it.
  */
 export function PageToolbar({
+  menu,
   filters,
   actions,
   advancedFilters,
   form,
   className,
 }: {
+  /**
+   * A `FilterActions` button, before the search box. Outside the form: what it
+   * holds are links and one disabled control, not fields, and a menu that
+   * submitted the filters by being opened would be a surprise.
+   */
+  menu?: React.ReactNode;
   filters?: React.ReactNode;
   actions?: React.ReactNode;
   /** A `MoreFilters` disclosure. Inside the form, below the fields. */
@@ -130,7 +146,12 @@ export function PageToolbar({
   };
   className?: string;
 }) {
-  if (!isPresent(filters) && !isPresent(actions) && !isPresent(advancedFilters)) {
+  if (
+    !isPresent(menu) &&
+    !isPresent(filters) &&
+    !isPresent(actions) &&
+    !isPresent(advancedFilters)
+  ) {
     return null;
   }
 
@@ -144,6 +165,7 @@ export function PageToolbar({
   return (
     <div className={className ? `page-toolbar ${className}` : "page-toolbar"}>
       <div className="page-toolbar-row">
+        {isPresent(menu) && <div className="page-toolbar-menu">{menu}</div>}
         {form === undefined ? (
           <div className="page-toolbar-filters">{fields}</div>
         ) : (
@@ -203,6 +225,12 @@ export function SearchField({
       className="page-toolbar-search"
       labelClassName="visually-hidden"
     >
+      {/* Before the input in the markup as well as on the screen, so it is
+          not a decoration bolted on afterwards with `::before` — and hidden,
+          because the label beside it already says what the field is. */}
+      <span className="page-toolbar-search-icon" aria-hidden="true">
+        <SearchIcon />
+      </span>
       <input
         id={id}
         name={name}

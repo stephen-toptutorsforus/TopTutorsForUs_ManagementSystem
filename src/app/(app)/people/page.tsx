@@ -16,18 +16,20 @@ import { redirect } from "next/navigation";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignModal } from "@/components/people/AssignModal";
 import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { AnchorButton, Badge, Button, Card, EmptyState, Hint, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
-import { GuardianRelationship, Role } from "@/generated/prisma/enums";
+import { AnchorButton, Badge, Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { GuardianRelationship, Role, UserStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { ROLE_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
 import {
+  NO_DIRECTORY_FILTERS,
   PAGE_LIMIT,
+  activeDirectoryFilters,
   directoryLink,
   directoryQuery,
   listPeople,
-  parseRoles,
+  parseDirectoryFilters,
 } from "@/lib/services/peopleQuery";
 import { canonicalUrl } from "@/lib/urlState";
 import { csrfToken, requireContext } from "@/lib/web/session";
@@ -51,6 +53,20 @@ const CREATABLE_ROLES: Role[] = [
   Role.REGIONAL_ADMIN,
 ];
 
+/**
+ * The statuses the filter drawer offers, in lifecycle order rather than the
+ * enum's. Every one of them, unlike the role list: a status is a state the
+ * platform puts somebody in, so there is none a person would never want to
+ * look for.
+ */
+const STATUS_FILTER_ORDER: UserStatus[] = [
+  UserStatus.ACTIVE,
+  UserStatus.INVITED,
+  UserStatus.PENDING_INVITE,
+  UserStatus.BOUNCED,
+  UserStatus.DISABLED,
+];
+
 function titleCase(value: string): string {
   return value
     .toLowerCase()
@@ -67,15 +83,16 @@ export default async function PeoplePage({
   await guard(async () => principal.require(Permission.USER_VIEW));
 
   const params = toSearchParams(await searchParams);
-  const search = (params.get("q") ?? "").trim();
-  const chosenRoles = parseRoles(params.getAll("role"));
+  const filters = parseDirectoryFilters(params);
+  const { search, roles: chosenRoles } = filters;
 
-  const tidy = canonicalUrl("/people", params, directoryQuery(search, chosenRoles));
+  const tidy = canonicalUrl("/people", params, directoryQuery(filters));
   if (tidy !== null) redirect(tidy);
 
-  const rows = await listPeople(prisma, principal, { search, roles: chosenRoles });
+  const rows = await listPeople(prisma, principal, filters);
   const canManage = principal.has(Permission.USER_MANAGE);
   const roleOptions = roleFilterOptions();
+  const activeFilters = activeDirectoryFilters(filters);
 
   const people = async (role: Role) =>
     prisma.user.findMany({
@@ -84,23 +101,37 @@ export default async function PeoplePage({
       orderBy: { lastName: "asc" },
     });
 
-  const [instructors, students, parents, schools, regions] = canManage
-    ? await Promise.all([
-        people(Role.INSTRUCTOR),
-        people(Role.STUDENT),
-        people(Role.PARENT),
-        prisma.school.findMany({
-          where: { ...scoped(principal), archivedAt: null },
-          select: { ref: true, name: true },
-          orderBy: { name: "asc" },
-        }),
-        prisma.region.findMany({
-          where: { ...scoped(principal), archivedAt: null },
-          select: { ref: true, name: true },
-          orderBy: { name: "asc" },
-        }),
-      ])
-    : [[], [], [], [], []];
+  // The places are read for everyone who can see the directory, because the
+  // filter drawer offers them and the drawer is not a management control. The
+  // people lists behind the create and assign modals still are.
+  const inOrder = {
+    where: { ...scoped(principal), archivedAt: null },
+    orderBy: { name: "asc" },
+    select: { ref: true, name: true },
+  } as const;
+  const [regions, districts, schools] = await Promise.all([
+    prisma.region.findMany(inOrder),
+    prisma.district.findMany(inOrder),
+    prisma.school.findMany(inOrder),
+  ]);
+
+  // Only the ones this tenant has. Built here rather than in the drawer because
+  // it is a fact about the organization's data, which the component has no
+  // business knowing.
+  const places = [
+    { name: "region", label: "Region", anything: "Any region", chosen: filters.regionRef, rows: regions },
+    { name: "district", label: "District", anything: "Any district", chosen: filters.districtRef, rows: districts },
+    { name: "school", label: "School", anything: "Any school", chosen: filters.schoolRef, rows: schools },
+  ]
+    .filter((place) => place.rows.length > 0)
+    .map((place) => ({
+      ...place,
+      options: place.rows.map((row) => ({ value: row.ref, label: row.name })),
+    }));
+
+  const [instructors, students, parents] = canManage
+    ? await Promise.all([people(Role.INSTRUCTOR), people(Role.STUDENT), people(Role.PARENT)])
+    : [[], [], []];
 
   const named = (person: { ref: string; firstName: string; lastName: string }) => ({
     ref: person.ref,
@@ -122,6 +153,9 @@ export default async function PeoplePage({
         title="User Management"
         toolbar={
           <PageToolbar
+            menu={
+              <FilterActions active={activeFilters} resetHref={directoryLink(NO_DIRECTORY_FILTERS)} />
+            }
             form={{ action: "/people", label: "Search and filter people", role: "search" }}
             filters={
               <>
@@ -137,8 +171,8 @@ export default async function PeoplePage({
                   singular="role"
                   plural="roles"
                   legend="Show these roles"
-                  allLink={directoryLink(search, ROLE_FILTER_ORDER)}
-                  noneLink={directoryLink(search, [])}
+                  allLink={directoryLink({ ...filters, roles: [...ROLE_FILTER_ORDER] })}
+                  noneLink={directoryLink({ ...filters, roles: [] })}
                 />
               </>
             }
@@ -166,6 +200,80 @@ export default async function PeoplePage({
               ) : undefined
             }
           />
+        }
+        drawer={
+          <FilterDrawer action="/people" resetHref={directoryLink(NO_DIRECTORY_FILTERS)}>
+            {/* Where somebody is placed. Three separate filters rather than one
+                cascading picker: a person can hold a school in one district and
+                a district in another, and a picker that narrowed the next list
+                would hide exactly those people.
+
+                A tenant with no places at all gets no section, and one with no
+                districts gets no district field — an empty select is a control
+                that looks broken rather than one that says there is nothing to
+                choose. */}
+            {places.length > 0 && (
+              <FilterSection legend="Location">
+                {places.map((place) => (
+                  <Field key={place.name} id={`filter-${place.name}`} label={place.label}>
+                    <OptionSelect
+                      id={`filter-${place.name}`}
+                      name={place.name}
+                      defaultValue={place.chosen ?? ""}
+                      placeholder={place.anything}
+                      options={place.options}
+                    />
+                  </Field>
+                ))}
+              </FilterSection>
+            )}
+
+            <FilterSection legend="Account">
+              {/* One field over name and address, because that is what the
+                  query does — `listPeople` searches both in one pass. Two
+                  boxes here would be two parameters mapping to one search. */}
+              <Field id="filter-q" label="Name or email">
+                <input
+                  id="filter-q"
+                  name="q"
+                  type="search"
+                  defaultValue={search}
+                  placeholder="Name or email"
+                />
+              </Field>
+
+              <ChoiceGroup legend="Role">
+                {roleOptions.map((option) => (
+                  <Choice
+                    key={option.value}
+                    type="checkbox"
+                    name="role"
+                    value={option.value}
+                    defaultChecked={chosenRoles.some(
+                      (role) => role.toLowerCase() === option.value,
+                    )}
+                    label={option.label}
+                  />
+                ))}
+              </ChoiceGroup>
+
+              <ChoiceGroup
+                legend="User status"
+                hint={<p className="hint">With none ticked, every status is shown.</p>}
+              >
+                {STATUS_FILTER_ORDER.map((status) => (
+                  <Choice
+                    key={status}
+                    type="checkbox"
+                    name="status"
+                    value={status.toLowerCase()}
+                    defaultChecked={filters.statuses.includes(status)}
+                    label={titleCase(status)}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FilterSection>
+          </FilterDrawer>
         }
       />
 

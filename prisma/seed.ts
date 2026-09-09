@@ -95,6 +95,23 @@ async function organization(
   });
 }
 
+/**
+ * The place hierarchy each tenant gets. Invented names, like everything else in
+ * this file — no real school appears anywhere in it.
+ */
+const PLACES: Record<Variant, { region: string; district: string; schools: string[] }> = {
+  northgate: {
+    region: "North Region",
+    district: "Riverbend District",
+    schools: ["Northgate High", "Riverbend Middle"],
+  },
+  harbour: {
+    region: "Harbour Region",
+    district: "Eastport District",
+    schools: ["Eastport Academy"],
+  },
+};
+
 async function populate(
   db: PrismaClient,
   org: { id: bigint; timezone: string },
@@ -145,6 +162,49 @@ async function populate(
   }
   await ensureNamed(db.location, org.id, "Study Room A", "loc");
   await ensureNamed(db.location, org.id, "Study Room B", "loc");
+
+  // Where people are placed: a region, a district inside it, and two schools
+  // inside that. Small on purpose — the point is that the hierarchy exists and
+  // the directory's location filters have something to offer, not that the
+  // fixture is a plausible district. Every name is invented.
+  const region = await ensureNamed(db.region, org.id, PLACES[variant]!.region, "reg");
+  const district = await ensureNamed(db.district, org.id, PLACES[variant]!.district, "dis", {
+    regionId: region.id,
+  });
+  const schools: { id: bigint }[] = [];
+  for (const name of PLACES[variant]!.schools) {
+    schools.push(
+      await ensureNamed(db.school, org.id, name, "sch", {
+        districtId: district.id,
+        timezone: org.timezone,
+      }),
+    );
+  }
+
+  // Attach the students to the first school and the instructors to the region,
+  // so both ends of the filter return somebody. `skipDuplicates` rather than a
+  // read-then-write: the unique index on the pair is what makes it idempotent,
+  // and re-running the seed must not double them up.
+  const [placedStudents, placedInstructors] = await Promise.all([
+    byRole(db, org.id, Role.STUDENT),
+    byRole(db, org.id, Role.INSTRUCTOR),
+  ]);
+  await db.userSchool.createMany({
+    data: placedStudents.map((person) => ({
+      organizationId: org.id,
+      userId: person.id,
+      schoolId: schools[0]!.id,
+    })),
+    skipDuplicates: true,
+  });
+  await db.userRegion.createMany({
+    data: placedInstructors.map((person) => ({
+      organizationId: org.id,
+      userId: person.id,
+      regionId: region.id,
+    })),
+    skipDuplicates: true,
+  });
 
   // Organization hours: open on weekdays, 08:00 to 20:00.
   for (const weekday of WEEKDAYS) {

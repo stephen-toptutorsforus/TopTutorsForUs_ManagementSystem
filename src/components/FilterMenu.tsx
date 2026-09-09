@@ -23,6 +23,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { useMenuDismissal } from "@/components/menuDismissal";
+
 import { Button } from "@/components/ui";
 import type { FilterOption } from "@/lib/presentation";
 
@@ -50,6 +52,10 @@ export function FilterMenu({
 }) {
   const details = useRef<HTMLDetailsElement>(null);
 
+  // Dismissed by a press outside it, like any menu. Choosing does not close it:
+  // the items are checkboxes and closing is what applies them.
+  useMenuDismissal(details);
+
   useEffect(() => {
     const node = details.current;
     if (node === null || !applyOnClose) return;
@@ -68,28 +74,6 @@ export function FilterMenu({
     node.addEventListener("toggle", onToggle);
     return () => node.removeEventListener("toggle", onToggle);
   }, [applyOnClose, name, selected]);
-
-  useEffect(() => {
-    const node = details.current;
-    if (node === null) return;
-
-    // A `<details>` closes only when its own summary is pressed, so a click on
-    // the page behind it leaves the panel hanging open over the content it
-    // covers. Dismissing on an outside press makes it behave like the menu it
-    // is drawn as. Where closing applies, the press that dismisses the menu
-    // also commits the ticks — one navigation, as before.
-    const onOutside = (event: PointerEvent) => {
-      if (!node.open) return;
-      const target = event.target;
-      // A press on the summary is left to the element's own toggling; handling
-      // it here as well would close and reopen in the same gesture.
-      if (target instanceof Node && node.contains(target)) return;
-      node.open = false;
-    };
-
-    document.addEventListener("pointerdown", onOutside);
-    return () => document.removeEventListener("pointerdown", onOutside);
-  }, []);
 
   // `selected` may name something the menu does not offer — a link filtering by
   // a role the directory does not list, say. The count follows the selection so

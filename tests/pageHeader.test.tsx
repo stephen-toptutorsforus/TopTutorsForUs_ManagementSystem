@@ -194,20 +194,33 @@ describe("SearchField", () => {
   it("settles the wiring three pages were each deciding for themselves", () => {
     // The id, the name, the type, the width class and the hidden label. What
     // varies is only what the page searches.
-    expect(
-      html(
-        <SearchField
-          label="Search by name or email"
-          placeholder="Name or email"
-          defaultValue="mercer"
-        />,
-      ),
-    ).toBe(
-      '<div class="field page-toolbar-search">' +
-        '<label class="visually-hidden" for="q">Search by name or email</label>' +
-        '<input id="q" type="search" placeholder="Name or email" name="q" value="mercer"/>' +
-        "</div>",
+    const markup = html(
+      <SearchField
+        label="Search by name or email"
+        placeholder="Name or email"
+        defaultValue="mercer"
+      />,
     );
+
+    expect(markup).toContain('<div class="field page-toolbar-search">');
+    expect(markup).toContain('<label class="visually-hidden" for="q">Search by name or email</label>');
+    expect(markup).toContain('id="q"');
+    expect(markup).toContain('name="q"');
+    expect(markup).toContain('type="search"');
+    expect(markup).toContain('placeholder="Name or email"');
+    expect(markup).toContain('value="mercer"');
+  });
+
+  it("draws the magnifier before the input, and hides it from a reader", () => {
+    // The label already says what the field is, so the icon is decoration —
+    // and it comes first in the markup rather than being bolted on with a
+    // pseudo-element, so it is where it looks like it is.
+    const markup = html(<SearchField label="Search" placeholder="Search" />);
+
+    expect(markup.indexOf("page-toolbar-search-icon")).toBeLessThan(markup.indexOf("<input"));
+    expect(markup).toContain('<span class="page-toolbar-search-icon" aria-hidden="true">');
+    expect(markup).toContain("<svg");
+    expect(markup).toContain("</svg>");
   });
 
   it("keeps a name for a screen reader even though none is drawn", () => {
