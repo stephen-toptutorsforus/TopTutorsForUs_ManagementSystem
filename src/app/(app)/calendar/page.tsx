@@ -147,7 +147,7 @@ export default async function CalendarPage({
   // Whatever produced this address — a link, the filter form, a cookie restore,
   // or something typed by hand — the bar ends up showing the least that still
   // says what is on screen.
-  const tidy = canonicalLink(params, { filters, view, anchor: window.anchor });
+  const tidy = canonicalLink(params, { filters, view, anchor: window.anchor, today });
   if (tidy !== null) redirect(tidy);
 
   const buckets = await calendarRange(prisma, principal, {
@@ -161,7 +161,7 @@ export default async function CalendarPage({
   // Every link on the page is built through this, so none of them can drop part
   // of the state by forgetting a parameter.
   const link = (options: { view: CalendarView | string; anchor?: CivilDate | null }) =>
-    calendarLink(filters, options);
+    calendarLink(filters, { ...options, today });
 
   // Both of these come out as the same address, because a complete selection
   // and an empty one ask the query for the same thing. They are still two
@@ -169,11 +169,11 @@ export default async function CalendarPage({
   // menu is shared with the directory's role filter.
   const allStatuses = calendarLink(
     { search: filters.search, statuses: Object.values(SessionStatus) },
-    { view, anchor },
+    { view, anchor, today },
   );
   const noStatuses = calendarLink(
     { search: filters.search, statuses: [] },
-    { view, anchor },
+    { view, anchor, today },
   );
 
   // Resetting clears the filter and leaves the range alone: the week somebody
@@ -184,10 +184,16 @@ export default async function CalendarPage({
   // bare `/calendar`, and a bare `/calendar` is exactly what restores the
   // remembered status — so the reset would arrive and be undone by the filter
   // it had just cleared. `STATE_PARAMS` says the same thing about "Clear all".
-  const unfiltered = calendarLink(
-    { search: "", statuses: [] },
-    { view, anchor: window.anchor },
-  );
+  // Through `/calendar/reset`, which forgets the remembered status rather than
+  // trying to out-argue it with a parameter — see the route for why a link
+  // straight back to `/calendar` cannot work. The range rides along, so
+  // clearing a filter leaves you on the week you were reading.
+  const resetParams = new URLSearchParams();
+  if (view !== CalendarView.MONTH) resetParams.set("view", view);
+  if (window.anchor !== today) resetParams.set("date", window.anchor);
+  const unfiltered = resetParams.size > 0
+    ? `/calendar/reset?${resetParams}`
+    : "/calendar/reset";
 
   const isGrid = view === CalendarView.WEEK || view === CalendarView.DAY;
   const grid = isGrid ? build(buckets, window.days, zone) : null;
@@ -210,12 +216,15 @@ export default async function CalendarPage({
             form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}
             filters={
               <>
-                {/* The month needs no hidden field: it is what an absent `view`
-                    draws, and submitting it would only be tidied away again. */}
+                {/* Neither the month nor today needs a hidden field: each is
+                    what its own absence already means, and submitting it would
+                    only be tidied straight back out of the address. */}
                 {view !== CalendarView.MONTH && (
                   <input type="hidden" name="view" value={view} />
                 )}
-                <input type="hidden" name="date" value={window.anchor} />
+                {window.anchor !== today && (
+                  <input type="hidden" name="date" value={window.anchor} />
+                )}
 
                 <SearchField
                   label="Search session titles"
@@ -258,11 +267,15 @@ export default async function CalendarPage({
           <FilterDrawer action="/calendar" resetHref={unfiltered}>
             {/* The range travels with the filter. Without these the drawer's
                 Apply would submit a bare `/calendar` and drop somebody back on
-                this month, having asked only to change a status. */}
+                this month, having asked only to change a status — except where
+                the range is already the default, which is what its absence
+                means. */}
             {view !== CalendarView.MONTH && (
               <input type="hidden" name="view" value={view} />
             )}
-            <input type="hidden" name="date" value={window.anchor} />
+            {window.anchor !== today && (
+              <input type="hidden" name="date" value={window.anchor} />
+            )}
 
             <FilterSection legend="Sessions">
               <Field id="filter-q" label="Search session titles">

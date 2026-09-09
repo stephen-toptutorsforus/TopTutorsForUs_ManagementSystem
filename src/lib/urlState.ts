@@ -29,6 +29,28 @@
  */
 
 /**
+ * A query string with its commas left alone.
+ *
+ * `URLSearchParams.toString()` percent-encodes a comma, so a list written as
+ * one parameter arrives in the address bar as `status=scheduled%2Cmissed` —
+ * shorter than repeating the parameter and considerably harder to read, which
+ * defeats the point of joining it. A comma is a legal sub-delimiter in a query
+ * value; every browser accepts and displays it.
+ *
+ * Applied to the whole string rather than to the joined values only. That is
+ * safe because nothing here treats an encoded comma differently from a literal
+ * one: `q=a,b` searches for "a,b" either way, and the parameters that *are*
+ * split on commas are split after decoding.
+ *
+ * Both sides of `canonicalUrl` go through this. They have to: a canonical
+ * string with a literal comma compared against an arriving string with an
+ * encoded one never matches, and never matching is an infinite redirect.
+ */
+export function readableQuery(params: URLSearchParams): string {
+  return params.toString().replaceAll("%2C", ",");
+}
+
+/**
  * The tidiest address for the state these parameters ask for, or `null` when
  * the address that arrived is already it.
  *
@@ -41,6 +63,6 @@ export function canonicalUrl(
   params: URLSearchParams,
   canonical: string,
 ): string | null {
-  if (canonical === params.toString()) return null;
+  if (canonical === readableQuery(params)) return null;
   return canonical ? `${path}?${canonical}` : path;
 }

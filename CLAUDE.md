@@ -136,8 +136,11 @@ string, so a refresh, a back button, a bookmark and a link sent to a colleague
 all mean the same thing, and every filter form can be a plain GET that works
 with scripting off. A parameter restating a default does not live there: each
 screen with filters serialises what it parsed and redirects when the address
-differs, so `?view=month`, an empty `?q=` from a submitted form, and a status
-set covering every status all disappear. `src/lib/urlState.ts` holds the rule
+differs, so `?view=month`, an empty `?q=` from a submitted form, a `?date=` that
+is today, and a status set covering every status all disappear. A list is one
+comma-joined parameter — `status=scheduled,missed` — read either way so an older
+link still works, and written with a real comma rather than `%2C`, since a
+joined list is only shorter if it is still readable. `src/lib/urlState.ts` holds the rule
 and the two properties that make redirecting on every request safe — one
 spelling per state, and the tidy form of a tidy address being itself. There is a
 fixed-point test per screen, because the failure is an infinite redirect.
@@ -194,11 +197,11 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-425 tests — 219 pure, 206 database-backed — plus differential runs of 29,200
+431 tests — 225 pure, 206 database-backed — plus differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 425), and the
+The reference still has more tests than this does (509 against 431), and the
 difference is almost entirely its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,

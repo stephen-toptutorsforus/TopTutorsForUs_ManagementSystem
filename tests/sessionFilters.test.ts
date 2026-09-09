@@ -119,14 +119,24 @@ describe("the grid's address", () => {
 
   it("settles one spelling of a status and a column set", () => {
     expect(tidy("status=SCHEDULED")).toBe("/sessions?status=scheduled");
-    expect(tidy("columns=title&columns=status")).toBe("/sessions?columns=title%2Cstatus");
+    // One parameter with a real comma in it, not `%2C`: joining the values is
+    // only an improvement if the result is still readable.
+    expect(tidy("columns=title&columns=status")).toBe("/sessions?columns=title,status");
+    expect(tidy("status=scheduled&status=missed")).toBe("/sessions?status=scheduled,missed");
+  });
+
+  it("reads a status list written either way", () => {
+    expect(filtersFrom("status=scheduled,missed").statuses).toEqual(
+      filtersFrom("status=scheduled&status=missed").statuses,
+    );
   });
 
   it("is a fixed point, or the page redirects to itself for ever", () => {
     expect(tidy("")).toBeNull();
     expect(tidy("page=3")).toBeNull();
     expect(tidy("status=scheduled")).toBeNull();
-    expect(tidy("columns=title%2Cstatus")).toBeNull();
+    expect(tidy("columns=title,status")).toBeNull();
+    expect(tidy("status=scheduled,missed")).toBeNull();
     expect(tidy("q=algebra&status=missed&from=2026-04-01&instructor=abc&page=2")).toBeNull();
   });
 });

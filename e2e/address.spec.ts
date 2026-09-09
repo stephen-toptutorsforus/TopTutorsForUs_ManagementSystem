@@ -21,7 +21,9 @@ test.use({ storageState: statePath("admin") });
 const noisy = [
   // The month view and a complete status set are both the default restated.
   ["/calendar?view=month", "/calendar"],
-  ["/calendar?view=month&date=2026-09-03", "/calendar?date=2026-09-03"],
+  // A date that is not today: today's is dropped, because that is what an
+  // absent date already means. `2026-01-15` will not be today for a while.
+  ["/calendar?view=month&date=2026-01-15", "/calendar?date=2026-01-15"],
   // Nothing but `view`, `date`, `q` and `status` was ever read off a calendar
   // URL, so these were being ignored before they were dropped.
   ["/calendar?instructor=abc&page=4", "/calendar"],

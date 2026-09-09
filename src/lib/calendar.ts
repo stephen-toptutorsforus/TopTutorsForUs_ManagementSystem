@@ -16,7 +16,7 @@
 import { SessionStatus } from "@/generated/prisma/enums";
 import type { SessionFilters } from "@/lib/services/sessionQuery";
 import { type CivilDate, addDays, isoWeekday } from "@/lib/time";
-import { canonicalUrl } from "@/lib/urlState";
+import { canonicalUrl, readableQuery } from "@/lib/urlState";
 
 export enum CalendarView {
   MONTH = "month",
@@ -114,6 +114,17 @@ export function restoredLink(statuses: readonly SessionStatus[]): string {
 }
 
 /**
+ * Statuses read back from one parameter or several.
+ *
+ * The forms submit a checkbox per status, so `status=a&status=b` arrives from
+ * the browser; the links write `status=a,b`. Both are accepted, and the tidying
+ * settles the first into the second.
+ */
+export function statusValues(params: URLSearchParams): string[] {
+  return params.getAll("status").flatMap((chunk) => chunk.split(","));
+}
+
+/**
  * The calendar's answer to `canonicalUrl` — see `lib/urlState.ts` for the rule.
  *
  * Only `view`, `date`, `q` and `status` reach the query; `calendarRange` reads
@@ -121,9 +132,10 @@ export function restoredLink(statuses: readonly SessionStatus[]): string {
  * already being ignored, and dropping it from the address removes a lie rather
  * than a feature.
  *
- * `date` is kept when it was asked for and not invented when it was not, so a
- * bare `/calendar` goes on meaning "now" instead of pinning itself to the day
- * somebody first opened it.
+ * `date` is dropped when it is today rather than kept because it was asked for.
+ * A bare `/calendar` has always meant "now"; writing today's date beside it says
+ * the same thing twice, and it was the single commonest piece of noise in a
+ * filtered address. Paging to another month still writes the month.
  */
 export function canonicalLink(
   params: URLSearchParams,
@@ -131,6 +143,7 @@ export function canonicalLink(
     filters: Pick<SessionFilters, "search" | "statuses">;
     view: CalendarView;
     anchor: CivilDate;
+    today: CivilDate;
   },
 ): string | null {
   return canonicalUrl(
@@ -138,7 +151,8 @@ export function canonicalLink(
     params,
     queryString(state.filters, {
       view: state.view,
-      anchor: params.has("date") ? state.anchor : null,
+      anchor: state.anchor,
+      today: state.today,
     }),
   );
 }
@@ -333,10 +347,19 @@ export function step(view: CalendarView): string {
 // --- What the address bar carries -------------------------------------------
 //
 // The state stays in the URL; a parameter restating a default does not. That
-// rule and its reasoning live in `lib/urlState.ts`. Here it means two things:
-// `view=month` is what a bare `/calendar` already draws, and a status list
-// covering every status narrows nothing, because the query narrows only when
-// the list is non-empty. Both spell out what their own absence says already.
+// rule and its reasoning live in `lib/urlState.ts`. Here it means three things.
+//
+// `view=month` is what a bare `/calendar` already draws. A status list covering
+// every status narrows nothing, because the query narrows only when the list is
+// non-empty. And `date` is not written when it is today: today is what an
+// absent anchor resolves to, so writing it says nothing — it was the parameter
+// that turned "tick two statuses on this month" into an address with a date in
+// it that nobody had chosen.
+//
+// The statuses are one comma-joined parameter rather than one parameter each.
+// `status=scheduled,missed` and `status=scheduled&status=missed` mean the same
+// thing and the parser takes both, so old links keep working; only one of them
+// is written. The session grid's `columns` has always done this.
 
 /**
  * Whether a status selection actually excludes anything.
@@ -382,17 +405,24 @@ export function activeCalendarFilters(
  */
 export function queryString(
   filters: Pick<SessionFilters, "search" | "statuses">,
-  options: { view: CalendarView | string; anchor?: CivilDate | null },
+  options: {
+    view: CalendarView | string;
+    anchor?: CivilDate | null;
+    /** What an absent anchor means. Given, the anchor equal to it is dropped. */
+    today?: CivilDate | null;
+  },
 ): string {
   const resolved = parseView(String(options.view));
   const params = new URLSearchParams();
   if (resolved !== CalendarView.MONTH) params.append("view", resolved);
-  if (options.anchor) params.append("date", options.anchor);
+  if (options.anchor && options.anchor !== options.today) {
+    params.append("date", options.anchor);
+  }
   if (filters.search) params.append("q", filters.search);
   if (narrowsByStatus(filters.statuses)) {
-    for (const status of filters.statuses) params.append("status", status.toLowerCase());
+    params.append("status", writeStatuses(filters.statuses));
   }
-  return params.toString();
+  return readableQuery(params);
 }
 
 /**
@@ -404,7 +434,11 @@ export function queryString(
  */
 export function calendarLink(
   filters: Pick<SessionFilters, "search" | "statuses">,
-  options: { view: CalendarView | string; anchor?: CivilDate | null },
+  options: {
+    view: CalendarView | string;
+    anchor?: CivilDate | null;
+    today?: CivilDate | null;
+  },
 ): string {
   const query = queryString(filters, options);
   return query ? `/calendar?${query}` : "/calendar";

@@ -134,8 +134,7 @@ describe("links", () => {
     expect(query).toContain("view=week");
     expect(query).toContain("date=2026-08-14");
     expect(query).toContain("q=algebra");
-    expect(query).toContain("status=scheduled");
-    expect(query).toContain("status=requested");
+    expect(query).toContain("status=scheduled,requested");
   });
 
   it("falls back to the month for a view it does not recognise", () => {
@@ -167,6 +166,31 @@ describe("links", () => {
     expect(query).toBe("status=cancelled");
   });
 
+  it("writes several statuses as one parameter", () => {
+    expect(
+      queryString(
+        { search: "", statuses: [SessionStatus.SCHEDULED, SessionStatus.MISSED] },
+        { view: CalendarView.MONTH },
+      ),
+    ).toBe("status=scheduled,missed");
+  });
+
+  it("leaves the anchor out when it is the day an absent one would mean", () => {
+    const filters = { search: "", statuses: [] };
+
+    expect(queryString(filters, { view: CalendarView.WEEK, anchor: ANCHOR, today: ANCHOR })).toBe(
+      "view=week",
+    );
+    expect(
+      queryString(filters, { view: CalendarView.WEEK, anchor: "2026-09-02", today: ANCHOR }),
+    ).toBe("view=week&date=2026-09-02");
+    // With no `today` given there is no default to compare against, so the
+    // anchor is written — which is what `restoredLink` and the tests rely on.
+    expect(queryString(filters, { view: CalendarView.WEEK, anchor: ANCHOR })).toBe(
+      "view=week&date=2026-08-14",
+    );
+  });
+
   it("counts a full menu of ticks as a filter, because in_progress is not on it", () => {
     // The menu offers seven of the eight statuses. Ticking them all excludes
     // the eighth, so it is a real narrowing however complete it looks — and
@@ -192,12 +216,14 @@ describe("links", () => {
 });
 
 describe("tidying the address bar", () => {
+  /** `ANCHOR` stands in for today, so a date equal to it is the default. */
   const tidy = (query: string) => {
     const params = new URLSearchParams(query);
     return canonicalLink(params, {
       filters: parseFilters(params),
       view: parseView(params.get("view")),
       anchor: parseAnchor(params.get("date"), ANCHOR),
+      today: ANCHOR,
     });
   };
 
@@ -205,9 +231,11 @@ describe("tidying the address bar", () => {
     // The redirect fires on anything but `null`, so a fixed point here is what
     // keeps the page from bouncing a request between two spellings for ever.
     expect(tidy("")).toBeNull();
-    expect(tidy("view=week&date=2026-08-14")).toBeNull();
+    expect(tidy("view=week")).toBeNull();
+    expect(tidy("view=week&date=2026-09-02")).toBeNull();
     expect(tidy("status=cancelled")).toBeNull();
-    expect(tidy("date=2026-08-14&q=algebra&status=missed")).toBeNull();
+    expect(tidy("q=algebra&status=missed")).toBeNull();
+    expect(tidy("status=cancelled,missed")).toBeNull();
   });
 
   it("strips the defaults, and is then a fixed point", () => {
@@ -217,7 +245,32 @@ describe("tidying the address bar", () => {
 
     expect(tidy(`view=month&${statuses}`)).toBe("/calendar");
     expect(tidy("view=month")).toBe("/calendar");
-    expect(tidy("view=month&date=2026-08-14")).toBe("/calendar?date=2026-08-14");
+    // Today is what an absent date means, so writing it says nothing. This was
+    // the commonest piece of noise in a filtered address: the filter form
+    // submitted it whether or not anybody had paged anywhere.
+    expect(tidy(`date=${ANCHOR}`)).toBe("/calendar");
+    expect(tidy(`view=week&date=${ANCHOR}&status=missed`)).toBe(
+      "/calendar?view=week&status=missed",
+    );
+    // Another month is a real choice, and stays.
+    expect(tidy("view=month&date=2026-09-02")).toBe("/calendar?date=2026-09-02");
+  });
+
+  it("writes one status parameter, however many statuses are ticked", () => {
+    // The checkbox form submits one per status. The address holds them joined,
+    // which is the whole of the difference between 78 characters and 43.
+    expect(tidy("status=scheduled&status=completed&status=missed")).toBe(
+      "/calendar?status=scheduled,completed,missed",
+    );
+    // And the joined spelling is what it settles on, so it does not bounce.
+    expect(tidy("status=scheduled,completed,missed")).toBeNull();
+  });
+
+  it("reads a filter written either way, so an old link still works", () => {
+    const separate = new URLSearchParams("status=scheduled&status=missed");
+    const joined = new URLSearchParams("status=scheduled,missed");
+
+    expect(parseFilters(separate).statuses).toEqual(parseFilters(joined).statuses);
   });
 
   it("drops what the page never read in the first place", () => {
@@ -229,7 +282,8 @@ describe("tidying the address bar", () => {
   });
 
   it("settles an impossible date and untidy search text", () => {
-    expect(tidy("date=2026-02-30")).toBe("/calendar?date=2026-08-14");
+    // An impossible date resolves to today, which is then not written at all.
+    expect(tidy("date=2026-02-30")).toBe("/calendar");
     expect(tidy("q=%20algebra%20")).toBe("/calendar?q=algebra");
   });
 
@@ -237,6 +291,7 @@ describe("tidying the address bar", () => {
     // Otherwise a bare `/calendar` would pin itself to today on first sight,
     // and stop meaning "now" the moment it was bookmarked.
     expect(tidy("view=week")).toBeNull();
+    expect(tidy("q=algebra")).toBeNull();
   });
 });
 

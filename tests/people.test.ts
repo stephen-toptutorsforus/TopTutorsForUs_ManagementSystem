@@ -63,7 +63,8 @@ describe("the directory's address", () => {
   it("keeps every role the menu offers, because four of six is a filter", () => {
     // Ticking all four still hides somebody who only holds `payer` or
     // `regional_admin`, so collapsing it would show people the ticks exclude.
-    const everyOffered = ROLE_FILTER_ORDER.map((role) => `role=${role.toLowerCase()}`).join("&");
+    // One parameter, values joined: `role=instructor,student,parent,admin`.
+    const everyOffered = `role=${ROLE_FILTER_ORDER.map((role) => role.toLowerCase()).join(",")}`;
 
     expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, roles: [...ROLE_FILTER_ORDER] })).toBe(
       everyOffered,
@@ -97,7 +98,7 @@ describe("the filter drawer's parameters", () => {
 
   it("reads a whole filter off the query", () => {
     const filters = filtersFrom(
-      "q=%20mercer%20&role=admin&status=active&status=invited&region=reg_a&district=dis_b&school=sch_c",
+      "q=%20mercer%20&role=admin&status=active,invited&region=reg_a&district=dis_b&school=sch_c",
     );
 
     expect(filters.search).toBe("mercer");
@@ -122,6 +123,12 @@ describe("the filter drawer's parameters", () => {
     expect(
       directoryQuery({ ...NO_DIRECTORY_FILTERS, statuses: Object.values(UserStatus) }),
     ).toBe("");
+    expect(
+      directoryQuery({
+        ...NO_DIRECTORY_FILTERS,
+        statuses: [UserStatus.ACTIVE, UserStatus.DISABLED],
+      }),
+    ).toBe("status=active,disabled");
     expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, statuses: [UserStatus.ACTIVE] })).toBe(
       "status=active",
     );
@@ -139,6 +146,14 @@ describe("the filter drawer's parameters", () => {
         schoolRef: "sch_c",
       }),
     ).toBe("region=reg_a&district=dis_b&school=sch_c");
+  });
+
+  it("reads a list written either way, so an old bookmark still works", () => {
+    const joined = filtersFrom("role=admin,parent&status=active,invited");
+    const separate = filtersFrom("role=admin&role=parent&status=active&status=invited");
+
+    expect(joined.roles).toEqual(separate.roles);
+    expect(joined.statuses).toEqual(separate.statuses);
   });
 
   it("is still a fixed point with everything set", () => {

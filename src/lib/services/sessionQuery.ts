@@ -21,6 +21,7 @@ import type { Db } from "@/lib/db";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
+import { readableQuery } from "@/lib/urlState";
 import { Moment } from "@/lib/rendering";
 import { PRESENT_STATES, actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
 import { type CivilDate, addDays, civilDate, resolveCivil } from "@/lib/time";
@@ -102,7 +103,9 @@ function parseDate(value: string | null | undefined): CivilDate | null {
 export function parseFilters(params: URLSearchParams): SessionFilters {
   const known = Object.values(SessionStatus) as string[];
   const statuses: SessionStatus[] = [];
-  for (const raw of params.getAll("status")) {
+  // One comma-joined parameter or several — the checkbox forms submit one per
+  // status and the links write them joined, and both have to read the same.
+  for (const raw of params.getAll("status").flatMap((chunk) => chunk.split(","))) {
     const match = known.find((status) => status === raw || status.toLowerCase() === raw);
     // An unknown status is dropped, not an error.
     if (match !== undefined) statuses.push(match as SessionStatus);
@@ -166,7 +169,10 @@ export function toQuery(
   const params = new URLSearchParams();
   const merged: Record<string, string | number | readonly string[] | null> = {
     q: filters.search,
-    status: filters.statuses.map((status) => status.toLowerCase()),
+    // Joined, not repeated: `status=scheduled,missed` says what
+    // `status=scheduled&status=missed` says in half the address. `columns` has
+    // always been written this way; this is the rest catching up.
+    status: filters.statuses.map((status) => status.toLowerCase()).join(","),
     from: filters.dateFrom ?? "",
     to: filters.dateTo ?? "",
     instructor: filters.instructorRef ?? "",
@@ -184,7 +190,7 @@ export function toQuery(
       params.append(key, String(value));
     }
   }
-  return params.toString();
+  return readableQuery(params);
 }
 
 function sameColumns(a: readonly string[], b: readonly string[]): boolean {

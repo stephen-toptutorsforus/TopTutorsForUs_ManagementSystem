@@ -18,6 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { Role, UserStatus } from "@/generated/prisma/enums";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
+import { readableQuery } from "@/lib/urlState";
 import type { Db } from "@/lib/services/people";
 
 /**
@@ -80,7 +81,9 @@ function initialsOf(user: { firstName: string; lastName: string }): string {
 export function parseRoles(values: readonly string[]): Role[] {
   const known = Object.values(Role) as string[];
   const seen: Role[] = [];
-  for (const value of values.slice(0, known.length)) {
+  // One comma-joined parameter or several: the checkbox forms submit one per
+  // role, the links write them joined, and a bookmark may hold either.
+  for (const value of values.flatMap((chunk) => chunk.split(",")).slice(0, known.length)) {
     const match = known.find((role) => role === value || role.toLowerCase() === value);
     if (match === undefined) continue; // an unknown role is dropped, not an error
     if (!seen.includes(match as Role)) seen.push(match as Role);
@@ -98,7 +101,7 @@ export function parseRoles(values: readonly string[]): Role[] {
 export function parseStatuses(values: readonly string[]): UserStatus[] {
   const known = Object.values(UserStatus) as string[];
   const seen: UserStatus[] = [];
-  for (const value of values.slice(0, known.length)) {
+  for (const value of values.flatMap((chunk) => chunk.split(",")).slice(0, known.length)) {
     const match = known.find((status) => status === value || status.toLowerCase() === value);
     if (match === undefined) continue;
     if (!seen.includes(match as UserStatus)) seen.push(match as UserStatus);
@@ -147,6 +150,10 @@ export function parseDirectoryFilters(params: URLSearchParams): DirectoryFilters
  * fields, so searching for nothing used to leave `?q=` in the address bar. See
  * `lib/urlState.ts` for the rule this follows and why the page redirects to it.
  *
+ * Each list is one comma-joined parameter rather than one parameter per value:
+ * `role=instructor,parent` says what `role=instructor&role=parent` says in less
+ * room, and both are read.
+ *
  * A complete set of roles *is* written down, unlike the calendar's statuses.
  * The menu offers four of the six roles, so ticking all four still excludes
  * somebody who only holds `payer` or `regional_admin`: it looks complete and is
@@ -167,20 +174,20 @@ export function directoryQuery(filters: DirectoryFilters): string {
     filters.roles.includes(role),
   );
   if (filters.roles.length > 0 && !everyRole) {
-    for (const role of filters.roles) params.append("role", role.toLowerCase());
+    params.append("role", filters.roles.map((role) => role.toLowerCase()).join(","));
   }
 
   const everyStatus = (Object.values(UserStatus) as UserStatus[]).every((status) =>
     filters.statuses.includes(status),
   );
   if (filters.statuses.length > 0 && !everyStatus) {
-    for (const status of filters.statuses) params.append("status", status.toLowerCase());
+    params.append("status", filters.statuses.map((status) => status.toLowerCase()).join(","));
   }
 
   if (filters.regionRef) params.append("region", filters.regionRef);
   if (filters.districtRef) params.append("district", filters.districtRef);
   if (filters.schoolRef) params.append("school", filters.schoolRef);
-  return params.toString();
+  return readableQuery(params);
 }
 
 /** A directory URL carrying a whole filter. */

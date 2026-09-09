@@ -270,8 +270,8 @@ test.describe("the calendar's remembered filter", () => {
     await expect.poll(() => page.locator(".filteractions-count").count()).toBe(0);
     expect(page.url()).not.toContain("status=");
 
-    // And it stays cleared on the next bare visit, because clearing the filter
-    // clears what was remembered of it. The cookie is written from the browser
+    // And it stays cleared on the next bare visit, because resetting forgets
+    // the filter rather than navigating around it. The cookie is written from the browser
     // after paint, so wait for that rather than for a moment that is long
     // enough on an idle machine — this raced under a parallel run.
     await expect
@@ -282,5 +282,59 @@ test.describe("the calendar's remembered filter", () => {
 
     await page.goto("/calendar");
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
+  });
+});
+
+test.describe("what the address ends up saying", () => {
+  test.use({ storageState: statePath("admin") });
+
+  test("holds one status parameter, not one per status", async ({ page, context }) => {
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    await page.goto("/calendar#edit-filter");
+    for (const value of ["scheduled", "completed", "missed"]) {
+      await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).check();
+    }
+    await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
+    await page.waitForURL(/status=/);
+
+    // The form submits a parameter per ticked box; the address holds them
+    // joined, with a real comma rather than `%2C`.
+    expect(new URL(page.url()).search).toBe("?status=scheduled,completed,missed");
+  });
+
+  test("says nothing about the range while the range is the default", async ({
+    page,
+    context,
+  }) => {
+    // Today is what an absent date means, so writing it says nothing — and it
+    // was on every address the filter form produced.
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    await page.goto("/calendar");
+    await page.locator(".page-toolbar-fields .filtermenu > summary").click();
+    await page.locator('.page-toolbar input[name="status"][value="missed"]').check();
+    await page.locator("h1").click();
+    await page.waitForURL(/status=/);
+
+    expect(new URL(page.url()).search).toBe("?status=missed");
+
+    // Paging away is a real choice, and it is written.
+    await page.getByRole("link", { name: /Next month/ }).click();
+    await page.waitForURL(/date=/);
+    expect(page.url()).toContain("status=missed");
+  });
+
+  test("reads an address written the old way, so a bookmark still works", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    await page.goto("/calendar?status=scheduled&status=missed");
+
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    await expect(
+      page.locator('.page-toolbar input[name="status"][value="scheduled"]'),
+    ).toBeChecked();
+    // Settled into the one spelling, and it stays there.
+    expect(new URL(page.url()).search).toBe("?status=scheduled,missed");
   });
 });
