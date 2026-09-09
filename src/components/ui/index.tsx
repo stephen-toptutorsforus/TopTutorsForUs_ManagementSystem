@@ -18,7 +18,7 @@ export { Choice, ChoiceGroup, Field, Hint, OptionSelect, VisuallyHidden } from "
 export { FilterActions } from "./FilterActions";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";
 export { Modal } from "./Modal";
-export { MoreFilters, PageHeader, PageToolbar, SearchField } from "./PageHeader";
+export { PageHeader, PageToolbar, SearchField } from "./PageHeader";
 export { Notice } from "./Notice";
 export { ScopeChoice } from "./ScopeChoice";
 export { TableWrap } from "./Table";

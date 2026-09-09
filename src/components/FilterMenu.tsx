@@ -14,11 +14,11 @@
  * falls back to an Apply button; here the submit is in the component and the
  * `<noscript>` button is still rendered, so the page works either way.
  *
- * `applyOnClose` turns that off for the one place it is wrong. On the calendar
- * and the directory this menu is the only thing in the form, so closing it is
- * unambiguously "apply". The session grid has five other filters and an Apply
- * button of its own: submitting there the moment the status panel closed would
- * throw away a half-filled date range, so the menu defers to the form.
+ * It applies on close on all three screens that use it, because on all three it
+ * is the only filter in its form — the rest live in the filter drawer, which
+ * has an Apply of its own. There was a prop to turn this off, for a session
+ * grid that once held five other filters beside it; that grid does not exist
+ * any more.
  */
 
 import { useEffect, useRef } from "react";
@@ -37,7 +37,6 @@ export function FilterMenu({
   legend,
   allLink,
   noneLink,
-  applyOnClose = true,
 }: {
   name: string;
   options: FilterOption[];
@@ -47,8 +46,6 @@ export function FilterMenu({
   legend: string;
   allLink?: string;
   noneLink?: string;
-  /** False where the surrounding form has its own submit. See above. */
-  applyOnClose?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
 
@@ -58,7 +55,7 @@ export function FilterMenu({
 
   useEffect(() => {
     const node = details.current;
-    if (node === null || !applyOnClose) return;
+    if (node === null) return;
 
     const onToggle = () => {
       // Only on close, and only when something actually changed — reopening a
@@ -73,7 +70,7 @@ export function FilterMenu({
 
     node.addEventListener("toggle", onToggle);
     return () => node.removeEventListener("toggle", onToggle);
-  }, [applyOnClose, name, selected]);
+  }, [name, selected]);
 
   // `selected` may name something the menu does not offer — a link filtering by
   // a role the directory does not list, say. The count follows the selection so
@@ -131,17 +128,14 @@ export function FilterMenu({
         </fieldset>
         {/* With scripting off nothing applies the ticks — no toggle listener,
             and the surrounding form has no submit button of its own. Rendered
-            in a `<noscript>` so it exists exactly when it is needed, and not at
-            all where the form already has one. */}
-        {applyOnClose && (
-          <noscript>
-            <p className="filtermenu-actions">
-              <Button size="small" type="submit">
-                Apply
-              </Button>
-            </p>
-          </noscript>
-        )}
+            in a `<noscript>` so it exists exactly when it is needed. */}
+        <noscript>
+          <p className="filtermenu-actions">
+            <Button size="small" type="submit">
+              Apply
+            </Button>
+          </p>
+        </noscript>
         {allLink !== undefined && noneLink !== undefined && (
           // Plain links, not scripted buttons, so they work like the rest.
           <p className="filtermenu-actions">
@@ -151,11 +145,8 @@ export function FilterMenu({
           </p>
         )}
         <p className="hint">
-          Tick as many as you like —{" "}
-          {applyOnClose
-            ? "the filter applies when you close this menu"
-            : "then press Apply filters"}
-          . With none ticked, every {singular} is shown.
+          Tick as many as you like — the filter applies when you close this menu. With
+          none ticked, every {singular} is shown.
         </p>
       </div>
     </details>

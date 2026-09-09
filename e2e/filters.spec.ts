@@ -15,6 +15,17 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { statePath } from "./accounts";
 
+/**
+ * Every screen that carries filter state. The button, the menu and the drawer
+ * are one component used three times, so what is asserted here is asserted for
+ * all of them rather than for the directory it was first built on.
+ */
+const FILTERED = [
+  { path: "/people", filtered: "/people?role=student&status=active", set: 2 },
+  { path: "/sessions", filtered: "/sessions?q=maths&status=scheduled", set: 2 },
+  { path: "/calendar", filtered: "/calendar?q=maths&status=scheduled", set: 2 },
+] as const;
+
 const menuOpen = (page: Page) =>
   page.locator(".filteractions").evaluate((d) => (d as HTMLDetailsElement).open);
 const drawerShown = (page: Page) =>
@@ -30,22 +41,64 @@ const ready = async (page: Page, url: string) => {
 test.describe("the filter menu", () => {
   test.use({ storageState: statePath("admin") });
 
-  test("names itself, and says how many filters are set", async ({ page }) => {
-    await ready(page, "/people");
-    // Nothing set: a name and no count, rather than a zero.
-    await expect(page.locator(".filteractions > summary")).toHaveAttribute(
-      "aria-label",
-      "Filters",
-    );
-    await expect(page.locator(".filteractions-count")).toHaveCount(0);
+  for (const screen of FILTERED) {
+    test(`${screen.path} names it, and says how many filters are set`, async ({ page }) => {
+      await ready(page, screen.path);
+      // Nothing set: a name and no count, rather than a zero.
+      await expect(page.locator(".filteractions > summary")).toHaveAttribute(
+        "aria-label",
+        "Filters",
+      );
+      await expect(page.locator(".filteractions-count")).toHaveCount(0);
 
-    await ready(page, "/people?role=student&status=active");
-    await expect(page.locator(".filteractions > summary")).toHaveAttribute(
-      "aria-label",
-      "Filters, 2 set",
-    );
-    await expect(page.locator(".filteractions-count")).toHaveText("2");
-  });
+      await ready(page, screen.filtered);
+      await expect(page.locator(".filteractions > summary")).toHaveAttribute(
+        "aria-label",
+        `Filters, ${screen.set} set`,
+      );
+      await expect(page.locator(".filteractions-count")).toHaveText(String(screen.set));
+    });
+
+    test(`${screen.path} resets to the unfiltered page`, async ({ page }) => {
+      // The effect rather than the exact address: the calendar's reset keeps
+      // the date it was showing, because the range is not part of the filter.
+      await ready(page, screen.filtered);
+      await page.locator(".filteractions > summary").click();
+      await page.getByRole("link", { name: "Reset filter" }).click();
+
+      await expect.poll(() => page.locator(".filteractions-count").count()).toBe(0);
+      await expect(page.locator("#q")).toHaveValue("");
+      expect(page.url()).not.toContain("status=");
+      expect(page.url()).not.toContain("q=");
+    });
+
+    test(`${screen.path} opens its drawer from the address alone`, async ({ page }) => {
+      // No script involved: this is what a `<dialog>` could not do.
+      await page.goto(`${screen.path}#edit-filter`);
+      await expect(page.locator(".filterdrawer")).toHaveAttribute("role", "dialog");
+      await expect.poll(() => drawerShown(page)).toBe("visible");
+      await expect(page.getByRole("heading", { name: "Edit filter" })).toBeVisible();
+      await expect(page.locator("h1")).toHaveCount(1);
+    });
+
+    test(`${screen.path} does not repeat an id or nest a form`, async ({ page }) => {
+      // Each drawer restates the search box its toolbar shows, so each one is
+      // a chance to collide with it.
+      await page.goto(`${screen.path}#edit-filter`);
+
+      const trouble = await page.evaluate(() => {
+        const ids = [...document.querySelectorAll("[id]")].map((el) => el.id);
+        const seen = new Set<string>();
+        return {
+          repeated: ids.filter((id) => (seen.has(id) ? true : (seen.add(id), false))),
+          nested: document.querySelectorAll("form form").length,
+        };
+      });
+
+      expect(trouble.repeated, "repeated ids").toEqual([]);
+      expect(trouble.nested, "a form inside a form").toBe(0);
+    });
+  }
 
   test("opens, and closes again when something outside it is pressed", async ({ page }) => {
     await ready(page, "/people");
@@ -82,26 +135,10 @@ test.describe("the filter menu", () => {
     expect(await menuOpen(page)).toBe(true);
   });
 
-  test("resets to the unfiltered page", async ({ page }) => {
-    await ready(page, "/people?q=holm&role=instructor&status=active");
-    await page.locator(".filteractions > summary").click();
-    await page.getByRole("link", { name: "Reset filter" }).click();
-
-    await page.waitForURL(/\/people$/);
-    await expect(page.locator("#q")).toHaveValue("");
-  });
 });
 
 test.describe("the filter drawer", () => {
   test.use({ storageState: statePath("admin") });
-
-  test("opens from the address alone, with no script involved", async ({ page }) => {
-    // A `<dialog>` would need a script to open. This is what makes it not one.
-    await page.goto("/people#edit-filter");
-    await expect(page.locator(".filterdrawer")).toHaveAttribute("role", "dialog");
-    await expect.poll(() => drawerShown(page)).toBe("visible");
-    await expect(page.getByRole("heading", { name: "Edit filter" })).toBeVisible();
-  });
 
   test("is closed until it is asked for", async ({ page }) => {
     await page.goto("/people");
@@ -213,5 +250,37 @@ test.describe("as a student", () => {
     // The drawer is a rendering concern; who may see the directory is not.
     const response = await page.goto("/people#edit-filter");
     expect(response?.status()).toBe(403);
+  });
+});
+
+test.describe("the calendar's remembered filter", () => {
+  test.use({ storageState: statePath("admin") });
+
+  test("does not undo the reset it was just cleared by", async ({ page, context }) => {
+    // A bare `/calendar` restores the last status filter — that is what the
+    // cookie is for. Reset must therefore not navigate to a bare `/calendar`,
+    // or the filter would come straight back.
+    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    await page.goto("/calendar?status=scheduled");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("link", { name: "Reset filter" }).click();
+
+    await expect.poll(() => page.locator(".filteractions-count").count()).toBe(0);
+    expect(page.url()).not.toContain("status=");
+
+    // And it stays cleared on the next bare visit, because clearing the filter
+    // clears what was remembered of it. The cookie is written from the browser
+    // after paint, so wait for that rather than for a moment that is long
+    // enough on an idle machine — this raced under a parallel run.
+    await expect
+      .poll(async () =>
+        (await context.cookies()).some((c) => c.name === "toptutorsforus_calendar_status" && c.value !== ""),
+      )
+      .toBe(false);
+
+    await page.goto("/calendar");
+    await expect(page.locator(".filteractions-count")).toHaveCount(0);
   });
 });

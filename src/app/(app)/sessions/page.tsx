@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, LinkButton, MoreFilters, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -20,7 +20,7 @@ import { actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/
 import { FilterMenu } from "@/components/FilterMenu";
 import {
   AVAILABLE_COLUMNS,
-  DEFAULT_COLUMNS,
+  activeSessionFilters,
   firstIndex,
   hasNext,
   hasPrevious,
@@ -138,15 +138,6 @@ export default async function SessionsPage({
   const canExport = principal.has(Permission.EXPORT_SESSIONS);
   const canBook = principal.has(Permission.SESSION_BOOK);
 
-  // What "More filters" says it is holding. The page counts it, not the
-  // component: knowing that a date range is a filter and a page number is not
-  // is exactly the kind of thing a shared header should never have an opinion
-  // about. Columns count as one however many are ticked — it is a single
-  // choice about the shape of the table, not five filters.
-  const advancedActive =
-    [filters.dateFrom, filters.dateTo, filters.instructorRef, filters.programRef].filter(
-      (value) => value !== null && value !== "",
-    ).length + (columns.join(",") === DEFAULT_COLUMNS.join(",") ? 0 : 1);
 
   return (
     <>
@@ -174,6 +165,12 @@ export default async function SessionsPage({
         }
         toolbar={
           <PageToolbar
+            menu={
+              <FilterActions
+                active={activeSessionFilters(filters)}
+                resetHref="/sessions"
+              />
+            }
             form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
             filters={
               <>
@@ -183,10 +180,12 @@ export default async function SessionsPage({
                   defaultValue={filters.search}
                 />
 
-                {/* The same control the calendar and the directory use, and the
-                    same repeated `status=` parameters the checkbox row it
-                    replaces submitted. `applyOnClose` is off because this form
-                    has five other filters and an Apply of its own. */}
+                {/* The same control the calendar and the directory use, in the
+                    same place, applying the same way. It kept its own Apply
+                    while the toolbar also held five other filters; the drawer
+                    holds those now, so this is one filter again and closing it
+                    is what applies it. Clearing is "Reset filter" in the menu,
+                    which every screen has. */}
                 <FilterMenu
                   name="status"
                   options={statusFilterOptions()}
@@ -194,80 +193,115 @@ export default async function SessionsPage({
                   singular="status"
                   plural="statuses"
                   legend="Show these statuses"
-                  applyOnClose={false}
                 />
-
-                <ButtonRow>
-                  <Button variant="primary" type="submit">
-                    Apply filters
-                  </Button>
-                  <LinkButton href="/sessions">
-                    Clear
-                  </LinkButton>
-                </ButtonRow>
               </>
             }
-            advancedFilters={
-              <MoreFilters active={advancedActive}>
-                <div className="page-toolbar-grid">
-                  <Field id="from" label="From">
-                    <input
-                      id="from"
-                      name="from"
-                      type="date"
-                      defaultValue={filters.dateFrom ?? ""}
-                    />
-                  </Field>
-                  <Field id="to" label="To">
-                    <input id="to" name="to" type="date" defaultValue={filters.dateTo ?? ""} />
-                  </Field>
-                  <Field id="instructor" label="Instructor">
-                    <OptionSelect
-                      id="instructor"
-                      name="instructor"
-                      defaultValue={filters.instructorRef ?? ""}
-                      placeholder="Anyone"
-                      options={instructors.map((person) => ({
-                        value: person.ref,
-                        label: `${person.firstName} ${person.lastName}`.trim(),
-                      }))}
-                    />
-                  </Field>
-                  <Field id="program" label="Program">
-                    <OptionSelect
-                      id="program"
-                      name="program"
-                      defaultValue={filters.programRef ?? ""}
-                      placeholder="Any program"
-                      options={programs.map((program) => ({
-                        value: program.ref,
-                        label: program.name,
-                      }))}
-                    />
-                  </Field>
-                </div>
-
-                <ChoiceGroup legend="Columns">
-                  {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
-                    <Choice
-                      key={key}
-                      type="checkbox"
-                      name="columns"
-                      value={key}
-                      defaultChecked={columns.includes(key)}
-                      label={label}
-                    />
-                  ))}
-                </ChoiceGroup>
-
-                <p className="hint">
-                  Untick a column to hide it. Everything here applies when you press Apply
-                  filters, and travels with the link so a filtered view can be shared
-                  as-is.
-                </p>
-              </MoreFilters>
-            }
           />
+        }
+        drawer={
+          <FilterDrawer action="/sessions" resetHref="/sessions">
+            <FilterSection legend="Sessions">
+              <Field id="filter-q" label="Search titles">
+                <input
+                  id="filter-q"
+                  name="q"
+                  type="search"
+                  defaultValue={filters.search}
+                  placeholder="Session title"
+                />
+              </Field>
+              <ChoiceGroup
+                legend="Status"
+                hint={<p className="hint">With none ticked, every status is shown.</p>}
+              >
+                {statusFilterOptions().map((option) => (
+                  <Choice
+                    key={option.value}
+                    type="checkbox"
+                    name="status"
+                    value={option.value}
+                    defaultChecked={filters.statuses.some(
+                      (status) => status.toLowerCase() === option.value,
+                    )}
+                    label={option.label}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FilterSection>
+
+            <FilterSection legend="When">
+              <Field id="filter-from" label="From">
+                <input
+                  id="filter-from"
+                  name="from"
+                  type="date"
+                  defaultValue={filters.dateFrom ?? ""}
+                />
+              </Field>
+              <Field id="filter-to" label="To">
+                <input
+                  id="filter-to"
+                  name="to"
+                  type="date"
+                  defaultValue={filters.dateTo ?? ""}
+                />
+              </Field>
+            </FilterSection>
+
+            <FilterSection legend="Who and what">
+              <Field id="filter-instructor" label="Instructor">
+                <OptionSelect
+                  id="filter-instructor"
+                  name="instructor"
+                  defaultValue={filters.instructorRef ?? ""}
+                  placeholder="Anyone"
+                  options={instructors.map((person) => ({
+                    value: person.ref,
+                    label: `${person.firstName} ${person.lastName}`.trim(),
+                  }))}
+                />
+              </Field>
+              <Field id="filter-program" label="Program">
+                <OptionSelect
+                  id="filter-program"
+                  name="program"
+                  defaultValue={filters.programRef ?? ""}
+                  placeholder="Any program"
+                  options={programs.map((program) => ({
+                    value: program.ref,
+                    label: program.name,
+                  }))}
+                />
+              </Field>
+            </FilterSection>
+
+            {/* Not a filter — a choice about the shape of the table. It rides
+                with the rest because it rides in the same query string, and
+                because the place somebody looks for it is here. */}
+            <FilterSection legend="Columns">
+              <ChoiceGroup
+                legend="Show these columns"
+                legendClassName="visually-hidden"
+                hint={
+                  <p className="hint">
+                    Untick a column to hide it. The choice travels with the link, so a
+                    filtered view can be shared as it is.
+                  </p>
+                }
+              >
+                {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
+                  <Choice
+                    key={key}
+                    type="checkbox"
+                    name="columns"
+                    value={key}
+                    defaultChecked={columns.includes(key)}
+                    label={label}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FilterSection>
+          </FilterDrawer>
         }
       />
 

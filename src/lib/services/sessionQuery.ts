@@ -134,6 +134,30 @@ export function parseFilters(params: URLSearchParams): SessionFilters {
   };
 }
 
+/**
+ * How many filters are set.
+ *
+ * Drawn on the filter button, so a narrowed grid says so even when the toolbar
+ * has scrolled away. Each parameter counts once however many values it holds:
+ * three ticked statuses are one decision about status, and the chosen columns
+ * are one decision about the shape of the table rather than five filters.
+ *
+ * `page` is not a filter. It is where you are in the answer, not part of the
+ * question — which is the distinction a shared header must never try to make
+ * for itself.
+ */
+export function activeSessionFilters(filters: SessionFilters): number {
+  return [
+    filters.search !== "",
+    filters.statuses.length > 0,
+    filters.dateFrom !== null,
+    filters.dateTo !== null,
+    filters.instructorRef !== null,
+    filters.programRef !== null,
+    !sameColumns(filters.columns, DEFAULT_COLUMNS),
+  ].filter(Boolean).length;
+}
+
 /** Serialise back to a query string so links preserve the filters. */
 export function toQuery(
   filters: SessionFilters,

@@ -27,7 +27,7 @@
  * application's real banner and is untouched by any of this.
  */
 
-import { Field, VisuallyHidden } from "./Field";
+import { Field } from "./Field";
 import { SearchIcon } from "./icons";
 
 /**
@@ -116,7 +116,6 @@ export function PageToolbar({
   menu,
   filters,
   actions,
-  advancedFilters,
   form,
   className,
 }: {
@@ -128,8 +127,6 @@ export function PageToolbar({
   menu?: React.ReactNode;
   filters?: React.ReactNode;
   actions?: React.ReactNode;
-  /** A `MoreFilters` disclosure. Inside the form, below the fields. */
-  advancedFilters?: React.ReactNode;
   /** Present when the filters submit. Absent for a toolbar of plain links. */
   form?: {
     action: string;
@@ -146,21 +143,13 @@ export function PageToolbar({
   };
   className?: string;
 }) {
-  if (
-    !isPresent(menu) &&
-    !isPresent(filters) &&
-    !isPresent(actions) &&
-    !isPresent(advancedFilters)
-  ) {
+  if (!isPresent(menu) && !isPresent(filters) && !isPresent(actions)) {
     return null;
   }
 
-  const fields = (
-    <>
-      {isPresent(filters) && <div className="page-toolbar-fields">{filters}</div>}
-      {advancedFilters}
-    </>
-  );
+  const fields = isPresent(filters) ? (
+    <div className="page-toolbar-fields">{filters}</div>
+  ) : null;
 
   return (
     <div className={className ? `page-toolbar ${className}` : "page-toolbar"}>
@@ -239,55 +228,5 @@ export function SearchField({
         placeholder={placeholder}
       />
     </Field>
-  );
-}
-
-/**
- * The filters that are not worth a permanent row.
- *
- * A `<details>` at every width — not a row on a wide screen and a disclosure on
- * a narrow one. That was the first design and it does not work: a closed
- * `<details>` cannot be forced open by author CSS. Chromium computes the
- * override of the UA's `content-visibility: hidden` and still lays the content
- * out at zero height, which is worth knowing before building on it rather than
- * after.
- *
- * The alternatives were worse. A second copy of the markup means duplicate
- * `name` and `id` attributes inside one form; a client component that collapses
- * the row after first paint means watching the filters fold away on load.
- *
- * So what changes with the viewport is the always-visible half above it: search
- * stays at every width, because search is how records are found on all of these
- * screens, and the rest is one press away.
- *
- * `active` is a count the page works out. It is drawn as a number and announced
- * as a phrase, never as a colour alone — the rule the status badges already
- * follow. It also opens the panel: arriving on a page filtered by a date range
- * should show the date range, not a closed panel hinting that one exists.
- */
-export function MoreFilters({
-  label = "More filters",
-  active = 0,
-  children,
-}: {
-  label?: React.ReactNode;
-  active?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <details className="page-toolbar-more" open={active > 0}>
-      <summary>
-        <span>{label}</span>
-        {active > 0 && (
-          <>
-            <span className="page-toolbar-count" aria-hidden="true">
-              {active}
-            </span>
-            <VisuallyHidden>— {active} active</VisuallyHidden>
-          </>
-        )}
-      </summary>
-      <div className="page-toolbar-more-body">{children}</div>
-    </details>
   );
 }

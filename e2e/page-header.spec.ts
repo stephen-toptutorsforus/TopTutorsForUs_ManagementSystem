@@ -60,9 +60,13 @@ test.describe("as an administrator", () => {
     // Still the address it was given: the header did not swallow a parameter.
     await expect(page).toHaveURL(new RegExp("view=week"));
     await expect(page.locator("#q")).toHaveValue("maths");
-    await expect(page.locator('input[name="status"][value="scheduled"]')).toBeChecked();
-    await expect(page.locator('input[name="status"][value="missed"]')).toBeChecked();
-    await expect(page.locator('input[name="status"][value="completed"]')).not.toBeChecked();
+    // Scoped to the toolbar: the filter drawer restates the same statuses, so
+    // an unscoped selector finds each twice — which is the point, they are one
+    // filter shown in two places.
+    const toolbar = page.locator(".page-toolbar");
+    await expect(toolbar.locator('input[name="status"][value="scheduled"]')).toBeChecked();
+    await expect(toolbar.locator('input[name="status"][value="missed"]')).toBeChecked();
+    await expect(toolbar.locator('input[name="status"][value="completed"]')).not.toBeChecked();
     // The view and the date ride as hidden fields, so searching keeps them.
     await expect(page.locator('.page-toolbar input[name="view"]')).toHaveValue("week");
     await expect(page.locator('.page-toolbar input[name="date"]')).toHaveValue("2026-09-16");
@@ -123,15 +127,19 @@ test.describe("as an administrator", () => {
     await page.goto(url);
 
     await expect(page.locator("#q")).toHaveValue("maths");
-    await expect(page.locator("#from")).toHaveValue("2026-09-01");
-    await expect(page.locator("#to")).toHaveValue("2026-09-30");
-    await expect(page.locator('input[name="status"][value="scheduled"]')).toBeChecked();
-    await expect(page.locator('input[name="columns"][value="title"]')).toBeChecked();
-    await expect(page.locator('input[name="columns"][value="status"]')).toBeChecked();
-    await expect(page.locator('input[name="columns"][value="instructor"]')).not.toBeChecked();
-    // Three advanced filters are set — the two dates and the column choice.
-    await expect(page.locator(".page-toolbar-count")).toHaveText("3");
-    await expect(page.locator(".page-toolbar-more")).toHaveAttribute("open", "");
+    await expect(page.locator(".page-toolbar")).toBeVisible();
+
+    // The rest lives in the filter drawer now, where the advanced filters used
+    // to be a disclosure under the toolbar.
+    const drawer = page.locator(".filterdrawer");
+    await expect(drawer.locator("#filter-from")).toHaveValue("2026-09-01");
+    await expect(drawer.locator("#filter-to")).toHaveValue("2026-09-30");
+    await expect(drawer.locator('input[name="status"][value="scheduled"]')).toBeChecked();
+    await expect(drawer.locator('input[name="columns"][value="title"]')).toBeChecked();
+    await expect(drawer.locator('input[name="columns"][value="status"]')).toBeChecked();
+    await expect(drawer.locator('input[name="columns"][value="instructor"]')).not.toBeChecked();
+    // Five filters are set: the search, the status, the two dates, the columns.
+    await expect(page.locator(".filteractions-count")).toHaveText("5");
     // The export takes the filters as they stand.
     await expect(page.getByRole("link", { name: /Export CSV/ })).toHaveAttribute(
       "href",
@@ -139,16 +147,17 @@ test.describe("as an administrator", () => {
     );
   });
 
-  test("the advanced filters submit even though they are behind a disclosure", async ({
+  test("the advanced filters submit even though they are behind a drawer", async ({
     page,
   }) => {
     await page.goto("/sessions");
-    await page.locator(".page-toolbar-more > summary").click();
-    await page.locator("#from").fill("2026-09-01");
-    await page.getByRole("button", { name: "Apply filters" }).click();
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("link", { name: "Edit filter" }).click();
+    await page.locator("#filter-from").fill("2026-09-01");
+    await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
 
     await page.waitForURL(/from=2026-09-01/);
-    await expect(page.locator("#from")).toHaveValue("2026-09-01");
+    await expect(page.locator(".filterdrawer #filter-from")).toHaveValue("2026-09-01");
   });
 
   test("booking gets a header and no list filters", async ({ page }) => {
@@ -194,12 +203,14 @@ test.describe("on a phone", () => {
     // Search is how records are found here, so it does not go behind anything.
     await expect(page.locator("#q")).toBeVisible();
 
-    const summary = page.locator(".page-toolbar-more > summary");
+    const summary = page.locator(".filteractions > summary");
     await expect(summary).toBeVisible();
     // Named, counted, and big enough to hit.
-    await expect(summary).toHaveText(/More filters/);
-    await expect(summary).toContainText("1");
-    expect((await summary.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(summary).toHaveAttribute("aria-label", "Filters, 1 set");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    const box = (await summary.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
   });
 
   test("every migrated header fits the screen", async ({ page }) => {

@@ -120,6 +120,17 @@ because "Create User" opens a modal with a form of its own. A page passes
 component, and no query parsing happens inside it. What was `.page-head`,
 `.cal-toolbar`, `.people-toolbar` and `.filters` is one set of `.page-*` classes.
 
+**One filter control, on every screen that filters.** The button before the
+search box, its menu (edit, reset, share, save), and the drawer it opens are
+`FilterActions` and `FilterDrawer` in `src/components/ui/`, used by the
+calendar, the directory and the session grid. The toolbar holds what is worth a
+permanent row — search, and one `FilterMenu` — and the drawer holds the whole
+filter, restated, because two forms cannot be nested and a partial drawer would
+drop the search text on Apply. Each page supplies its own fields, its own count
+and its own reset link; none of that reaches the component. All of it works
+with scripting off: the menu is a `<details>`, the drawer is `:target`, Apply is
+a submit and Cancel is a link back to `#`.
+
 **The URL says the state, and only the state.** Filter state lives in the query
 string, so a refresh, a back button, a bookmark and a link sent to a colleague
 all mean the same thing, and every filter form can be a plain GET that works
@@ -183,11 +194,11 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-402 tests — 202 pure, 200 database-backed — plus differential runs of 29,200
+425 tests — 219 pure, 206 database-backed — plus differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 402), and the
+The reference still has more tests than this does (509 against 425), and the
 difference is almost entirely its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,

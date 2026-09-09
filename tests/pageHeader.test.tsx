@@ -15,7 +15,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MoreFilters, PageHeader, PageToolbar, SearchField } from "@/components/ui";
+import { PageHeader, PageToolbar, SearchField } from "@/components/ui";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
 const count = (markup: string, needle: string) => markup.split(needle).length - 1;
@@ -101,25 +101,6 @@ describe("PageToolbar", () => {
     expect(markup.indexOf("</form>")).toBeLessThan(markup.indexOf("Create User"));
   });
 
-  it("puts the advanced filters inside the form, so they submit with it", () => {
-    const markup = html(
-      <PageToolbar
-        form={{ action: "/sessions", label: "Search and filter sessions" }}
-        filters={<input name="q" />}
-        advancedFilters={
-          <MoreFilters>
-            <input name="from" />
-          </MoreFilters>
-        }
-      />,
-    );
-
-    const open = markup.indexOf("<form");
-    const close = markup.indexOf("</form>");
-    expect(markup.indexOf('name="from"')).toBeGreaterThan(open);
-    expect(markup.indexOf('name="from"')).toBeLessThan(close);
-  });
-
   it("renders no form at all when the filters do not submit", () => {
     const markup = html(<PageToolbar filters={<span>a summary</span>} />);
 
@@ -131,7 +112,7 @@ describe("PageToolbar", () => {
     // The booking page has a title and a form, and no list to narrow. A
     // bordered white bar with nothing in it is what this prevents.
     expect(html(<PageToolbar />)).toBe("");
-    expect(html(<PageToolbar filters={undefined} actions={false} />)).toBe("");
+    expect(html(<PageToolbar menu={undefined} filters={undefined} actions={false} />)).toBe("");
     expect(html(<PageHeader title="Session Booking" toolbar={<PageToolbar />} />)).not.toContain(
       "page-toolbar",
     );
@@ -147,46 +128,6 @@ describe("PageToolbar", () => {
     );
 
     expect(markup).not.toContain("page-toolbar-actions");
-  });
-});
-
-describe("MoreFilters", () => {
-  it("has an accessible name and no count when nothing is set", () => {
-    const markup = html(
-      <MoreFilters>
-        <input name="from" />
-      </MoreFilters>,
-    );
-
-    expect(markup).toContain("<summary><span>More filters</span></summary>");
-    expect(markup).not.toContain("page-toolbar-count");
-    expect(markup).not.toContain("open=");
-  });
-
-  it("shows the number set, and says it in words as well", () => {
-    // The number is drawn; the phrase is what a screen reader reaches. Neither
-    // is a colour — the same rule the status badges follow.
-    const markup = html(
-      <MoreFilters active={3}>
-        <input name="from" />
-      </MoreFilters>,
-    );
-
-    expect(markup).toContain('<span class="page-toolbar-count" aria-hidden="true">3</span>');
-    expect(markup).toContain('<span class="visually-hidden">— 3 active</span>');
-  });
-
-  it("opens itself when something inside it is filtering", () => {
-    // Arriving on a page narrowed by a date range should show the date range,
-    // not a closed panel hinting that one exists.
-    expect(html(<MoreFilters active={1}>x</MoreFilters>)).toContain("open=");
-    expect(html(<MoreFilters active={0}>x</MoreFilters>)).not.toContain("open=");
-  });
-
-  it("takes a label, for a page where these are the only filters", () => {
-    expect(html(<MoreFilters label="Filters" active={2}>x</MoreFilters>)).toContain(
-      "<span>Filters</span>",
-    );
   });
 });
 

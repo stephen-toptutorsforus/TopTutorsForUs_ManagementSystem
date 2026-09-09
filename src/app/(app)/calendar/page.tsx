@@ -15,11 +15,12 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, EmptyState, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
   MONTH_CELL_LIMIT,
+  activeCalendarFilters,
   buildWindow,
   calendarLink,
   canonicalLink,
@@ -175,6 +176,19 @@ export default async function CalendarPage({
     { view, anchor },
   );
 
+  // Resetting clears the filter and leaves the range alone: the week somebody
+  // is reading is not something they asked to filter by.
+  //
+  // The date is carried whether or not it arrived, which is the one place this
+  // link differs from every other. A reset with no state parameters at all is a
+  // bare `/calendar`, and a bare `/calendar` is exactly what restores the
+  // remembered status — so the reset would arrive and be undone by the filter
+  // it had just cleared. `STATE_PARAMS` says the same thing about "Clear all".
+  const unfiltered = calendarLink(
+    { search: "", statuses: [] },
+    { view, anchor: window.anchor },
+  );
+
   const isGrid = view === CalendarView.WEEK || view === CalendarView.DAY;
   const grid = isGrid ? build(buckets, window.days, zone) : null;
 
@@ -187,6 +201,12 @@ export default async function CalendarPage({
         title="Calendar"
         toolbar={
           <PageToolbar
+            menu={
+              <FilterActions
+                active={activeCalendarFilters(filters)}
+                resetHref={unfiltered}
+              />
+            }
             form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}
             filters={
               <>
@@ -233,6 +253,47 @@ export default async function CalendarPage({
               ) : undefined
             }
           />
+        }
+        drawer={
+          <FilterDrawer action="/calendar" resetHref={unfiltered}>
+            {/* The range travels with the filter. Without these the drawer's
+                Apply would submit a bare `/calendar` and drop somebody back on
+                this month, having asked only to change a status. */}
+            {view !== CalendarView.MONTH && (
+              <input type="hidden" name="view" value={view} />
+            )}
+            <input type="hidden" name="date" value={window.anchor} />
+
+            <FilterSection legend="Sessions">
+              <Field id="filter-q" label="Search session titles">
+                <input
+                  id="filter-q"
+                  name="q"
+                  type="search"
+                  defaultValue={filters.search}
+                  placeholder="Session title"
+                />
+              </Field>
+
+              <ChoiceGroup
+                legend="Status"
+                hint={<p className="hint">With none ticked, every status is shown.</p>}
+              >
+                {statusFilterOptions().map((option) => (
+                  <Choice
+                    key={option.value}
+                    type="checkbox"
+                    name="status"
+                    value={option.value}
+                    defaultChecked={filters.statuses.some(
+                      (status) => status.toLowerCase() === option.value,
+                    )}
+                    label={option.label}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FilterSection>
+          </FilterDrawer>
         }
         secondary={
           <>

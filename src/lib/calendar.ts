@@ -355,6 +355,20 @@ export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
 }
 
 /**
+ * How many filters are set.
+ *
+ * The view and the date are not among them. They decide which range is drawn,
+ * not which sessions are shown — the same reason they live in the header's
+ * secondary row rather than in its toolbar, and the reason resetting the filter
+ * leaves you on the week you were reading.
+ */
+export function activeCalendarFilters(
+  filters: Pick<SessionFilters, "search" | "statuses">,
+): number {
+  return [filters.search !== "", narrowsByStatus(filters.statuses)].filter(Boolean).length;
+}
+
+/**
  * Serialise the calendar's whole state, so every link preserves it.
  *
  * Switching view, paging a month, or following a "+N more" link must not drop
