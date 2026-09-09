@@ -21,9 +21,21 @@
 import { useActionState, useState } from "react";
 
 import { createPersonAction } from "@/app/actions/people";
-import { Button, Choice, ChoiceGroup, Field, Hint, Modal, OptionSelect } from "@/components/ui";
+import {
+  Button,
+  Choice,
+  ChoiceGroup,
+  EmailField,
+  Field,
+  Hint,
+  Modal,
+  OptionSelect,
+  PhoneField,
+} from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
+import { isEmail } from "@/lib/shapes";
 
+import { LocationPickers } from "./LocationPickers";
 import { Picker, type PickerOption } from "./Picker";
 
 export interface CreateUserModalProps {
@@ -45,7 +57,12 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [role, setRole] = useState("");
+  // The first role the form offers rather than an empty option. A select whose
+  // first entry is an instruction has one row that is not a choice, and the
+  // person has to make a decision before they can see what the decisions are.
+  // Step two's fields are what actually differ by role, and they are one click
+  // away either way.
+  const [role, setRole] = useState(props.creatableRoles[0]?.value ?? "");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [requiresGuardian, setRequiresGuardian] = useState("no");
@@ -59,14 +76,45 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
   const whoIsComplete = Boolean(firstName.trim() && lastName.trim() && role);
 
+  /** A student whose parent will be doing the onboarding has no address. */
+  const parentOnboards = role === "student" && requiresGuardian === "yes";
+
+  /**
+   * What step two actually asks, for this role and this branch of it.
+   *
+   * The state outlives the fields: switching from Parent to Admin leaves a
+   * phone number in `phone`, and answering Yes to "requires a parent" leaves an
+   * address in `email`. Neither is submitted — the input is not rendered, so it
+   * is not in the form — but the confirmation read them straight out of state
+   * and listed them, which is the one place a person is told what they are
+   * about to create. So both the fields and the summary are drawn from this,
+   * rather than from two conditions that agree until somebody edits one.
+   */
+  const asks = {
+    email: !parentOnboards,
+    phone: (role === "student" && !parentOnboards) || role === "parent",
+    guardian: parentOnboards,
+    relationship: role === "parent",
+    instructors: role === "student",
+    students: role === "parent",
+    schools: role === "student" || role === "instructor",
+    regions:
+      role === "student" || role === "instructor" || role === "regional_admin",
+  };
+
   // What step two needs before it can be left. Checked here as well as on the
   // server, because a hidden field is not a constraint.
+  //
+  // A *well-formed* address, not merely a present one. The field says so where
+  // it was typed; this is what stops somebody carrying `bob@` past it, and it
+  // matters more than it looks: the panels are `hidden` on the confirm step, so
+  // an invalid `required` input there would fail submission with a browser
+  // message about a control it cannot scroll to. The gate means that never
+  // happens.
   const detailsComplete = (() => {
-    if (role === "student") {
-      return requiresGuardian === "yes" ? Boolean(guardianRef) : Boolean(email.trim());
-    }
-    if (role === "regional_admin") return Boolean(email.trim()) && regionRefs.length > 0;
-    return Boolean(email.trim());
+    if (parentOnboards) return Boolean(guardianRef);
+    if (role === "regional_admin") return isEmail(email) && regionRefs.length > 0;
+    return isEmail(email);
   })();
 
   const labelFor = (options: PickerOption[], refs: string[]) =>
@@ -76,9 +124,9 @@ export function CreateUserModal(props: CreateUserModalProps) {
     ["First name", firstName],
     ["Last name", lastName],
     ["Role", props.creatableRoles.find((r) => r.value === role)?.label ?? role],
-    ...(email ? ([["Email", email]] as [string, string][]) : []),
-    ...(phone ? ([["Phone", phone]] as [string, string][]) : []),
-    ...(role === "student" && requiresGuardian === "yes"
+    ...(asks.email && email ? ([["Email", email]] as [string, string][]) : []),
+    ...(asks.phone && phone ? ([["Phone", phone]] as [string, string][]) : []),
+    ...(asks.guardian
       ? ([
           [
             "Parent",
@@ -86,7 +134,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
           ],
         ] as [string, string][])
       : []),
-    ...(role === "parent"
+    ...(asks.relationship
       ? ([
           [
             "Relationship",
@@ -95,16 +143,16 @@ export function CreateUserModal(props: CreateUserModalProps) {
           ],
         ] as [string, string][])
       : []),
-    ...(instructorRefs.length > 0
+    ...(asks.instructors && instructorRefs.length > 0
       ? ([["Instructors", labelFor(props.instructors, instructorRefs)]] as [string, string][])
       : []),
-    ...(studentRefs.length > 0
+    ...(asks.students && studentRefs.length > 0
       ? ([["Students", labelFor(props.students, studentRefs)]] as [string, string][])
       : []),
-    ...(schoolRefs.length > 0
+    ...(asks.schools && schoolRefs.length > 0
       ? ([["Schools", labelFor(props.schools, schoolRefs)]] as [string, string][])
       : []),
-    ...(regionRefs.length > 0
+    ...(asks.regions && regionRefs.length > 0
       ? ([["Regions", labelFor(props.regions, regionRefs)]] as [string, string][])
       : []),
   ];
@@ -182,7 +230,6 @@ export function CreateUserModal(props: CreateUserModalProps) {
               required
               value={role}
               onChange={(event) => setRole(event.target.value)}
-              placeholder="Choose a role"
               options={props.creatableRoles}
             />
             <Hint>
@@ -255,32 +302,31 @@ export function CreateUserModal(props: CreateUserModalProps) {
                   )}
                                 </Field>
               ) : (
-                <Field id="student-email" label="Email address">
-                  <input
-                    id="student-email"
-                    name="email"
-                    type="email"
-                    maxLength={320}
-                    placeholder="student@example.com"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                  <Hint>The onboarding email goes here.</Hint>
-                                </Field>
+                // "Student email address", not "Email address": on this branch
+                // the student is the one being written to, and the form has
+                // just finished asking about a parent who might have been.
+                <EmailField
+                  id="student-email"
+                  label="Student email address"
+                  placeholder="student@example.com"
+                  hint="The onboarding email goes here."
+                  value={email}
+                  onChange={setEmail}
+                />
               )}
 
-              <Field id="student-phone" label="Phone">
-                <input
+              {/* No phone when a parent is doing the onboarding. It would be
+                  the parent's number under the student's name — the parent
+                  already has their own, and nothing would ever ring this one. */}
+              {asks.phone && (
+                <PhoneField
                   id="student-phone"
-                  name="phone"
-                  type="tel"
-                  maxLength={32}
+                  label="Phone"
                   placeholder="e.g. 555 0134"
-                  pattern="[0-9 ()+.\-]{6,32}"
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={setPhone}
                 />
-                            </Field>
+              )}
 
               <Picker
                 label="Select instructors"
@@ -291,65 +337,34 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 onChange={setInstructorRefs}
               />
 
-              <p className="hint hint-block">
-                Assign this student to schools or regions. Assigning directly to a school
-                will also assign the student to that school&rsquo;s districts and
-                regions. You can only use one of the methods below when creating a
-                student. After creation, additional changes can be made to user
-                locations from their profile.
-              </p>
-
-              <Picker
-                label="Select Schools"
-                name="school"
-                placeholder="Search schools"
-                options={props.schools}
-                chosen={schoolRefs}
-                onChange={(refs) => {
-                  setSchoolRefs(refs);
-                  if (refs.length > 0) setRegionRefs([]);
-                }}
-              />
-              <Picker
-                label="Select Regions"
-                name="region"
-                placeholder="Search regions"
-                options={props.regions}
-                chosen={regionRefs}
-                onChange={(refs) => {
-                  setRegionRefs(refs);
-                  if (refs.length > 0) setSchoolRefs([]);
-                }}
-                hint="Schools or regions, not both — a school already carries its district and region."
+              <LocationPickers
+                subject="student"
+                schools={props.schools}
+                schoolRefs={schoolRefs}
+                onSchools={setSchoolRefs}
+                regions={props.regions}
+                regionRefs={regionRefs}
+                onRegions={setRegionRefs}
               />
             </>
           )}
 
           {role === "parent" && (
             <>
-              <Field id="parent-email" label="Email address">
-                <input
-                  id="parent-email"
-                  name="email"
-                  type="email"
-                  maxLength={320}
-                  placeholder="parent@example.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                            </Field>
-              <Field id="parent-phone" label="Phone">
-                <input
-                  id="parent-phone"
-                  name="phone"
-                  type="tel"
-                  maxLength={32}
-                  placeholder="e.g. 555 0134"
-                  pattern="[0-9 ()+.\-]{6,32}"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                />
-                            </Field>
+              <EmailField
+                id="parent-email"
+                label="Email"
+                placeholder="parent@example.com"
+                value={email}
+                onChange={setEmail}
+              />
+              <PhoneField
+                id="parent-phone"
+                label="Phone"
+                placeholder="e.g. 555 0134"
+                value={phone}
+                onChange={setPhone}
+              />
               <Field id="relationship" label="Relationship">
                 <OptionSelect
                   id="relationship"
@@ -376,78 +391,45 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
           {role === "instructor" && (
             <>
-              <Field id="instructor-email" label="Email address">
-                <input
-                  id="instructor-email"
-                  name="email"
-                  type="email"
-                  maxLength={320}
-                  placeholder="instructor@example.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                            </Field>
-              <p className="hint hint-block">
-                Assign this instructor to schools or regions. Assigning directly to a
-                school will also assign the instructor to that school&rsquo;s districts
-                and regions. You can only use one of the methods below when creating an
-                instructor. After creation, additional changes can be made to user
-                locations from their profile.
-              </p>
-              <Picker
-                label="Select schools"
-                name="school"
-                placeholder="Search schools"
-                options={props.schools}
-                chosen={schoolRefs}
-                onChange={(refs) => {
-                  setSchoolRefs(refs);
-                  if (refs.length > 0) setRegionRefs([]);
-                }}
+              <EmailField
+                id="instructor-email"
+                label="Email"
+                placeholder="instructor@example.com"
+                value={email}
+                onChange={setEmail}
               />
-              <Picker
-                label="Select regions"
-                name="region"
-                placeholder="Search regions"
-                options={props.regions}
-                chosen={regionRefs}
-                onChange={(refs) => {
-                  setRegionRefs(refs);
-                  if (refs.length > 0) setSchoolRefs([]);
-                }}
-                hint="Schools or regions, not both — a school already carries its district and region."
+              <LocationPickers
+                subject="instructor"
+                schools={props.schools}
+                schoolRefs={schoolRefs}
+                onSchools={setSchoolRefs}
+                regions={props.regions}
+                regionRefs={regionRefs}
+                onRegions={setRegionRefs}
               />
             </>
           )}
 
           {role === "admin" && (
-            <Field id="admin-email" label="Email address">
-              <input
-                id="admin-email"
-                name="email"
-                type="email"
-                maxLength={320}
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <Hint>The onboarding email goes here.</Hint>
-                        </Field>
+            <EmailField
+              id="admin-email"
+              label="Email"
+              placeholder="admin@example.com"
+              hint="The onboarding email goes here."
+              value={email}
+              onChange={setEmail}
+            />
           )}
 
           {role === "regional_admin" && (
             <>
-              <Field id="regional-email" label="Email address">
-                <input
-                  id="regional-email"
-                  name="email"
-                  type="email"
-                  maxLength={320}
-                  placeholder="admin@example.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                            </Field>
+              <EmailField
+                id="regional-email"
+                label="Email"
+                placeholder="admin@example.com"
+                value={email}
+                onChange={setEmail}
+              />
               {/* The regions are not decoration: `Principal.regionIds` is read
                   from the role rows, so what is chosen here is what bounds
                   everything this person will be allowed to see. */}

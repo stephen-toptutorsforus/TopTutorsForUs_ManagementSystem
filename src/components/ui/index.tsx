@@ -22,4 +22,5 @@ export { PageHeader, PageToolbar, SearchField } from "./PageHeader";
 export { Notice } from "./Notice";
 export { ScopeChoice } from "./ScopeChoice";
 export { TableWrap } from "./Table";
+export { EmailField, PhoneField } from "./TextField";
 export { When, WhenTime } from "./When";

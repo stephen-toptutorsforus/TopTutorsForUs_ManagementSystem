@@ -12,7 +12,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { Choice, ChoiceGroup, OptionSelect } from "@/components/ui";
+import { Choice, ChoiceGroup, EmailField, OptionSelect, PhoneField } from "@/components/ui";
+import { PHONE_PATTERN, isEmail, isPhone } from "@/lib/shapes";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
 
@@ -128,5 +129,102 @@ describe("ChoiceGroup", () => {
     );
 
     expect(markup).not.toContain("hint");
+  });
+});
+
+describe("EmailField and PhoneField", () => {
+  // The value is controlled and the complaint only appears once the field has
+  // been left, so what a static render can hold is the shape of the control and
+  // the fact that it starts quiet. The blur behaviour is in `e2e/people.spec.ts`,
+  // where there is a browser to blur in.
+
+  it("is an email input with the label pointing at it", () => {
+    const markup = html(
+      <EmailField id="parent-email" label="Email" value="" onChange={() => {}} />,
+    );
+
+    expect(markup).toContain('<label for="parent-email">Email</label>');
+    expect(markup).toContain('type="email"');
+    expect(markup).toContain('name="email"');
+    // The longest address the standard allows, and the width of the column.
+    expect(markup).toContain('maxLength="320"');
+  });
+
+  it("says nothing about an empty field nobody has touched yet", () => {
+    // Opening a form and being told immediately that it is wrong is telling
+    // somebody off for not having started.
+    const markup = html(<EmailField id="e" label="Email" value="" onChange={() => {}} />);
+
+    expect(markup).not.toContain("field-error");
+    expect(markup).not.toContain("is-invalid");
+    expect(markup).not.toContain("aria-invalid");
+  });
+
+  it("is required by default and optional when the caller says so", () => {
+    expect(html(<EmailField id="e" label="Email" value="" onChange={() => {}} />)).toContain(
+      "required",
+    );
+    // A student whose parent does the onboarding has no address of their own.
+    expect(
+      html(<EmailField id="e" label="Email" value="" onChange={() => {}} required={false} />),
+    ).not.toContain("required");
+  });
+
+  it("carries the hint when there is one, and nothing when there is not", () => {
+    expect(
+      html(
+        <EmailField
+          id="e"
+          label="Email"
+          value=""
+          onChange={() => {}}
+          hint="The onboarding email goes here."
+        />,
+      ),
+    ).toContain('<span class="hint">The onboarding email goes here.</span>');
+    expect(html(<EmailField id="e" label="Email" value="" onChange={() => {}} />)).not.toContain(
+      "hint",
+    );
+  });
+
+  it("never makes a phone number compulsory", () => {
+    // Nobody is turned away for not having one, and the pattern is the
+    // service's, not a second opinion about what a number looks like.
+    const markup = html(<PhoneField id="p" label="Phone" value="" onChange={() => {}} />);
+
+    expect(markup).not.toContain("required");
+    expect(markup).toContain('type="tel"');
+    expect(markup).toContain(`pattern="${PHONE_PATTERN}"`);
+  });
+});
+
+describe("what the form and the service agree an address is", () => {
+  // One regex, imported by both. Two would drift, and the form would either
+  // refuse what the service accepts or accept what it refuses — the second of
+  // which fails at the last step, about a field three steps back.
+  it("accepts an ordinary address, and an unusual one", () => {
+    expect(isEmail("rowan.mercer@example.test")).toBe(true);
+    expect(isEmail("a+b'c@sub.domain.example.test")).toBe(true);
+  });
+
+  it("refuses what is obviously not one", () => {
+    expect(isEmail("")).toBe(false);
+    expect(isEmail("rowan")).toBe(false);
+    expect(isEmail("rowan@")).toBe(false);
+    expect(isEmail("rowan@example")).toBe(false);
+    expect(isEmail("rowan mercer@example.test")).toBe(false);
+  });
+
+  it("trims first, because the service trims before it stores", () => {
+    // A form stricter than the service refuses what the service would have
+    // taken, and a trailing space is a typing accident rather than an answer.
+    expect(isEmail("  rowan.mercer@example.test  ")).toBe(true);
+    expect(isPhone("  555 0134  ")).toBe(true);
+  });
+
+  it("takes a phone number the way people write one", () => {
+    expect(isPhone("+1 (555) 0134")).toBe(true);
+    expect(isPhone("555")).toBe(false);
+    expect(isPhone("call me")).toBe(false);
   });
 });

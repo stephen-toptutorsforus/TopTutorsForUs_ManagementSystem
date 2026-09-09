@@ -22,22 +22,13 @@ import { ValidationError } from "@/lib/errors";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { newRef } from "@/lib/ref";
+import { EMAIL_SHAPE, PHONE_SHAPE } from "@/lib/shapes";
 import { isValidZone } from "@/lib/time";
 
-/**
- * Deliberately permissive: the authority on whether an address works is whether
- * mail reaches it, not a regex. This rejects only what is obviously not an
- * address, and never rejects a valid but unusual one.
- */
-export const EMAIL_SHAPE = /^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$/;
-
-/**
- * Deliberately loose: digits, and the punctuation people actually type around
- * them. Anything stricter rejects real numbers — extensions, country codes
- * written half a dozen ways — and this field is for a human to ring, not for a
- * machine to dial.
- */
-export const PHONE_SHAPE = /^[0-9 ()+.\-]{6,32}$/;
+// In `lib/shapes.ts` so the create-user form can test the same two regexes
+// this module tests. Re-exported because this is where every caller has always
+// found them.
+export { EMAIL_SHAPE, PHONE_SHAPE } from "@/lib/shapes";
 
 /** Request context an audit event carries. Never a body, never a credential. */
 export interface RequestMeta {
