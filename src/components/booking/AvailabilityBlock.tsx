@@ -12,9 +12,19 @@
  * enough for the whole session". It is deliberately *not* a conflict check —
  * nothing here has looked for a clashing booking, and Preview is what does.
  * Saying more than that would be a promise Preview then has to break.
+ *
+ * Nor is it an eligibility check. The candidates it was handed have already
+ * been filtered to the people who may teach the chosen students, and the two
+ * emptinesses are reported in different words on purpose: "nobody may teach
+ * them" is a relationship to fix, "nobody is free" is a time to change, and one
+ * message for both sends people to look in the wrong place.
  */
 
 import { Button, Hint, VisuallyHidden } from "@/components/ui";
+import {
+  ELIGIBLE_BUT_UNAVAILABLE,
+  noEligibleInstructors,
+} from "@/lib/web/eligibilityCopy";
 import type { AvailabilityBlock as Block } from "@/lib/web/booking";
 
 const DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -61,7 +71,27 @@ export function AvailabilityBlock({
     );
   }
 
+  // Nothing the calendar can usefully say: the roster has left no candidates at
+  // all, so an empty grid would read as "everyone is busy".
+  if (block.eligibilityNarrowed && block.instructors.length === 0) {
+    return (
+      <div className="notice notice-warn" role="status">
+        <span aria-hidden="true">!</span>
+        <div>
+          <strong>{noEligibleInstructors(block.rosterSize)}</strong>
+          <p>
+            Remove a student, choose a different group, or ask an administrator to
+            assign an instructor to them.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const { selectedInstructor, suggestions, grid } = block;
+  const noneFreeMessage = block.eligibilityNarrowed
+    ? ELIGIBLE_BUT_UNAVAILABLE
+    : "No instructor has a window long enough for this session on that date.";
 
   return (
     <>
@@ -261,8 +291,7 @@ export function AvailabilityBlock({
           )}
           {!grid.anyOpen && (
             <p className="hint">
-              No instructor has a window long enough for this session on that date. Try
-              another date or a shorter length.
+              {noneFreeMessage} Try another date or a shorter length.
             </p>
           )}
         </>
@@ -311,6 +340,11 @@ export function AvailabilityBlock({
               </div>
             ))}
           </div>
+          {block.openings.every((opening) => !opening.isOpen) && (
+            <p className="hint">
+              {noneFreeMessage} Try a longer window, or a shorter session.
+            </p>
+          )}
           {block.matrixCanExtend && (
             <Button className="matrix-more"
               type="button"

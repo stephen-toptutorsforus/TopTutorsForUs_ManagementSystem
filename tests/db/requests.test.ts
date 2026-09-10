@@ -128,6 +128,13 @@ describeDb("booking requests", () => {
       });
     }
 
+    // Assigned, because the shipped eligibility mode is `assigned_only` and
+    // these tests are about the approval workflow rather than about who may
+    // teach whom. See `tests/db/instructorEligibility.test.ts` for that rule.
+    await db.instructorStudent.create({
+      data: { organizationId: org.id, instructorId: instructor.id, studentId: student.id },
+    });
+
     admin = await loadPrincipal(db, adminUser.id);
     parentPrincipal = await loadPrincipal(db, parent.id);
     instructorPrincipal = await loadPrincipal(db, instructor.id);

@@ -13,17 +13,35 @@
  * fetch that replaces one region; here the whole state comes back from the
  * action and React replaces only what changed, which has the same effect — a
  * title half-typed and students already added are never touched by a refresh.
+ *
+ * **The roster drives the refresh, not only the calendar fields.** Who may
+ * teach depends on who is being taught, so adding or removing a student, or
+ * changing the group, asks the server the same question a change of date does.
+ * Two things make that safe. The submit happens from an effect rather than
+ * from the click handler, because the request sends the form and the hidden
+ * `student_refs` inputs for the new roster only exist once React has committed
+ * the render — submitting from the handler would send yesterday's roster. And
+ * the chip list is client state that the server only ever echoes, so a reply
+ * that arrives after a newer selection cannot put a removed student back.
  */
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Field, Hint, OptionSelect } from "@/components/ui";
+import { Button, Card, Field, Hint, Notice, OptionSelect } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
+import { noEligibleInstructors } from "@/lib/web/eligibilityCopy";
 import { clockDuration, durationWords } from "@/lib/presentation";
 
 import { AvailabilityBlock } from "./AvailabilityBlock";
 import { PreviewBlock } from "./PreviewBlock";
+
+/**
+ * How long a burst of changes is allowed to settle before the block is asked
+ * for again. Short enough that it reads as immediate; long enough that adding
+ * three students is one question rather than three.
+ */
+const REFRESH_DELAY_MS = 200;
 
 export function BookingForm({
   initial,
@@ -40,15 +58,14 @@ export function BookingForm({
   const [students, setStudents] = useState<string[]>(state.selectedStudents);
   const [matrixDays, setMatrixDays] = useState(context.matrixDays);
 
-  // Two pieces of state the person edits between submissions, re-seeded from
-  // whatever the action just handed back. Adjusted during render rather than in
-  // an effect: an effect would paint the stale chip list first and then correct
-  // it, and React re-runs this component immediately without committing the
-  // discarded pass.
+  // The day count is re-seeded from whatever the action handed back, because
+  // the server clamps it. The chip list deliberately is not: the server only
+  // ever echoes the roster it was sent, so re-seeding could only ever overwrite
+  // a newer selection with an older reply. Adjusted during render rather than
+  // in an effect, which would paint the stale value first and then correct it.
   const [seen, setSeen] = useState(state);
   if (seen !== state) {
     setSeen(state);
-    setStudents(state.selectedStudents);
     setMatrixDays(state.context.matrixDays);
   }
 
@@ -56,14 +73,50 @@ export function BookingForm({
   const chosenDate = value("start_date");
   const counted = Number.parseInt(value("occurrence_count", "1"), 10) || 1;
 
-  /** Ask for the availability block again, without previewing or writing. */
-  const refresh = (days?: number) => {
-    if (days !== undefined) setMatrixDays(days);
-    // Deferred so the hidden day-count field is updated before the submit reads
-    // it, and so a change event finishes before the form is replaced.
-    queueMicrotask(() => form.current?.requestSubmit(refreshButton.current));
-  };
   const refreshButton = useRef<HTMLButtonElement>(null);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Ask for the availability block again, without previewing or writing.
+   *
+   * Coalesced rather than sent per keystroke. Typing into a date field fires a
+   * change for every digit, and adding three students in three seconds used to
+   * mean three round trips whose answers arrived in no guaranteed order. The
+   * delay also gives React time to commit whatever state the caller just set,
+   * so the submit reads the fields as they now are rather than as they were.
+   */
+  const refresh = useCallback((days?: number) => {
+    if (days !== undefined) setMatrixDays(days);
+    if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      form.current?.requestSubmit(refreshButton.current);
+    }, REFRESH_DELAY_MS);
+  }, []);
+
+  // Nothing should fire after the form has gone. `form.current` would be null
+  // by then and the submit a no-op, but a timer outliving its component is the
+  // kind of tidy-up that stops being harmless the moment somebody adds to it.
+  useEffect(() => {
+    const timer = refreshTimer;
+    return () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+    };
+  }, []);
+
+  // Adding or removing a student changes who is eligible to teach, so the
+  // block has to be asked again — but only once the new hidden inputs are in
+  // the DOM, which is what an effect guarantees and a click handler does not.
+  // The guard starts holding the first render's roster, so the initial paint
+  // does not immediately re-request what the server has just rendered.
+  // `|` is not in the ref alphabet, so this cannot collide with a ref.
+  const roster = students.join("|");
+  const lastRoster = useRef(roster);
+  useEffect(() => {
+    if (lastRoster.current === roster) return;
+    lastRoster.current = roster;
+    refresh();
+  }, [refresh, roster]);
 
   const byName = new Map(context.students.map((person) => [person.ref, person]));
 
@@ -282,23 +335,43 @@ export function BookingForm({
                     </Field>
 
           <Field id="instructor_ref" label="Instructor">
+            {/* Cleared, and told why. Silently emptying the field leaves
+                somebody looking for a name that was there a moment ago. */}
+            {context.instructorCleared && (
+              <Notice tone="warn">
+                The instructor you had chosen cannot teach{" "}
+                {context.rosterSize === 1 ? "the student" : "every student"} now on this
+                session, so the choice has been cleared. Pick one of the instructors
+                listed.
+              </Notice>
+            )}
             <OptionSelect
               id="instructor_ref"
               name="instructor_ref"
               required
+              aria-describedby="instructor-hint"
               key={`inst-${context.chosenInstructorRef}`}
               defaultValue={context.chosenInstructorRef}
               onChange={() => refresh()}
               placeholder="Choose an instructor"
               options={context.instructors.map(({ ref, label }) => ({ value: ref, label }))}
             />
+            <Hint id="instructor-hint">
+              {!context.eligibilityNarrowed
+                ? "Every instructor here. Choosing students narrows this list to the ones who may teach them."
+                : context.instructors.length === 0
+                  ? noEligibleInstructors(context.rosterSize)
+                  : `${context.instructors.length} of your instructors may teach ${
+                      context.rosterSize === 1 ? "this student" : "these students"
+                    }.`}
+            </Hint>
                     </Field>
 
           {/* Before a date is chosen, the useful question is which day to look at.
               Once one is chosen that is settled, and the question becomes who;
               once a person is chosen, when. The block decides which of the three
               to draw. */}
-          <div className="availability" aria-live="polite">
+          <div className="availability" aria-live="polite" aria-busy={pending}>
             {pending && (
               <p className="availability-busy">
                 <span className="spinner" aria-hidden="true" />
@@ -357,12 +430,16 @@ export function BookingForm({
                     </Field>
 
           <Field id="group_ref" label="Group">
+            {/* A group is a roster too, so changing it changes who may teach.
+                Its value is committed by the time the change event fires, so
+                unlike the chips this needs no deferral. */}
             <OptionSelect
               id="group_ref"
               name="group_ref"
               aria-describedby="group-hint"
               defaultValue={value("group_ref")}
               key={`grp-${value("group_ref")}`}
+              onChange={() => refresh()}
               placeholder="No group"
               options={context.groups.map(({ ref, label }) => ({ value: ref, label }))}
             />

@@ -60,6 +60,7 @@ import {
 } from "@/lib/recurrence";
 import { newRef } from "@/lib/ref";
 import { organizationOffDays } from "@/lib/availability";
+import { assertEligible } from "@/lib/services/instructorEligibility";
 import {
   type CivilDate,
   type CivilTime,
@@ -232,6 +233,17 @@ export async function plan(
   validateRequest(organization, principal, request, now);
   const studentIds = await resolveStudents(db, organization, request);
 
+  // Who may teach whom, before anything is expanded or checked for clashes.
+  // The roster is passed rather than the group, because the group has just been
+  // expanded above and expanding it twice would let a membership change land
+  // between the two — the session is booked for the roster resolved here.
+  await assertEligible(db, {
+    organization,
+    principal,
+    studentIds,
+    instructorId: request.instructorId ?? null,
+  });
+
   const repeat = request.repeat ?? false;
   const rule = buildRule({
     frequency: repeat ? (request.frequency ?? "weekly") : "weekly",
@@ -343,6 +355,18 @@ export async function createFromPlan(
   if (request.overrideConflicts && !canOverrideConflicts(principal)) {
     throw new Forbidden("you may not book over a conflict");
   }
+
+  // Asked again, against the roster the plan settled on. A preview can sit on
+  // a screen for an hour, and an assignment withdrawn in that hour must not be
+  // honoured by the confirm that follows it. There is no conflict-override
+  // equivalent here: overriding a clash is a scheduling judgement somebody is
+  // permitted to make, while teaching a student one may not teach is not.
+  await assertEligible(db, {
+    organization,
+    principal,
+    studentIds: bookingPlan.studentIds,
+    instructorId: request.instructorId ?? null,
+  });
 
   let series: CreatedSeries | null = null;
   if (request.repeat && bookingPlan.sessions.length > 1) {

@@ -235,6 +235,12 @@ export async function bookingStep(
     durationMinutes: intOr(one(form, "duration_minutes"), 0) || undefined,
     instructorRef: values.instructor_ref ?? "",
     matrixDays,
+    // The roster as the form currently holds it. It is what decides which
+    // instructors are offered, so a refresh triggered by adding a student has
+    // to carry the student that was just added — which is why the form waits
+    // for React to commit the new hidden inputs before submitting.
+    studentRefs: selectedStudents,
+    groupRef: one(form, "group_ref"),
   });
 
   const base: BookingState = { context, values, selectedStudents, plan: null };

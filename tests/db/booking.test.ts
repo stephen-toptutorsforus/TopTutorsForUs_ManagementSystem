@@ -32,6 +32,7 @@ import {
   plan,
   planTotal,
 } from "@/lib/services/booking";
+import { INELIGIBLE_INSTRUCTOR } from "@/lib/services/instructorEligibility";
 import * as sessionOps from "@/lib/services/sessionOps";
 import { newRef } from "@/lib/ref";
 import { civilDate, civilTime, dateToDb, resolveCivil, timeToDb } from "@/lib/time";
@@ -104,7 +105,21 @@ describeDb("booking", () => {
 
     admin = await loadPrincipal(db, adminUser.id);
     await wideAvailability(instructor.id);
+    // The shipped `booking.assigned_users_only` is true, which now means what
+    // it always said: an instructor may only teach a student they are assigned
+    // to. These tests are about scheduling rather than eligibility, so the
+    // fixture makes the pairing a legitimate one instead of an exception —
+    // `tests/db/instructorEligibility.test.ts` is where the rule itself is
+    // held, and the cases below cover its effect on booking.
+    await assign(instructor.id, student.id);
   });
+
+  /** Make this instructor eligible to teach this student. */
+  async function assign(instructorId: bigint, studentId: bigint) {
+    await db.instructorStudent.create({
+      data: { organizationId: org.id, instructorId, studentId },
+    });
+  }
 
   /** Reload the organization after a settings change, so the plan sees it. */
   async function configure(settings: Record<string, unknown>) {
@@ -178,6 +193,7 @@ describeDb("booking", () => {
         timezone: NY,
       },
     });
+    await assign(person.id, student.id);
     return person;
   }
 
@@ -482,6 +498,131 @@ describeDb("booking", () => {
     );
   });
 
+  // --- Eligibility ---------------------------------------------------------
+  //
+  // Hiding a name in a dropdown is a courtesy. These are the checks that make
+  // it authorization: they run in `plan()` and again in `createFromPlan()`,
+  // through the same service the booking screen draws its list from.
+
+  it("refuses to preview a booking with an instructor the student is not assigned to", async () => {
+    const stranger = await anotherInstructor("noa.brandt@example.test", "Brandt");
+    await db.instructorStudent.deleteMany({ where: { instructorId: stranger.id } });
+
+    const request = booking(stranger, student);
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      INELIGIBLE_INSTRUCTOR,
+    );
+  });
+
+  it("refuses at creation an instructor who stopped being eligible after the preview", async () => {
+    // The window this closes: a preview can sit on a screen for an hour, and
+    // the confirm that follows must not honour an assignment withdrawn since.
+    const request = booking(instructor, student);
+    const previewed = await plan(db, org, admin, request, before(request));
+    expect(isBookable(previewed)).toBe(true);
+
+    await db.instructorStudent.updateMany({
+      where: { instructorId: instructor.id, studentId: student.id },
+      data: { archivedAt: new Date() },
+    });
+
+    await expect(createFromPlan(db, org, admin, previewed)).rejects.toThrow(
+      INELIGIBLE_INSTRUCTOR,
+    );
+    expect(await db.sessionOccurrence.count({ where: { organizationId: org.id } })).toBe(0);
+  });
+
+  it("books normally when every student on the roster is assigned", async () => {
+    const second = await makeUser(db, org.id, {
+      first: "Nadia",
+      last: "Ferrand",
+      email: "nadia.ferrand@example.test",
+      roles: [Role.STUDENT],
+    });
+    await assign(instructor.id, second.id);
+
+    const { created } = await book(
+      booking(instructor, student, { studentIds: [student.id, second.id] }),
+    );
+    expect(created).toHaveLength(1);
+  });
+
+  it("needs every student assigned, not the first one", async () => {
+    const unassigned = await makeUser(db, org.id, {
+      first: "Marek",
+      last: "Sowinski",
+      email: "marek.sowinski@example.test",
+      roles: [Role.STUDENT],
+    });
+
+    const request = booking(instructor, student, {
+      studentIds: [student.id, unassigned.id],
+    });
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      INELIGIBLE_INSTRUCTOR,
+    );
+  });
+
+  it("counts a group's members when deciding eligibility", async () => {
+    const member = await makeUser(db, org.id, {
+      first: "Sana",
+      last: "Whitfield",
+      email: "sana.whitfield@example.test",
+      roles: [Role.STUDENT],
+    });
+    const group = await db.group.create({
+      data: { ref: newRef("grp"), organizationId: org.id, name: "Monday Algebra" },
+    });
+    await db.groupMember.create({
+      data: {
+        organizationId: org.id,
+        groupId: group.id,
+        userId: member.id,
+        memberRole: "student",
+      },
+    });
+
+    const request = booking(instructor, student, {
+      studentIds: [],
+      groupId: group.id,
+    });
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      INELIGIBLE_INSTRUCTOR,
+    );
+
+    await assign(instructor.id, member.id);
+    const { created } = await book(request);
+    expect(created).toHaveLength(1);
+  });
+
+  it("lets a tenant configured for any instructor book an unassigned one", async () => {
+    await configure({ booking: { instructor_eligibility_mode: "any_instructor" } });
+    const stranger = await anotherInstructor("perry.lund@example.test", "Lund");
+    await db.instructorStudent.deleteMany({ where: { instructorId: stranger.id } });
+
+    const { created } = await book(booking(stranger, student));
+    expect(created).toHaveLength(1);
+  });
+
+  it("does not let another tenant's assignment make an instructor eligible", async () => {
+    const stranger = await anotherInstructor("kai.oyelaran@example.test", "Oyelaran");
+    await db.instructorStudent.deleteMany({ where: { instructorId: stranger.id } });
+    // A row in the other organization linking our two people. It is not ours to
+    // read, and it must not turn into permission to book.
+    await db.instructorStudent.create({
+      data: {
+        organizationId: otherOrg.id,
+        instructorId: stranger.id,
+        studentId: student.id,
+      },
+    });
+
+    const request = booking(stranger, student);
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      INELIGIBLE_INSTRUCTOR,
+    );
+  });
+
   it("refuses a booking with no instructor and one with no students", async () => {
     const noInstructor = booking(instructor, student, { instructorId: null });
     await expect(plan(db, org, admin, noInstructor, before(noInstructor))).rejects.toThrow(
@@ -693,6 +834,8 @@ describeDb("booking", () => {
       email: "wren.calloway@example.test",
       roles: [Role.STUDENT],
     });
+    await assign(instructor.id, absent.id);
+    await assign(instructor.id, present.id);
 
     const { created } = await book(
       booking(instructor, absent, { studentIds: [absent.id, present.id] }),

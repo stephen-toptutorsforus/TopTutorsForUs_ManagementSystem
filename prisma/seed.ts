@@ -197,8 +197,24 @@ async function populate(
     })),
     skipDuplicates: true,
   });
+  // The district and the region the school sits in, written alongside it. The
+  // schema says these rows exist so that attaching a school really does attach
+  // the district and region above it rather than only appearing to, and the
+  // seed was not keeping that promise — which left every seeded student
+  // holding a school and every seeded instructor holding a region, sharing
+  // nothing. `booking.instructor_eligibility_mode: shared_structure` compares
+  // these three tables directly, so it read the gap as "nobody may teach
+  // anybody".
+  await db.userDistrict.createMany({
+    data: placedStudents.map((person) => ({
+      organizationId: org.id,
+      userId: person.id,
+      districtId: district.id,
+    })),
+    skipDuplicates: true,
+  });
   await db.userRegion.createMany({
-    data: placedInstructors.map((person) => ({
+    data: [...placedStudents, ...placedInstructors].map((person) => ({
       organizationId: org.id,
       userId: person.id,
       regionId: region.id,

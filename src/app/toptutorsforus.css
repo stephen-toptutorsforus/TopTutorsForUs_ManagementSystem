@@ -1885,6 +1885,9 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
 .notice-bad { background: var(--bad-surface); color: var(--bad-text); border-color: var(--bad-text); }
 .notice-good { background: var(--good-surface); color: var(--good-text); border-color: var(--good-text); }
 .notice ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+/* A second line under the headline one, in the notice's own colour rather
+   than the muted hint grey, which does not clear 4.5:1 on these surfaces. */
+.notice p { margin: 0.35rem 0 0; }
 
 .empty { text-align: center; padding: 2.5rem 1rem; color: var(--ink-500); }
 .empty .glyph { font-size: 1.75rem; display: block; margin-bottom: 0.5rem; opacity: 0.6; }

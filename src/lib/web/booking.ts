@@ -22,6 +22,10 @@ import {
 } from "@/lib/availability";
 import type { Db } from "@/lib/db";
 import { settingNumber, settingStrings, settingsReader } from "@/lib/organization";
+import {
+  eligibleInstructors,
+  resolveRosterFromRefs,
+} from "@/lib/services/instructorEligibility";
 import { Permission } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
@@ -65,6 +69,21 @@ export interface AvailabilityBlock {
   canViewAvailability: boolean;
   selectedInstructor: PersonChoice | null;
   instructorsNotShown: number;
+  /**
+   * Who may teach the roster as it currently stands. The dropdown and every
+   * state of the grid are drawn from this one list, so the two cannot offer
+   * different people.
+   */
+  instructors: PersonChoice[];
+  /** How many students the roster holds, after the group is expanded. */
+  rosterSize: number;
+  /** Whether the roster actually narrowed the list — see `eligibleInstructors`. */
+  eligibilityNarrowed: boolean;
+  /**
+   * The instructor that was chosen has been dropped, because the roster changed
+   * under them. The form clears the field; this is what lets it say why.
+   */
+  instructorCleared: boolean;
   /** State 1: no date yet, so the question is which day. */
   openings: SerialisedOpenings[];
   /** State 2: a date is chosen, an instructor is not. */
@@ -102,7 +121,6 @@ export interface BookingContext extends AvailabilityBlock {
   chosenWeekday: string;
   durationLimits: [number, number];
   today: CivilDate;
-  instructors: PersonChoice[];
   students: PersonChoice[];
   programs: Choice[];
   groups: Choice[];
@@ -181,23 +199,15 @@ function serialiseOpenings(days: DayOpenings[]): SerialisedOpenings[] {
   }));
 }
 
-async function instructorChoices(db: Db, principal: Principal) {
-  return db.user.findMany({
-    where: {
-      ...scoped(principal),
-      archivedAt: null,
-      roles: { some: { role: "INSTRUCTOR" } },
-    },
-    select: { id: true, ref: true, firstName: true, lastName: true, email: true },
-    orderBy: { lastName: "asc" },
-  });
-}
-
 /**
  * The availability block, in whichever of its three states applies.
  *
  * The three states answer three different questions, in the order they get
- * asked: which day, then who on that day, then when with that person.
+ * asked: which day, then who on that day, then when with that person. All
+ * three are asked **of the eligible instructors only** — the roster narrows
+ * who is a candidate, and the calendar then says which of those is free. Asking
+ * the calendar about somebody the tenant will not let teach this student
+ * produces a name that Preview would refuse.
  */
 export async function availabilityContext(
   db: Db,
@@ -210,12 +220,33 @@ export async function availabilityContext(
     durationMinutes: number;
     instructorRef: string;
     matrixDays: number;
+    /** The students chosen individually, by public ref. */
+    studentRefs: readonly string[];
+    /** The chosen group, by public ref, expanded to its current members. */
+    groupRef: string;
   },
 ): Promise<AvailabilityBlock> {
-  const { zone, day, fromTime, durationMinutes, instructorRef, matrixDays } = options;
+  const {
+    zone,
+    day,
+    fromTime,
+    durationMinutes,
+    instructorRef,
+    matrixDays,
+    studentRefs,
+    groupRef,
+  } = options;
 
-  const instructors = await instructorChoices(db, principal);
+  const studentIds = await resolveRosterFromRefs(db, principal, { studentRefs, groupRef });
+  const eligibility = await eligibleInstructors(db, { organization, principal, studentIds });
+  const instructors = eligibility.instructors;
   const selected = instructors.find((person) => person.ref === instructorRef) ?? null;
+
+  // Chosen, and no longer offered. The form drops the field's value either way;
+  // saying so is only honest when a roster is what took them away — an unknown
+  // ref in a stale form is not something to announce.
+  const instructorCleared =
+    instructorRef !== "" && selected === null && eligibility.narrowed;
 
   // Narrowing to one instructor is a filter on every state, not only the grid:
   // having chosen somebody, "which day" means which day *they* are free.
@@ -256,6 +287,10 @@ export async function availabilityContext(
     // card links there only when the link would actually open.
     canViewAvailability: principal.has(Permission.AVAILABILITY_VIEW_ANY),
     selectedInstructor: selected ? personChoice(selected) : null,
+    instructors: instructors.map(personChoice),
+    rosterSize: eligibility.studentIds.length,
+    eligibilityNarrowed: eligibility.narrowed,
+    instructorCleared,
     // Not an error, and not worth hiding either: the grid is honest about being
     // a first page rather than the whole roster.
     instructorsNotShown: grid ? Math.max(0, instructors.length - MAX_GRID_INSTRUCTORS) : 0,
@@ -285,6 +320,8 @@ export async function bookingContext(
     durationMinutes?: number;
     instructorRef: string;
     matrixDays: number;
+    studentRefs?: readonly string[];
+    groupRef?: string;
   },
 ): Promise<BookingContext> {
   const zone = principal.timezone;
@@ -305,6 +342,8 @@ export async function bookingContext(
     durationMinutes,
     instructorRef: chosen.instructorRef,
     matrixDays: chosen.matrixDays,
+    studentRefs: chosen.studentRefs ?? [],
+    groupRef: chosen.groupRef ?? "",
   });
 
   // One value for the field's max attribute, the help text, and the service
@@ -317,8 +356,10 @@ export async function bookingContext(
       ? [Number(boundsSetting[0]), Number(boundsSetting[1])]
       : [Math.min(...durations), Math.max(...durations)];
 
-  const [instructors, students, programs, groups] = await Promise.all([
-    instructorChoices(db, principal),
+  // No instructor query here: the eligible list came back from
+  // `availabilityContext` and is spread in below. Asking a second time is how
+  // the dropdown and the grid start offering different people.
+  const [students, programs, groups] = await Promise.all([
     db.user.findMany({
       where: { ...scoped(principal), archivedAt: null, roles: { some: { role: "STUDENT" } } },
       select: { ref: true, firstName: true, lastName: true, email: true },
@@ -347,7 +388,6 @@ export async function bookingContext(
     chosenWeekday: chosen.day ? weekdayName(chosen.day) : "",
     durationLimits: bounds,
     today: civilDate(new Date(), zone),
-    instructors: instructors.map(personChoice),
     students: students.map(personChoice),
     programs: programs.map((program) => ({ ref: program.ref, label: program.name })),
     groups: groups.map((group) => ({ ref: group.ref, label: group.name })),

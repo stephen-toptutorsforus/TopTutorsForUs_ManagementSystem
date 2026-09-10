@@ -112,6 +112,29 @@ edges have a stated, tested policy — gaps shift forward, overlaps take the fir
 **Preview and creation share one function.** What somebody is shown before
 pressing the button is by construction what gets written.
 
+**Eligibility is asked before availability, and again before the write.**
+Whether an instructor *may* teach a student is a relationship question, and
+`src/lib/services/instructorEligibility.ts` is the only place it is answered —
+from assignment rows or from shared organization structure, under the tenant's
+`booking.instructor_eligibility_mode`. Whether they are *free* is a calendar
+question, and `lib/availability` answers it afterwards, about the candidates
+eligibility left standing. The two emptinesses are worded differently on
+purpose: "nobody may teach them" and "nobody is free" are fixed in different
+places, and one message for both sends people to look in the wrong one.
+
+The booking screen narrows its list through that service, and `plan()` and
+`createFromPlan()` each refuse through it. Twice on purpose: a preview can sit
+on a screen for an hour, and an assignment withdrawn in that hour must not be
+honoured by the confirm that follows. Hiding a name in a dropdown is a
+courtesy; these two are the authorization.
+
+The mode is deliberately **absent** from `DEFAULT_SETTINGS`, because its
+absence is what the older `booking.assigned_users_only` boolean is translated
+from — `setting()` walks the shipped defaults, so a key present there could
+never read as unset. `true` becomes `assigned_only` and `false` becomes
+`any_instructor`. Since `true` is the shipped default, a tenant that has
+configured neither now narrows the list as soon as a student is chosen.
+
 **One header shape, and the page fills the slots.** `PageHeader` renders the
 title, the toolbar and the secondary row for every administration screen;
 `PageToolbar` owns the filter form, with the page-level actions kept outside it
@@ -216,7 +239,8 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-431 tests — 225 pure, 206 database-backed — plus differential runs of 29,200
+485 tests — 246 pure, 239 database-backed — plus 306 browser tests and
+differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
