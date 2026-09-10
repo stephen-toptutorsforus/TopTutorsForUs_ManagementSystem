@@ -6,7 +6,9 @@
  * All four views are one route over one query. They differ only in the date
  * range they ask for and how the page lays the result out, which is why
  * switching view keeps the search text, the status filter, and the date you
- * were looking at — they all live in the URL.
+ * were looking at — they are one stored state, and `queryString` is its one
+ * spelling. It lived in the URL until the address of a page stopped changing
+ * for anything done on it; see `lib/web/filterState.ts`.
  *
  * **Ranges are computed in civil dates, in the viewer's zone.** A month is "the
  * 1st to the last, where the viewer is", not a UTC instant range, and the grid
@@ -18,7 +20,7 @@ import type { SessionFilters } from "@/lib/services/sessionQuery";
 import { type CivilDate, addDays, isoWeekday } from "@/lib/time";
 import { STATUS_FILTER_ORDER } from "@/lib/presentation";
 import { narrows } from "@/lib/selection";
-import { canonicalUrl, readableQuery } from "@/lib/urlState";
+import { readableQuery } from "@/lib/urlState";
 
 export enum CalendarView {
   MONTH = "month",
@@ -42,121 +44,20 @@ const STEP: Record<CalendarView, string> = {
  */
 export const MONTH_CELL_LIMIT = 4;
 
-// --- Remembering the status filter ------------------------------------------
-//
-// The screen's state lives in the URL, which is what makes it shareable — but
-// the sidebar link is a bare `/calendar` and carries no state at all, so
-// leaving a filter set and coming back later lost it. The status filter is the
-// one part of that state a person means to keep: it is how they say "I only
-// care about the cancelled ones" and it is not tied to a date or a search they
-// have since moved on from.
-//
-// So it is remembered in a cookie, and a bare `/calendar` redirects to the URL
-// that spells it out rather than quietly filtering. That distinction matters:
-// had the filter been applied without changing the address, copying `/calendar`
-// and sending it to a colleague would show them *their* last filter rather than
-// what the sender was looking at.
-
-export const STATUS_COOKIE = "toptutorsforus_calendar_status";
-
-/**
- * Long enough to still be there after a weekend and a holiday, short enough
- * that a filter set once and forgotten does not follow somebody for ever.
- */
-export const STATUS_COOKIE_MAX_AGE = 60 * 60 * 24 * 90;
-
-/**
- * The parameters that make a URL authoritative about the whole screen. If any
- * one of them is present the URL is taken at its word, including the *absence*
- * of `status` — otherwise "Clear all", which navigates with a view and a date
- * and no statuses, would be undone by the remembered value on arrival.
- */
-export const STATE_PARAMS = ["view", "date", "q", "status"] as const;
-
-/** Whether this URL says anything about which calendar to draw. */
-export function carriesState(params: URLSearchParams): boolean {
-  return STATE_PARAMS.some((name) => params.has(name));
-}
-
-/**
- * Statuses read back from the cookie, dropping anything unrecognised.
- *
- * A cookie is user-supplied input like any other. A status this build does not
- * have — an older name, or something typed by hand — is ignored rather than
- * raising, exactly as an unknown `status=` in the query string is.
- */
-export function readStatuses(raw: string | null | undefined): SessionStatus[] {
-  if (!raw) return [];
-  const known = Object.values(SessionStatus) as string[];
-  const seen: SessionStatus[] = [];
-  for (const name of raw.split(",").slice(0, known.length)) {
-    const trimmed = name.trim();
-    const match = known.find(
-      (status) => status === trimmed || status.toLowerCase() === trimmed,
-    );
-    if (match === undefined) continue;
-    if (!seen.includes(match as SessionStatus)) seen.push(match as SessionStatus);
-  }
-  return seen;
-}
-
-export function writeStatuses(statuses: readonly SessionStatus[]): string {
-  return statuses.map((status) => status.toLowerCase()).join(",");
-}
-
-/**
- * The URL a bare `/calendar` sends someone to when a filter is remembered.
- *
- * Only the statuses are restored. `anchor: null` is the point of the rest:
- * coming back to the calendar should show now, not the month somebody was
- * reading on Friday.
- */
-export function restoredLink(statuses: readonly SessionStatus[]): string {
-  return calendarLink({ search: "", statuses }, { view: CalendarView.MONTH, anchor: null });
-}
-
 /**
  * Statuses read back from one parameter or several.
  *
  * The forms submit a checkbox per status, so `status=a&status=b` arrives from
- * the browser; the links write `status=a,b`. Both are accepted, and the tidying
- * settles the first into the second.
+ * the browser; the stored state holds `status=a,b`. Both are accepted, and
+ * serialising settles the first into the second.
  */
-export function statusValues(params: URLSearchParams): string[] {
-  return params.getAll("status").flatMap((chunk) => chunk.split(","));
+/** The one spelling of a status list: lower case, joined by commas. */
+export function writeStatuses(statuses: readonly SessionStatus[]): string {
+  return statuses.map((status) => status.toLowerCase()).join(",");
 }
 
-/**
- * The calendar's answer to `canonicalUrl` — see `lib/urlState.ts` for the rule.
- *
- * Only `view`, `date`, `q` and `status` reach the query; `calendarRange` reads
- * nothing else off the filters. So any other parameter on a calendar URL was
- * already being ignored, and dropping it from the address removes a lie rather
- * than a feature.
- *
- * `date` is dropped when it is today rather than kept because it was asked for.
- * A bare `/calendar` has always meant "now"; writing today's date beside it says
- * the same thing twice, and it was the single commonest piece of noise in a
- * filtered address. Paging to another month still writes the month.
- */
-export function canonicalLink(
-  params: URLSearchParams,
-  state: {
-    filters: Pick<SessionFilters, "search" | "statuses">;
-    view: CalendarView;
-    anchor: CivilDate;
-    today: CivilDate;
-  },
-): string | null {
-  return canonicalUrl(
-    "/calendar",
-    params,
-    queryString(state.filters, {
-      view: state.view,
-      anchor: state.anchor,
-      today: state.today,
-    }),
-  );
+export function statusValues(params: URLSearchParams): string[] {
+  return params.getAll("status").flatMap((chunk) => chunk.split(","));
 }
 
 /** Everything a page needs to render and navigate one view. */
@@ -424,23 +325,4 @@ export function queryString(
     params.append("status", writeStatuses(filters.statuses));
   }
   return readableQuery(params);
-}
-
-/**
- * The calendar at this state, as a path.
- *
- * A separate function because `queryString` is now empty for the default
- * screen, and `/calendar?` with a bare question mark is the kind of thing that
- * ends up in a bookmark.
- */
-export function calendarLink(
-  filters: Pick<SessionFilters, "search" | "statuses">,
-  options: {
-    view: CalendarView | string;
-    anchor?: CivilDate | null;
-    today?: CivilDate | null;
-  },
-): string {
-  const query = queryString(filters, options);
-  return query ? `/calendar?${query}` : "/calendar";
 }

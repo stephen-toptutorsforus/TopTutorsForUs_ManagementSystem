@@ -1,55 +1,152 @@
 /**
- * What the address bar is left saying.
+ * What the address bar is left saying: nothing.
  *
- * The filter state belongs in the URL; a parameter restating a default does
- * not. Three screens carry filter state and each redirects to the tidiest
- * spelling of its own — which is exactly the kind of thing that works in a unit
- * test and then bounces for ever against a real router, so it is worth asking a
- * browser.
+ * This file used to assert the opposite — that each screen redirected to the
+ * tidiest spelling of its own filter, because the filter *was* the address.
+ * That is over: nothing done on a page may change the address of that page.
  *
- * `waitForURL` rather than `toHaveURL`: a redirect loop should fail here as a
- * timeout on the address never settling, not as a passing assertion that
- * happened to read the bar between two hops.
+ * So the property under test is inverted, and it is worth asking a browser
+ * rather than a unit test for the same reason it was before. A stored filter
+ * that quietly wrote itself back into the bar, or a form that fell back to a
+ * GET when its action failed to bind, would both look fine in isolation.
+ *
+ * The one exception is an arrival: an older link still carrying a query is
+ * honoured once and then the address is bare. That is the middleware, and it
+ * happens before anything renders.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { statePath } from "./accounts";
 
 test.use({ storageState: statePath("admin") });
 
-const noisy = [
-  // The month view and a complete status set are both the default restated.
-  ["/calendar?view=month", "/calendar"],
-  // A date that is not today: today's is dropped, because that is what an
-  // absent date already means. `2026-01-15` will not be today for a while.
-  ["/calendar?view=month&date=2026-01-15", "/calendar?date=2026-01-15"],
-  // Nothing but `view`, `date`, `q` and `status` was ever read off a calendar
-  // URL, so these were being ignored before they were dropped.
-  ["/calendar?instructor=abc&page=4", "/calendar"],
-  // What a GET form leaves behind when every field is empty.
-  ["/people?q=", "/people"],
-  ["/people?q=&role=instructor", "/people?role=instructor"],
-  ["/sessions?q=&from=&to=&instructor=&program=", "/sessions"],
-  ["/sessions?q=&page=1", "/sessions"],
-] as const;
+const SCREENS = ["/people", "/sessions", "/calendar"] as const;
 
-for (const [from, expected] of noisy) {
-  test(`tidies ${from} to ${expected}`, async ({ page, baseURL }) => {
-    await page.goto(from);
-    await page.waitForURL(new URL(expected, baseURL).toString());
-    await expect(page.locator("h1")).toBeVisible();
+/** The address, with nothing after the path. */
+const bare = (page: Page) => {
+  const url = new URL(page.url());
+  return url.pathname + url.search + url.hash;
+};
+
+test.describe("nothing on a page changes its address", () => {
+  for (const path of SCREENS) {
+    test(`${path} stays itself while it is filtered`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.locator("h1")).toBeVisible();
+      expect(bare(page)).toBe(path);
+
+      // Type a search and apply it. The rows change; the address does not.
+      await page.locator("#q").fill("a");
+      await page.keyboard.press("Enter");
+      await page.waitForLoadState("networkidle");
+      expect(bare(page), "searching must not write to the address").toBe(path);
+
+      // Open the drawer, change something, apply.
+      await page.locator(".filteractions > summary").click();
+      await page.getByRole("button", { name: "Edit filter" }).click();
+      await page.locator("#filter-q").fill("b");
+      await page.getByRole("button", { name: "Apply" }).click();
+      await page.waitForLoadState("networkidle");
+      expect(bare(page), "applying must not write to the address").toBe(path);
+
+      // And the filter really is set — otherwise this test would pass on a
+      // page where nothing works at all.
+      await expect(page.locator("#q")).toHaveValue("b");
+
+      // Reset, still nothing.
+      await page.locator(".filteractions > summary").click();
+      await page.getByRole("button", { name: /Reset filter/ }).click();
+      await page.waitForLoadState("networkidle");
+      expect(bare(page)).toBe(path);
+      await expect(page.locator("#q")).toHaveValue("");
+    });
+  }
+
+  test("/calendar keeps its address while the range moves", async ({ page }) => {
+    await page.goto("/calendar");
+    const heading = () => page.locator(".cal-heading").textContent();
+    const first = await heading();
+
+    await page.getByRole("button", { name: /Next month/ }).click();
+    await page.waitForLoadState("networkidle");
+    expect(bare(page)).toBe("/calendar");
+    expect(await heading(), "the range should have moved").not.toBe(first);
+
+    await page.getByRole("button", { name: "Week", exact: true }).click();
+    await page.waitForLoadState("networkidle");
+    expect(bare(page)).toBe("/calendar");
+    await expect(page.locator(".cal-timegrid")).toBeVisible();
   });
-}
 
-const already = ["/calendar", "/calendar?view=week", "/people?role=instructor", "/sessions?page=3"];
+  test("a filter survives leaving the screen and coming back", async ({ page }) => {
+    // The address cannot carry it, so something else has to — and a filter that
+    // vanished on the way to another page would be worse than one in the bar.
+    await page.goto("/people");
+    await page.locator("#q").fill("mercer");
+    await page.keyboard.press("Enter");
+    await page.waitForLoadState("networkidle");
+    const filtered = await page.locator("tbody tr").count();
 
-for (const url of already) {
-  test(`leaves ${url} alone`, async ({ page, baseURL }) => {
-    // A tidy address must be its own tidiest form, or the redirect and the
-    // parser trade the request between them until the browser gives up.
-    const response = await page.goto(url);
-    expect(response?.request().redirectedFrom(), `${url} redirected`).toBeNull();
-    await expect(page).toHaveURL(new URL(url, baseURL).toString());
+    await page.goto("/calendar");
+    await page.goto("/people");
+    await expect(page.locator("#q")).toHaveValue("mercer");
+    expect(await page.locator("tbody tr").count()).toBe(filtered);
   });
-}
+});
+
+test.describe("an older link, honoured once", () => {
+  const legacy = [
+    ["/people?role=instructor", "/people"],
+    ["/people?q=mercer&role=admin", "/people"],
+    ["/sessions?status=scheduled", "/sessions"],
+    ["/calendar?view=week", "/calendar"],
+    // Parameters no screen ever read are dropped rather than stored.
+    ["/calendar?utm_source=email", "/calendar"],
+  ] as const;
+
+  for (const [from, to] of legacy) {
+    test(`${from} arrives at ${to}`, async ({ page }) => {
+      await page.goto(from);
+      // `waitForURL` rather than reading the bar once: a redirect that looped
+      // should fail as a timeout, not as an assertion that caught a hop.
+      await page.waitForURL((url) => url.pathname + url.search === to);
+      await expect(page.locator("h1")).toBeVisible();
+      expect(bare(page)).toBe(to);
+    });
+  }
+
+  test("the filter the link asked for is the one applied", async ({ page }) => {
+    await page.goto("/people?role=instructor");
+    await page.waitForURL(/\/people$/);
+
+    // Set, counted, and drawn — not merely stored.
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    await expect(
+      page.locator('.page-toolbar input[name="role"][value="instructor"]'),
+    ).toBeChecked();
+    await expect(page.locator('.page-toolbar input[name="role"][value="admin"]')).not.toBeChecked();
+  });
+
+  test("and it stays applied on the next plain visit", async ({ page }) => {
+    await page.goto("/sessions?status=scheduled");
+    await page.waitForURL(/\/sessions$/);
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+
+    await page.goto("/sessions");
+    expect(bare(page)).toBe("/sessions");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+  });
+
+  test("a link with nothing in it clears rather than being ignored", async ({ page }) => {
+    await page.goto("/people?role=instructor");
+    await page.waitForURL(/\/people$/);
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+
+    // Every field empty is what a GET form used to submit for an unfiltered
+    // screen, and it means the same thing here.
+    await page.goto("/people?q=&role=");
+    await page.waitForURL(/\/people$/);
+    await expect(page.locator(".filteractions-count")).toHaveCount(0);
+  });
+});

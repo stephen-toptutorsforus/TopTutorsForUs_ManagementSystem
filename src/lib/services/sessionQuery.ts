@@ -201,8 +201,21 @@ export function toQuery(
   return readableQuery(params);
 }
 
+/**
+ * Whether two column lists hold the same columns.
+ *
+ * As a set, not as a sequence. Nothing in the interface reorders columns — the
+ * drawer offers a tick per column and nothing else — so the order a list
+ * arrives in is an accident of the markup rather than a choice somebody made.
+ * It compared as a sequence, and the drawer renders its boxes in
+ * `AVAILABLE_COLUMNS` order while `DEFAULT_COLUMNS` ends in a different one, so
+ * opening the drawer and pressing Apply wrote out a full column list and lit
+ * the filter count: a filter nobody had set, on every visit to the panel.
+ */
 function sameColumns(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((column, index) => column === b[index]);
+  if (a.length !== b.length) return false;
+  const held = new Set(b);
+  return a.every((column) => held.has(column));
 }
 
 export type OccurrenceRow = Prisma.SessionOccurrenceGetPayload<object>;

@@ -11,7 +11,6 @@
  */
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
@@ -21,27 +20,23 @@ import {
   MONTH_CELL_LIMIT,
   activeCalendarFilters,
   buildWindow,
-  calendarLink,
-  canonicalLink,
-  carriesState,
-  narrowsByStatus,
   parseAnchor,
   parseView,
-  readStatuses,
-  restoredLink,
 } from "@/lib/calendar";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters";
+import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
+import { StateFields } from "@/components/ui/StateFields";
+import { readScreenState } from "@/lib/web/filterState";
 import { statusFilterOptions, statusMeta } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import { Moment } from "@/lib/rendering";
 import { calendarRange, parseFilters, type SessionRow } from "@/lib/services/sessionQuery";
 import { build } from "@/lib/timegrid";
 import { type CivilDate, civilDate, isoWeekday } from "@/lib/time";
-import { requireContext, statusCookie } from "@/lib/web/session";
+import { requireContext } from "@/lib/web/session";
 
-import { toSearchParams } from "../sessions/page";
-import { StatusCookieWriter } from "./StatusCookieWriter";
 
 export const metadata = { title: "Calendar · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
@@ -117,62 +112,44 @@ function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boo
   );
 }
 
-export default async function CalendarPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+/**
+ * Nothing here reads `searchParams`.
+ *
+ * The screen's filter arrives from its cookie — see `lib/web/filterState.ts`.
+ * A page that still took the address as an input would be a second source for
+ * the same state, and the two would disagree the moment anybody typed one.
+ */
+export default async function CalendarPage() {
   const { principal } = await requireContext();
   const zone = principal.timezone;
   const today = civilDate(new Date(), zone);
-  const params = toSearchParams(await searchParams);
 
-  // A bare `/calendar` — which is what the sidebar link is — says nothing about
-  // the status filter, so the last one chosen is restored and the person is
-  // sent on to the URL that spells it out. See `lib/calendar.ts` for why this
-  // is a redirect rather than a quiet filter.
-  if (!carriesState(params)) {
-    const remembered = readStatuses(await statusCookie());
-    // A remembered set covering every status is not a filter. Restoring one
-    // would redirect to an address the tidying below strips straight back to
-    // `/calendar`, and the two would trade the request between them for ever.
-    if (narrowsByStatus(remembered)) redirect(restoredLink(remembered));
-  }
-
-  const view = parseView(params.get("view"));
-  const anchor = parseAnchor(params.get("date"), today);
+  // The whole screen's state — view, date, search, statuses — from the cookie
+  // rather than the address. A bare `/calendar` therefore shows what somebody
+  // last chose without a redirect to spell it out, which is what the old
+  // remembered-status cookie and its restore hop existed to fake.
+  const state = await readScreenState("calendar");
+  const view = parseView(state.get("view"));
+  const anchor = parseAnchor(state.get("date"), today);
   const window = buildWindow(view, anchor);
-  const filters = parseFilters(params);
+  const filters = parseFilters(state);
 
-  // Where a reset goes: through the route that *forgets* the remembered status,
-  // because a bare `/calendar` is what restores it. `keepSearch` is the
-  // difference between widening the status filter and clearing the lot.
-  const resetLink = (options: { keepSearch: boolean }) => {
-    const back = new URLSearchParams();
-    if (view !== CalendarView.MONTH) back.set("view", view);
-    if (window.anchor !== today) back.set("date", window.anchor);
-    if (options.keepSearch && filters.search) back.set("q", filters.search);
-    return back.size > 0 ? `/calendar/reset?${back}` : "/calendar/reset";
-  };
-
-  // A status parameter that narrows nothing is somebody asking for everything —
-  // by ticking the last box, or through "Select all". Tidying alone would send
-  // them to a bare `/calendar`, which is precisely what restores the remembered
-  // filter they had just widened out of, and they would watch it come back. So
-  // it goes the way the reset menu item goes: forget, then land. The search
-  // text is not what they widened, so it stays.
-  //
-  // No loop: the address this leads to carries no `status`, so it cannot arrive
-  // here again.
-  if (params.has("status") && !narrowsByStatus(filters.statuses)) {
-    redirect(resetLink({ keepSearch: true }));
-  }
-
-  // Whatever produced this address — a link, the filter form, a cookie restore,
-  // or something typed by hand — the bar ends up showing the least that still
-  // says what is on screen.
-  const tidy = canonicalLink(params, { filters, view, anchor: window.anchor, today });
-  if (tidy !== null) redirect(tidy);
+  /**
+   * The range, as hidden fields.
+   *
+   * Every form on this screen carries it: the week somebody is reading is not
+   * something they filtered by, so changing a status must not send them back to
+   * this month. Absent when it is already the default, because that is what its
+   * absence means to the parsers.
+   */
+  const rangeFields = (
+    <>
+      {view !== CalendarView.MONTH && <input type="hidden" name="view" value={view} />}
+      {window.anchor !== today && (
+        <input type="hidden" name="date" value={window.anchor} />
+      )}
+    </>
+  );
 
   const buckets = await calendarRange(prisma, principal, {
     first: window.first,
@@ -182,39 +159,39 @@ export default async function CalendarPage({
   });
   const total = [...buckets.values()].reduce((sum, rows) => sum + rows.length, 0);
 
-  // Every link on the page is built through this, so none of them can drop part
-  // of the state by forgetting a parameter.
-  const link = (options: { view: CalendarView | string; anchor?: CivilDate | null }) =>
-    calendarLink(filters, { ...options, today });
-
-  // "Select all" — one gesture back to the resting state after unticking a few.
-  // Not a link to the unfiltered calendar: that is a bare `/calendar`, which
-  // would restore the very filter this is asking to be rid of. It forgets it
-  // instead, and keeps the search text, which is a different filter.
-  const allStatuses = resetLink({ keepSearch: true });
-
-  // "Reset filter" — the lot, search included. The range is not among it: the
-  // week somebody is reading is not something they asked to filter by, so it
-  // rides along.
-  const unfiltered = resetLink({ keepSearch: false });
 
   const isGrid = view === CalendarView.WEEK || view === CalendarView.DAY;
   const grid = isGrid ? build(buckets, window.days, zone) : null;
 
   return (
     <>
-      {/* Keep the status filter for the next bare visit, or forget it. */}
-      <StatusCookieWriter statuses={filters.statuses.map((s) => s.toLowerCase())} />
+      {/* The one form every control on this screen submits into: the arrows,
+          the view switcher, Today, each day number and each "+N more". It
+          carries the state they are changing *from*; a button adds the one
+          `goto_` field that says what to change. Declared once and reached by
+          `form=`, because a form per day cell is forty-two forms on a month. */}
+      <form id={CALENDAR_FORM} action={applyCalendarState} hidden>
+        <StateFields state={state} />
+      </form>
 
       <PageHeader
         title="Calendar"
         toolbar={
+          // Keyed by the filter that is applied, so the search box and the
+          // status menu are remounted when it changes. Their fields are
+          // uncontrolled — `defaultValue`, `defaultChecked` — and a re-render
+          // from a server action leaves the DOM values a person typed exactly
+          // where they were, which is right until the *other* form changes
+          // them. Applying from the drawer used to be a navigation, which
+          // rebuilt both.
           <PageToolbar
+            key={state.toString()}
             menu={
               <FilterControl
                 active={activeCalendarFilters(filters)}
-                resetHref={unfiltered}
-                action="/calendar"
+                reset={resetCalendarFilters}
+                resetFields={rangeFields}
+                action={applyCalendarState}
               >
             {/* The range travels with the filter. Without these the drawer's
                 Apply would submit a bare `/calendar` and drop somebody back on
@@ -260,7 +237,11 @@ export default async function CalendarPage({
             </FilterSection>
               </FilterControl>
             }
-            form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}
+            form={{
+              action: applyCalendarState,
+              label: "Filter the calendar",
+              role: "search",
+            }}
             filters={
               <>
                 {/* Neither the month nor today needs a hidden field: each is
@@ -286,7 +267,6 @@ export default async function CalendarPage({
                   singular="status"
                   plural="statuses"
                   legend="Show these statuses"
-                  allLink={allStatuses}
                 />
 
                 {/* The menu applies itself on close, so there is no Apply
@@ -315,21 +295,15 @@ export default async function CalendarPage({
                 so the label and the controls that change it read as one
                 thing. */}
             <nav className="cal-nav" aria-label="Change date range">
-              <LinkButton size="small"
-                rel="prev"
-                href={link({ view, anchor: window.previous })}
-              >
+              <GoTo className="btn btn-small" date={window.previous}>
                 <span aria-hidden="true">‹</span>
                 <VisuallyHidden>Previous {view}</VisuallyHidden>
-              </LinkButton>
+              </GoTo>
               <h2 className="cal-heading">{window.heading}</h2>
-              <LinkButton size="small"
-                rel="next"
-                href={link({ view, anchor: window.following })}
-              >
+              <GoTo className="btn btn-small" date={window.following}>
                 <span aria-hidden="true">›</span>
                 <VisuallyHidden>Next {view}</VisuallyHidden>
-              </LinkButton>
+              </GoTo>
             </nav>
 
             {/* Today shares the group because that is where it is looked for, but
@@ -338,14 +312,14 @@ export default async function CalendarPage({
                 showing the calendar. */}
             <div className="cal-views" role="group" aria-label="Calendar view and date">
               {Object.values(CalendarView).map((option) => (
-                <Link
+                <GoTo
                   key={option}
                   className={`cal-view ${option === view ? "is-current" : ""}`}
-                  href={link({ view: option, anchor: window.anchor })}
-                  aria-current={option === view ? "true" : undefined}
+                  view={option}
+                  ariaCurrent={option === view}
                 >
                   {option.charAt(0).toUpperCase() + option.slice(1)}
-                </Link>
+                </GoTo>
               ))}
               {/* Today keeps its place at the end of the group in every view, so
                   the group does not change width as the view changes and the
@@ -359,15 +333,15 @@ export default async function CalendarPage({
                   which is the truth, where hiding it would say the control does not
                   exist. */}
               {view === CalendarView.DAY ? (
-                <Link
+                <GoTo
                   className={`cal-view cal-view-today ${
                     window.anchor === today ? "is-on-today" : ""
                   }`}
-                  href={link({ view: "day", anchor: today })}
+                  date={today}
                 >
                   Today
                   <VisuallyHidden>— show today</VisuallyHidden>
-                </Link>
+                </GoTo>
               ) : (
                 <button
                   type="button"
@@ -406,22 +380,19 @@ export default async function CalendarPage({
               >
                 <p className="cal-daynum">
                   <VisuallyHidden>{longDate(day)}</VisuallyHidden>
-                  <Link href={link({ view: "day", anchor: day })} aria-hidden="true">
-                    {dayNumber(day)}
-                  </Link>
+                  <GoTo className="cal-daynum-link" date={day}>
+                    <span aria-hidden="true">{dayNumber(day)}</span>
+                  </GoTo>
                   {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
                 </p>
                 {rows.slice(0, MONTH_CELL_LIMIT).map((row) => (
                   <EventLink key={String(row.session.id)} row={row} />
                 ))}
                 {rows.length > MONTH_CELL_LIMIT && (
-                  <Link
-                    className="cal-more"
-                    href={link({ view: "day", anchor: day })}
-                  >
+                  <GoTo className="cal-more" date={day}>
                     +{rows.length - MONTH_CELL_LIMIT} more
                     <VisuallyHidden> on {longDate(day)}</VisuallyHidden>
-                  </Link>
+                  </GoTo>
                 )}
               </div>
             );
@@ -434,7 +405,6 @@ export default async function CalendarPage({
           grid={grid}
           days={window.days}
           today={today}
-          linkFor={(day) => link({ view: "day", anchor: day })}
         />
       )}
 
@@ -447,9 +417,9 @@ export default async function CalendarPage({
               return (
                 <div key={day}>
                   <h3 className="cal-list-day">
-                    <Link href={link({ view: "day", anchor: day })}>
+                    <GoTo className="cal-list-day-link" date={day}>
                       {longDate(day)}
-                    </Link>
+                    </GoTo>
                     <Hint>
                       {rows.length} session{rows.length === 1 ? "" : "s"}
                     </Hint>

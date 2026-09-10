@@ -18,6 +18,7 @@ import { Moment } from "@/lib/rendering";
 import { type CivilDate, isoWeekday } from "@/lib/time";
 import { type TimeGrid, gridIsEmpty, positionClass } from "@/lib/timegrid";
 
+import { GoTo } from "./GoTo";
 import { ScrollToRow } from "./ScrollToRow";
 
 const DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -26,12 +27,10 @@ export function TimeGridView({
   grid,
   days,
   today,
-  linkFor,
 }: {
   grid: TimeGrid;
   days: readonly CivilDate[];
   today: CivilDate;
-  linkFor: (day: CivilDate) => string;
 }) {
   return (
     <Card className="cal-grid-card">
@@ -59,11 +58,14 @@ export function TimeGridView({
               key={`head-${day}`}
               className={`tg-dayhead c${index + 1} ${day === today ? "is-today" : ""}`}
             >
-              <Link href={linkFor(day)}>
+              {/* A submit into the calendar's own form, not a link: the day
+                  it moves to is state this screen holds rather than an address
+                  it goes to. See `components/calendar/GoTo.tsx`. */}
+              <GoTo className="tg-dayhead-link" date={day}>
                 <span className="tg-dow">{DOW_SHORT[isoWeekday(day) - 1]}</span>
                 <span className="tg-dom">{Number(day.slice(8, 10))}</span>
                 {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
-              </Link>
+              </GoTo>
             </h3>
           ))}
 

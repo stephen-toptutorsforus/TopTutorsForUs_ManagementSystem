@@ -19,7 +19,6 @@ import {
   parseFilters,
   toQuery,
 } from "@/lib/services/sessionQuery";
-import { canonicalUrl } from "@/lib/urlState";
 
 const filtersFrom = (query: string) => parseFilters(new URLSearchParams(query));
 
@@ -105,24 +104,21 @@ describe("toQuery", () => {
   });
 });
 
-describe("the grid's address", () => {
-  const tidy = (query: string) => {
-    const params = new URLSearchParams(query);
-    return canonicalUrl("/sessions", params, toQuery(parseFilters(params)));
-  };
+describe("what the grid stores", () => {
+  const tidy = (query: string) => toQuery(parseFilters(new URLSearchParams(query)));
 
   it("drops the empty fields the filter form submits", () => {
-    // Filtering on nothing at all used to leave all five behind.
-    expect(tidy("q=&from=&to=&instructor=&program=")).toBe("/sessions");
-    expect(tidy("q=&page=1")).toBe("/sessions");
+    // Filtering on nothing at all submits all five as empty strings.
+    expect(tidy("q=&from=&to=&instructor=&program=")).toBe("");
+    expect(tidy("q=&page=1")).toBe("");
   });
 
   it("settles one spelling of a status and a column set", () => {
-    expect(tidy("status=SCHEDULED")).toBe("/sessions?status=scheduled");
+    expect(tidy("status=SCHEDULED")).toBe("status=scheduled");
     // One parameter with a real comma in it, not `%2C`: joining the values is
     // only an improvement if the result is still readable.
-    expect(tidy("columns=title&columns=status")).toBe("/sessions?columns=title,status");
-    expect(tidy("status=scheduled&status=missed")).toBe("/sessions?status=scheduled,missed");
+    expect(tidy("columns=title&columns=status")).toBe("columns=title,status");
+    expect(tidy("status=scheduled&status=missed")).toBe("status=scheduled,missed");
   });
 
   it("reads a status list written either way", () => {
@@ -131,12 +127,18 @@ describe("the grid's address", () => {
     );
   });
 
-  it("is a fixed point, or the page redirects to itself for ever", () => {
-    expect(tidy("")).toBeNull();
-    expect(tidy("page=3")).toBeNull();
-    expect(tidy("status=scheduled")).toBeNull();
-    expect(tidy("columns=title,status")).toBeNull();
-    expect(tidy("status=scheduled,missed")).toBeNull();
-    expect(tidy("q=algebra&status=missed&from=2026-04-01&instructor=abc&page=2")).toBeNull();
+  it("is a fixed point: storing what it stored changes nothing", () => {
+    // The stored value is read back and re-serialised on every filter change,
+    // so a second spelling would drift a little further on each one.
+    for (const query of [
+      "",
+      "page=3",
+      "status=scheduled",
+      "columns=title,status",
+      "status=scheduled,missed",
+      "q=algebra&status=missed&from=2026-04-01&instructor=abc&page=2",
+    ]) {
+      expect(tidy(tidy(query)), query).toBe(tidy(query));
+    }
   });
 });

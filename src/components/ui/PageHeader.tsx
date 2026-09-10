@@ -126,7 +126,13 @@ export function PageToolbar({
   actions?: React.ReactNode;
   /** Present when the filters submit. Absent for a toolbar of plain links. */
   form?: {
-    action: string;
+    /**
+     * A server action, which is what every filter form now posts to. A string
+     * is still accepted for a form that really is a navigation — none at
+     * present, and the filters are not one: they change what this page shows
+     * without changing where it is.
+     */
+    action: string | ((form: FormData) => void | Promise<void>);
     method?: "get" | "post";
     /** What this form is for, announced. Required, see above. */
     label: string;
@@ -157,7 +163,9 @@ export function PageToolbar({
         ) : (
           <form
             className="page-toolbar-filters"
-            method={form.method ?? "get"}
+            // A method only means anything for a form that posts to a URL. A
+            // server action decides its own transport.
+            method={typeof form.action === "string" ? (form.method ?? "get") : undefined}
             action={form.action}
             role={form.role}
             aria-label={form.label}

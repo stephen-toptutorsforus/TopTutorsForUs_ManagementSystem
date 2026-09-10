@@ -12,7 +12,6 @@
 
 import { cookies, headers } from "next/headers";
 
-import { STATUS_COOKIE } from "@/lib/calendar";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { Forbidden, Unauthenticated } from "@/lib/errors";
@@ -117,9 +116,5 @@ export async function clientKey(): Promise<string> {
   return `ip:${meta.ipAddress || "unknown"}`;
 }
 
-/** The remembered calendar status filter, if the visitor has one. */
-export async function statusCookie(): Promise<string | null> {
-  return (await cookies()).get(STATUS_COOKIE)?.value ?? null;
-}
 
 export { CSRF_FIELD, SESSION_COOKIE };

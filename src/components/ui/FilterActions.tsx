@@ -9,47 +9,44 @@
  * pressed, so without a listener the menu sits open behind the panel it has
  * just opened.
  *
- * "Edit filter" is a button. It was a link to `#edit-filter`, which is how the
- * panel used to open; the panel is React state now, and the item calls a
- * handler. "Reset filter" stays a link, because it really is a navigation — to
- * the same page with nothing set, which is a different address and a different
- * result.
+ * Neither item is a link any more. "Edit filter" opens the panel, which is
+ * React state; "Reset filter" clears the screen's stored filter, which is a
+ * server action. Both used to be addresses, and neither was ever a place.
+ *
+ * "Share filter" went with them. It copied this page's address, which was the
+ * filter — that is no longer true, and a button that copied a link showing the
+ * recipient their own unfiltered screen would be worse than no button.
  */
 
 import { useRef } from "react";
 
-import { ShareFilterButton } from "@/components/ShareFilterButton";
 import { useMenuDismissal } from "@/components/menuDismissal";
 
-import { VisuallyHidden } from "./Field";
 import { FILTER_DRAWER_ID } from "./FilterDrawer";
 import { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon } from "./icons";
 
 /**
  * The button before the search box, and what it opens.
  *
- * `reset` is a link to the unfiltered page, so clearing is a navigation like
- * every other filter change rather than a script that empties the fields.
- *
- * `share` and `save` are deliberately different from each other. Sharing a
- * filter is copying this page's address, which is a real thing this application
- * can do — the address *is* the filter, and the canonical-URL work is what made
- * that true. Saving a named filter is not built: it wants a table, a tenant
- * scope and a permission of its own, and the brief lists it under the session
- * grid's requirements. It is rendered disabled, saying so, rather than left out
- * or made to look implemented.
+ * Saving a named filter is not built: it wants a table, a tenant scope and a
+ * permission of its own, and the brief lists it under the session grid's
+ * requirements. It is rendered disabled, saying so, rather than left out or
+ * made to look implemented.
  */
 export function FilterActions({
   active = 0,
-  resetHref,
+  reset,
+  resetFields,
   onEditFilter,
   drawerId = FILTER_DRAWER_ID,
   label = "Filters",
 }: {
   /** How many filters are set. The page counts them. */
   active?: number;
-  /** Where "Reset filter" goes: the page with nothing set. */
-  resetHref: string;
+  /** Clears the screen's stored filter. */
+  reset: (form: FormData) => void | Promise<void>;
+  /** State the reset keeps — the calendar's range, and nothing else so far. */
+  resetFields?: React.ReactNode;
   /** Opens the panel. Owned by `FilterControl`, which renders both. */
   onEditFilter: () => void;
   /** The panel's element id, for `aria-controls`. */
@@ -83,26 +80,23 @@ export function FilterActions({
           </span>
           Edit filter
         </button>
-        <a className="filteractions-item" href={resetHref}>
-          <span className="glyph" aria-hidden="true">
-            <ResetIcon />
-          </span>
-          Reset filter
-          {active === 0 && <VisuallyHidden> — nothing is filtered</VisuallyHidden>}
-        </a>
+        {/* A form of its own, because it clears rather than applying what is
+            on screen, and because it works with no script. */}
+        <form action={reset}>
+          {resetFields}
+          <button
+            type="submit"
+            className="filteractions-item"
+            aria-label={active === 0 ? "Reset filter — nothing is filtered" : undefined}
+          >
+            <span className="glyph" aria-hidden="true">
+              <ResetIcon />
+            </span>
+            Reset filter
+          </button>
+        </form>
 
         <hr />
-
-        {/* Copying needs the clipboard API, which can be refused. With no
-            script at all the whole menu is unreachable, but the address bar
-            still holds the filter — which is what this says. */}
-        <noscript>
-          <p className="filteractions-note">
-            This filter is the page&rsquo;s address — copy it from the address bar to
-            share it.
-          </p>
-        </noscript>
-        <ShareFilterButton />
 
         {/* Not built. A disabled control says the feature exists and is
             unavailable; a working-looking one that did nothing, or a missing

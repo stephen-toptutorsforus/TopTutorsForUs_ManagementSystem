@@ -19,7 +19,6 @@ import {
   parseRoles,
   parseStatuses,
 } from "@/lib/services/peopleQuery";
-import { canonicalUrl } from "@/lib/urlState";
 
 describe("parseRoles", () => {
   it("counts a repeated role once", () => {
@@ -47,17 +46,17 @@ describe("parseRoles", () => {
   });
 });
 
-describe("the directory's address", () => {
+describe("what the directory stores", () => {
   const tidy = (query: string) => {
     const params = new URLSearchParams(query);
-    return canonicalUrl("/people", params, directoryQuery(parseDirectoryFilters(params)));
+    return directoryQuery(parseDirectoryFilters(params));
   };
 
   it("does not write down an empty search", () => {
-    // A GET form submits its empty fields, so this is what searching for
-    // nothing used to leave in the address bar.
-    expect(tidy("q=")).toBe("/people");
-    expect(tidy("q=&role=instructor")).toBe("/people?role=instructor");
+    // The filter form submits its empty fields, so this is what searching for
+    // nothing would otherwise store.
+    expect(tidy("q=")).toBe("");
+    expect(tidy("q=&role=instructor")).toBe("role=instructor");
   });
 
   it("writes nothing for every role the menu offers, because that is the resting state", () => {
@@ -85,10 +84,12 @@ describe("the directory's address", () => {
     ).toBe(0);
   });
 
-  it("is a fixed point, or the page redirects to itself for ever", () => {
-    expect(tidy("")).toBeNull();
-    expect(tidy("role=instructor")).toBeNull();
-    expect(tidy("q=mercer&role=admin")).toBeNull();
+  it("is a fixed point: storing what it stored changes nothing", () => {
+    // The stored value is read back and re-serialised on every filter change,
+    // so a second spelling would drift a little further on each one.
+    for (const query of ["", "role=instructor", "q=mercer&role=admin"]) {
+      expect(tidy(tidy(query)), query).toBe(tidy(query));
+    }
   });
 });
 
@@ -172,9 +173,10 @@ describe("the filter drawer's parameters", () => {
   it("is still a fixed point with everything set", () => {
     const query =
       "q=mercer&role=admin&status=active&region=reg_a&district=dis_b&school=sch_c";
-    const params = new URLSearchParams(query);
+    const once = directoryQuery(parseDirectoryFilters(new URLSearchParams(query)));
 
-    expect(canonicalUrl("/people", params, directoryQuery(parseDirectoryFilters(params)))).toBeNull();
+    expect(once).toBe(query);
+    expect(directoryQuery(parseDirectoryFilters(new URLSearchParams(once)))).toBe(once);
   });
 
   it("counts each parameter once, however many values it holds", () => {

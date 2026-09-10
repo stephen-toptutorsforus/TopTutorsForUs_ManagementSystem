@@ -1,9 +1,13 @@
 /**
  * Calendar window arithmetic, and the filter state that rides in the URL.
  *
- * Ported from the pure half of `tests/test_calendar.py` plus the cookie cases
- * at its end. No database: these are date sums and string handling, and they
- * gate every commit.
+ * Ported from the pure half of `tests/test_calendar.py`. No database: these are
+ * date sums and string handling, and they gate every commit.
+ *
+ * The address-tidying cases went when the address stopped holding the state —
+ * see `lib/web/filterState.ts`. What they were really protecting was that one
+ * screen has one serialisation, and that is now the cookie's problem rather
+ * than the URL's, so those cases moved rather than went.
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,15 +16,10 @@ import { SessionStatus } from "@/generated/prisma/enums";
 import {
   CalendarView,
   buildWindow,
-  calendarLink,
-  canonicalLink,
   narrowsByStatus,
   parseAnchor,
   parseView,
   queryString,
-  readStatuses,
-  restoredLink,
-  writeStatuses,
 } from "@/lib/calendar";
 import { STATUS_FILTER_ORDER } from "@/lib/presentation";
 import { parseFilters } from "@/lib/services/sessionQuery";
@@ -207,141 +206,71 @@ describe("links", () => {
     expect(narrowsByStatus([SessionStatus.SCHEDULED])).toBe(true);
   });
 
-  it("writes nothing for a full menu of ticks, so the address stays bare", () => {
+  it("writes nothing for a full menu of ticks, so the state stays empty", () => {
     expect(
-      calendarLink(
+      queryString(
         { search: "", statuses: [...STATUS_FILTER_ORDER] },
         { view: CalendarView.MONTH },
       ),
-    ).toBe("/calendar");
+    ).toBe("");
   });
 
-  it("gives a path without a bare question mark for the default screen", () => {
-    expect(calendarLink({ search: "", statuses: [] }, { view: CalendarView.MONTH })).toBe(
-      "/calendar",
-    );
+  it("writes nothing for the default screen, and only what differs otherwise", () => {
+    expect(queryString({ search: "", statuses: [] }, { view: CalendarView.MONTH })).toBe("");
     expect(
-      calendarLink({ search: "algebra", statuses: [] }, { view: CalendarView.WEEK }),
-    ).toBe("/calendar?view=week&q=algebra");
+      queryString({ search: "algebra", statuses: [] }, { view: CalendarView.WEEK }),
+    ).toBe("view=week&q=algebra");
   });
 });
 
-describe("tidying the address bar", () => {
-  /** `ANCHOR` stands in for today, so a date equal to it is the default. */
-  const tidy = (query: string) => {
+describe("one spelling per state", () => {
+  /**
+   * The property the address-tidying used to protect, now protecting the
+   * cookie.
+   *
+   * `queryString` is what gets stored, so two ways of arriving at the same
+   * screen have to store the same string — otherwise the filter menu would
+   * think it had changed every time it was opened, and the stored value would
+   * grow a different spelling on each visit. `ANCHOR` stands in for today, so a
+   * date equal to it is the default.
+   */
+  const stored = (query: string) => {
     const params = new URLSearchParams(query);
-    return canonicalLink(params, {
-      filters: parseFilters(params),
+    return queryString(parseFilters(params), {
       view: parseView(params.get("view")),
       anchor: parseAnchor(params.get("date"), ANCHOR),
       today: ANCHOR,
     });
   };
 
-  it("leaves an address that is already the tidiest one alone", () => {
-    // The redirect fires on anything but `null`, so a fixed point here is what
-    // keeps the page from bouncing a request between two spellings for ever.
-    expect(tidy("")).toBeNull();
-    expect(tidy("view=week")).toBeNull();
-    expect(tidy("view=week&date=2026-09-02")).toBeNull();
-    expect(tidy("status=cancelled")).toBeNull();
-    expect(tidy("q=algebra&status=missed")).toBeNull();
-    expect(tidy("status=cancelled,missed")).toBeNull();
+  it("writes nothing at all for the default screen", () => {
+    expect(stored("")).toBe("");
+    expect(stored("view=month")).toBe("");
+    expect(stored(`date=${ANCHOR}`)).toBe("");
+    expect(stored("q=")).toBe("");
   });
 
-  it("strips the defaults, and is then a fixed point", () => {
-    const statuses = Object.values(SessionStatus)
-      .map((status) => `status=${status.toLowerCase()}`)
-      .join("&");
-
-    expect(tidy(`view=month&${statuses}`)).toBe("/calendar");
-    expect(tidy("view=month")).toBe("/calendar");
-    // Today is what an absent date means, so writing it says nothing. This was
-    // the commonest piece of noise in a filtered address: the filter form
-    // submitted it whether or not anybody had paged anywhere.
-    expect(tidy(`date=${ANCHOR}`)).toBe("/calendar");
-    expect(tidy(`view=week&date=${ANCHOR}&status=missed`)).toBe(
-      "/calendar?view=week&status=missed",
-    );
-    // Another month is a real choice, and stays.
-    expect(tidy("view=month&date=2026-09-02")).toBe("/calendar?date=2026-09-02");
+  it("is a fixed point: storing what it stored changes nothing", () => {
+    for (const query of [
+      "view=week",
+      "view=week&date=2026-09-02",
+      "status=cancelled",
+      "q=algebra&status=missed",
+      "status=cancelled,missed",
+    ]) {
+      expect(stored(stored(query)), query).toBe(stored(query));
+    }
   });
 
-  it("writes one status parameter, however many statuses are ticked", () => {
-    // The checkbox form submits one per status. The address holds them joined,
-    // which is the whole of the difference between 78 characters and 43.
-    expect(tidy("status=scheduled&status=completed&status=missed")).toBe(
-      "/calendar?status=scheduled,completed,missed",
-    );
-    // And the joined spelling is what it settles on, so it does not bounce.
-    expect(tidy("status=scheduled,completed,missed")).toBeNull();
+  it("reads a status list written either way to the same one string", () => {
+    // The forms submit a parameter per ticked box; the stored value joins them.
+    expect(stored("status=cancelled&status=missed")).toBe(stored("status=cancelled,missed"));
   });
 
-  it("reads a filter written either way, so an old link still works", () => {
-    const separate = new URLSearchParams("status=scheduled&status=missed");
-    const joined = new URLSearchParams("status=scheduled,missed");
-
-    expect(parseFilters(separate).statuses).toEqual(parseFilters(joined).statuses);
-  });
-
-  it("drops what the page never read in the first place", () => {
-    // `calendarRange` narrows by search text and status and nothing else, so
-    // these were being ignored before they were removed from the address.
-    expect(tidy("instructor=abc&page=4")).toBe("/calendar");
-    expect(tidy("status=wizard")).toBe("/calendar");
-    expect(tidy("view=gantt")).toBe("/calendar");
-  });
-
-  it("settles an impossible date and untidy search text", () => {
-    // An impossible date resolves to today, which is then not written at all.
-    expect(tidy("date=2026-02-30")).toBe("/calendar");
-    expect(tidy("q=%20algebra%20")).toBe("/calendar?q=algebra");
-  });
-
-  it("does not invent a date for an address that did not carry one", () => {
-    // Otherwise a bare `/calendar` would pin itself to today on first sight,
-    // and stop meaning "now" the moment it was bookmarked.
-    expect(tidy("view=week")).toBeNull();
-    expect(tidy("q=algebra")).toBeNull();
-  });
-});
-
-describe("the remembered status filter", () => {
-  it("counts a repeated status once", () => {
-    expect(readStatuses("scheduled,scheduled,missed")).toEqual([
-      SessionStatus.SCHEDULED,
-      SessionStatus.MISSED,
-    ]);
-  });
-
-  it("cannot name more statuses than exist", () => {
-    const flood = Array.from({ length: 500 }, () => "scheduled").join(",");
-    expect(readStatuses(flood)).toEqual([SessionStatus.SCHEDULED]);
-  });
-
-  it("treats an empty cookie as no preference", () => {
-    expect(readStatuses("")).toEqual([]);
-    expect(readStatuses(null)).toEqual([]);
-  });
-
-  it("ignores a cookie of pure nonsense rather than raising", () => {
-    // A cookie is user-supplied input like any other.
-    expect(readStatuses("../../etc/passwd,<script>,scheduled")).toEqual([
-      SessionStatus.SCHEDULED,
-    ]);
-  });
-
-  it("round-trips what it wrote", () => {
-    const statuses = [SessionStatus.CANCELLED, SessionStatus.MISSED];
-    expect(readStatuses(writeStatuses(statuses))).toEqual(statuses);
-  });
-
-  it("restores the statuses but not the date", () => {
-    // Coming back to the calendar should show now, not the month somebody was
-    // reading on Friday.
-    const link = restoredLink([SessionStatus.CANCELLED]);
-
-    expect(link).toBe("/calendar?status=cancelled");
-    expect(link).not.toContain("date=");
+  it("does not invent a date for a state that did not carry one", () => {
+    // Otherwise the calendar would pin itself to today on first sight and stop
+    // meaning "now" the next morning.
+    expect(stored("view=week")).not.toContain("date=");
+    expect(stored("q=algebra")).not.toContain("date=");
   });
 });

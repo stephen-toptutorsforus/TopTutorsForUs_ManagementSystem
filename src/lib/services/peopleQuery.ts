@@ -186,12 +186,6 @@ export function directoryQuery(filters: DirectoryFilters): string {
   return readableQuery(params);
 }
 
-/** A directory URL carrying a whole filter. */
-export function directoryLink(filters: DirectoryFilters): string {
-  const query = directoryQuery(filters);
-  return query ? `/people?${query}` : "/people";
-}
-
 /** The unfiltered directory — what "Reset filter" goes to. */
 export const NO_DIRECTORY_FILTERS: DirectoryFilters = {
   search: "",

@@ -96,21 +96,21 @@ test.describe("the address while an overlay is open", () => {
     expect(await page.evaluate(() => history.length)).toBe(entries);
   });
 
-  test("applying a filter still changes the query, and only the query", async ({ page }) => {
-    // The division the whole change rests on: which filters are set is
-    // shareable state and stays in the address; whether a panel is showing is
-    // not and does not.
+  test("applying a filter changes the page and not the address", async ({ page }) => {
+    // Applied filters used to be the one thing allowed to write to the bar.
+    // Nothing is, now — see `e2e/address.spec.ts` for the whole property.
     await page.goto("/people");
     await page.locator(".filteractions > summary").click();
     await page.getByRole("button", { name: "Edit filter" }).click();
     await page.locator("#filter-q").fill("mercer");
     await page.getByRole("button", { name: "Apply" }).click();
+    await page.waitForLoadState("networkidle");
 
-    await page.waitForURL(/q=mercer/);
     const applied = new URL(page.url());
     expect(applied.pathname).toBe("/people");
+    expect(applied.search).toBe("");
     expect(applied.hash).toBe("");
-    expect(applied.searchParams.get("q")).toBe("mercer");
+    await expect(page.locator("#q")).toHaveValue("mercer");
   });
 
   test("the skip link still goes to the main landmark", async ({ page }) => {

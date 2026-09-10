@@ -1,68 +1,38 @@
 /**
- * One rule for what a screen's address is allowed to say.
+ * How a screen's state is written down.
  *
- * Filter state belongs in the URL. It is what makes a refresh, a back button, a
- * bookmark and a link sent to a colleague all mean the same thing, and it is
- * what lets every filter form be a plain GET that still works with scripting
- * off. None of it identifies anybody: the parameters that name a record carry
- * an opaque `ref`, never a name, an address or an id.
+ * It used to be written into the address bar, and this file held the rule for
+ * that: serialise what you parsed, compare it with what arrived, redirect when
+ * they differ. The address does not hold it any more — see
+ * `lib/web/filterState.ts` for where it went and what that cost — but the
+ * serialisation survived the move intact, because a cookie holding one screen's
+ * whole state wants exactly the same properties an address did:
  *
- * What does not belong there is a parameter restating a default. A GET form
- * submits its empty fields, so filtering the session grid on nothing at all
- * used to leave `?q=&from=&to=&instructor=&program=` in the bar — five
- * parameters saying what their own absence says already, and enough noise to
- * hide the one that means something.
+ * - every default omitted, so "nothing set" is the empty string and not a list
+ *   of parameters saying what their own absence says;
+ * - one spelling per state, or the value drifts a little on every filter change
+ *   as it is read back and re-written.
  *
- * So each screen with filter state serialises what it parsed, compares that
- * with what arrived, and redirects when they differ. Two properties make that
- * safe to do on every request:
- *
- * - the serialiser must omit every default, and be the *only* spelling of a
- *   given state — otherwise the address bar keeps whichever spelling it was
- *   handed;
- * - the tidy form of a tidy address must be itself, or the redirect and the
- *   parser trade the request between them for ever. There is a test for this
- *   per screen, because it is not obvious by reading and it fails hard.
- *
- * The reward is that a parameter left on the address is now information. If
- * `status` is there, somebody filtered by status.
+ * There is a fixed-point test per screen for the second of those. It used to
+ * exist because the failure was an infinite redirect; it exists now because the
+ * failure is quieter and worse.
  */
 
 /**
  * A query string with its commas left alone.
  *
  * `URLSearchParams.toString()` percent-encodes a comma, so a list written as
- * one parameter arrives in the address bar as `status=scheduled%2Cmissed` —
- * shorter than repeating the parameter and considerably harder to read, which
- * defeats the point of joining it. A comma is a legal sub-delimiter in a query
- * value; every browser accepts and displays it.
+ * one parameter comes out as `status=scheduled%2Cmissed` — considerably harder
+ * to read, which defeats the point of joining it. A comma is a legal
+ * sub-delimiter; nothing that reads these values treats an encoded one
+ * differently from a literal one.
  *
- * Applied to the whole string rather than to the joined values only. That is
- * safe because nothing here treats an encoded comma differently from a literal
- * one: `q=a,b` searches for "a,b" either way, and the parameters that *are*
- * split on commas are split after decoding.
- *
- * Both sides of `canonicalUrl` go through this. They have to: a canonical
- * string with a literal comma compared against an arriving string with an
- * encoded one never matches, and never matching is an infinite redirect.
+ * This mattered most when both sides of a comparison had to agree: a canonical
+ * string with a literal comma against an arriving string with an encoded one
+ * never matched, and never matching was an infinite redirect. The comparison is
+ * gone and the readability is still worth having — a stored value somebody has
+ * to read in a debugger is no different from one in an address bar.
  */
 export function readableQuery(params: URLSearchParams): string {
   return params.toString().replaceAll("%2C", ",");
-}
-
-/**
- * The tidiest address for the state these parameters ask for, or `null` when
- * the address that arrived is already it.
- *
- * `canonical` is the screen's own serialisation of what it parsed. Anything
- * present in `params` and absent from it gets dropped — which is safe only
- * because a parameter the screen does not serialise is one it never read.
- */
-export function canonicalUrl(
-  path: string,
-  params: URLSearchParams,
-  canonical: string,
-): string | null {
-  if (canonical === readableQuery(params)) return null;
-  return canonical ? `${path}?${canonical}` : path;
 }

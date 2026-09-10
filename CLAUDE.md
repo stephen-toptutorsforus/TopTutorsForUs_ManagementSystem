@@ -127,9 +127,9 @@ calendar, the directory and the session grid. The toolbar holds what is worth a
 permanent row — search, and one `FilterMenu` — and the drawer holds the whole
 filter, restated, because two forms cannot be nested and a partial drawer would
 drop the search text on Apply. Each page supplies its own fields, its own count
-and its own reset link; none of that reaches the component. All of it works
-with scripting off: the menu is a `<details>`, the drawer is `:target`, Apply is
-a submit and Cancel is a link back to `#`.
+and its own reset link; none of that reaches the component. The menu is a `<details>`; the panel is React
+state and needs a hydrated page; Apply posts to a server action and Cancel is a
+button that closes it.
 
 **A filter starts with every box ticked.** The resting state of a filter is
 everything shown, so that is what the control is drawn as rather than what a
@@ -141,21 +141,30 @@ Complete is measured against what each menu **offers**, not against the enum;
 the two differ deliberately, and `tests/presentation.test.ts` is the tripwire
 for the day a value is added to one and not the other.
 
-**The URL says the state, and only the state.** Filter state lives in the query
-string, so a refresh, a back button, a bookmark and a link sent to a colleague
-all mean the same thing, and every filter form can be a plain GET that works
-with scripting off. A parameter restating a default does not live there: each
-screen with filters serialises what it parsed and redirects when the address
-differs, so `?view=month`, an empty `?q=` from a submitted form, a `?date=` that
-is today, and a status set covering every status all disappear. A list is one
-comma-joined parameter — `status=scheduled,missed` — read either way so an older
-link still works, and written with a real comma rather than `%2C`, since a
-joined list is only shorter if it is still readable. `src/lib/urlState.ts` holds the rule
-and the two properties that make redirecting on every request safe — one
-spelling per state, and the tidy form of a tidy address being itself. There is a
-fixed-point test per screen, because the failure is an infinite redirect.
-Nothing on a URL identifies anybody: the parameters that name a record carry an
-opaque `ref`.
+**A page's address never changes because of what is done on it.** Filtering,
+searching, paging, switching the calendar's view or range, choosing columns —
+none of it writes to the address bar. The state those controls set is one
+canonical query string per screen, stored in a cookie by a server action and
+read on the next render: `src/lib/web/filterState.ts` holds the rule and states
+what it costs. The pages stay server components, so filtering is still a
+database query under the same policy checks rather than a list narrowed in the
+browser.
+
+It used to be the opposite — the URL was the state, and that bought a
+bookmarkable, shareable, refreshable filter. Those are what was given up, along
+with Back stepping through filter changes; two tabs on one screen now share a
+filter. What survived the move is the serialisation: `directoryQuery`,
+`toQuery` and `queryString` still produce one spelling per state with every
+default omitted, because a stored value that drifts on each read-and-rewrite is
+worse than an untidy address, not better. There is a fixed-point test per
+screen.
+
+Three things still carry a query string, each for a reason. `/sessions/export.csv`
+is a download rather than a page. `src/middleware.ts` honours an older link
+once — the parameters seed the screen's cookie and the request is redirected to
+the bare path, which is the only place a URL changes on its own and happens
+before anything renders. And nothing on an address identifies anybody: the
+parameters that name a record carry an opaque `ref`.
 
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal

@@ -13,7 +13,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { STATUS_COOKIE } from "@/lib/calendar";
+import { FILTER_COOKIES } from "@/lib/web/filterState";
 import { prisma } from "@/lib/db";
 import { UserStatus } from "@/generated/prisma/enums";
 import {
@@ -105,7 +105,8 @@ export async function signOut(form: FormData): Promise<void> {
   // but it belongs to whoever was signed in. On a shared machine the next
   // person would otherwise open the calendar and find it filtered by someone
   // else's choice, with nothing on screen to explain why.
-  jar.delete(STATUS_COOKIE);
+  // Somebody else signing in on this machine should not inherit a filter.
+  for (const name of FILTER_COOKIES) jar.delete(name);
 
   redirect("/sign-in");
 }

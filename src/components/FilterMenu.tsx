@@ -40,7 +40,7 @@ export function FilterMenu({
   singular,
   plural,
   legend,
-  allLink,
+  showSelectAll = true,
 }: {
   name: string;
   options: FilterOption[];
@@ -48,9 +48,24 @@ export function FilterMenu({
   singular: string;
   plural: string;
   legend: string;
-  allLink?: string;
+  /** "Select all" needs a script to tick the boxes; hidden when it cannot. */
+  showSelectAll?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
+
+  /** Tick everything this menu offers, then apply — the resting state. */
+  const selectAll = () => {
+    const node = details.current;
+    const form = node?.closest("form");
+    if (node === null || form === null || form === undefined) return;
+    for (const box of node.querySelectorAll<HTMLInputElement>(
+      `input[type="checkbox"][name="${CSS.escape(name)}"]`,
+    )) {
+      box.checked = true;
+    }
+    node.open = false;
+    form.requestSubmit();
+  };
 
   // Dismissed by a press outside it, like any menu. Choosing does not close it:
   // the items are checkboxes and closing is what applies them.
@@ -154,13 +169,18 @@ export function FilterMenu({
             </Button>
           </p>
         </noscript>
-        {allLink !== undefined && (
-          // A plain link, not a scripted button, so it works like the rest.
-          // There is no "Clear all" beside it any more: with every box ticked
-          // as the resting state, clearing and selecting all arrive at the same
-          // screen, and two links to one place is one link too many.
+        {showSelectAll && (
+          // Ticks every box and applies, which is one gesture back to the
+          // resting state after unticking a few. It was a link to the
+          // unfiltered address; there is no such address any more, so it does
+          // to the boxes what a person would do to them.
+          //
+          // There is no "Clear all" beside it: with every box ticked as the
+          // resting state, clearing and selecting all reach the same screen.
           <p className="filtermenu-actions">
-            <a href={allLink}>Select all</a>
+            <button type="button" className="filtermenu-link" onClick={selectAll}>
+              Select all
+            </button>
           </p>
         )}
         <p className="hint">

@@ -9,9 +9,8 @@
  */
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
-import { AnchorButton, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -32,7 +31,9 @@ import {
   toQuery,
   type SessionRow,
 } from "@/lib/services/sessionQuery";
-import { canonicalUrl } from "@/lib/urlState";
+import { applySessionFilters, resetSessionFilters } from "@/app/actions/filters";
+import { StateFields } from "@/components/ui/StateFields";
+import { readScreenState } from "@/lib/web/filterState";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Sessions · TopTutorsForUs" };
@@ -99,35 +100,28 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
   }
 }
 
-export default async function SessionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Search>;
-}) {
+/**
+ * Nothing here reads `searchParams`.
+ *
+ * The screen's filter arrives from its cookie — see `lib/web/filterState.ts`.
+ * A page that still took the address as an input would be a second source for
+ * the same state, and the two would disagree the moment anybody typed one.
+ */
+export default async function SessionsPage() {
   const { principal } = await requireContext();
   const zone = principal.timezone;
-  const params = toSearchParams(await searchParams);
-  const filters = parseFilters(params);
+  // From the screen's cookie, not the address.
+  const filters = parseFilters(await readScreenState("sessions"));
 
-  // The filter form submits its empty fields, so filtering on nothing used to
-  // leave `?q=&from=&to=&instructor=&program=` behind. `toQuery` has always
-  // known which of those are defaults; this makes the address bar agree with
-  // it. See `lib/urlState.ts`.
+  // The filter is the screen's cookie, serialised exactly as the address used
+  // to hold it — see `lib/web/filterState.ts`. `toQuery` still says what the
+  // canonical form is; it is only stored somewhere else now.
   const query = toQuery(filters);
-  const tidy = canonicalUrl("/sessions", params, query);
-  if (tidy !== null) redirect(tidy);
 
   // The export takes the filters as they stand, and an unfiltered grid now
   // serialises to nothing at all — `export.csv?` is not a URL to hand a browser.
   const exportHref = query ? `/sessions/export.csv?${query}` : "/sessions/export.csv";
 
-  // "Select all" in the status menu: this grid with the status narrowing
-  // dropped and everything else kept, back on the first page because the row
-  // count changes under it.
-  const allStatuses = (() => {
-    const rest = toQuery(filters, { status: "", page: 1 });
-    return rest ? `/sessions?${rest}` : "/sessions";
-  })();
   const results = await listSessions(prisma, principal, filters, { zone });
 
   const [instructors, programs] = await Promise.all([
@@ -173,12 +167,20 @@ export default async function SessionsPage({
           ) : undefined
         }
         toolbar={
+          // Keyed by the filter that is applied, so the search box and the
+          // status menu are remounted when it changes. Their fields are
+          // uncontrolled — `defaultValue`, `defaultChecked` — and a re-render
+          // from a server action leaves the DOM values a person typed exactly
+          // where they were, which is right until the *other* form changes
+          // them. Applying from the drawer used to be a navigation, which
+          // rebuilt both.
           <PageToolbar
+            key={query}
             menu={
               <FilterControl
                 active={activeSessionFilters(filters)}
-                resetHref="/sessions"
-                action="/sessions"
+                reset={resetSessionFilters}
+                action={applySessionFilters}
               >
             <FilterSection legend="Sessions">
               <Field id="filter-q" label="Search titles">
@@ -284,7 +286,11 @@ export default async function SessionsPage({
             </FilterSection>
               </FilterControl>
             }
-            form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
+            form={{
+              action: applySessionFilters,
+              label: "Search and filter sessions",
+              role: "search",
+            }}
             filters={
               <>
                 <SearchField
@@ -306,7 +312,6 @@ export default async function SessionsPage({
                   singular="status"
                   plural="statuses"
                   legend="Show these statuses"
-                  allLink={allStatuses}
                 />
               </>
             }
@@ -352,25 +357,31 @@ export default async function SessionsPage({
             <p className="count">
               Showing {firstIndex(results)}–{lastIndex(results)} of {results.total}
             </p>
-            <ButtonRow>
+            {/* Two submits rather than two links: a page number is state this
+                screen holds, and holding it in the address is what changed.
+                Each carries the whole filter, because the action stores what it
+                is given — a form that submitted only a page would clear the
+                filter on its way to page two. */}
+            <ButtonRow as="form" action={applySessionFilters}>
+              <StateFields state={new URLSearchParams(query)} omit={["page"]} />
               {hasPrevious(results) && (
-                <LinkButton size="small"
-                  href={`/sessions?${toQuery(filters, { page: results.page - 1 })}`}
+                <Button
+                  size="small"
+                  type="submit"
+                  name="page"
+                  value={results.page - 1}
                   rel="prev"
                 >
                   Previous
-                </LinkButton>
+                </Button>
               )}
               <span className="count">
                 Page {results.page} of {pageCount(results)}
               </span>
               {hasNext(results) && (
-                <LinkButton size="small"
-                  href={`/sessions?${toQuery(filters, { page: results.page + 1 })}`}
-                  rel="next"
-                >
+                <Button size="small" type="submit" name="page" value={results.page + 1} rel="next">
                   Next
-                </LinkButton>
+                </Button>
               )}
             </ButtonRow>
           </nav>

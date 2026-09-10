@@ -79,12 +79,13 @@ test.describe("the filter menu", () => {
       // the date it was showing, because the range is not part of the filter.
       await ready(page, screen.filtered);
       await page.locator(".filteractions > summary").click();
-      await page.getByRole("link", { name: "Reset filter" }).click();
+      await page.getByRole("button", { name: /Reset filter/ }).click();
 
       await expect.poll(() => page.locator(".filteractions-count").count()).toBe(0);
       await expect(page.locator("#q")).toHaveValue("");
-      expect(page.url()).not.toContain("status=");
-      expect(page.url()).not.toContain("q=");
+      // The address never said what was filtered, and it does not say it was
+      // cleared either.
+      expect(new URL(page.url()).search).toBe("");
     });
 
     test(`${screen.path} opens its drawer without touching the address`, async ({
@@ -200,17 +201,19 @@ test.describe("the filter drawer", () => {
       await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).uncheck();
     }
     await page.getByRole("button", { name: "Apply" }).click();
+    await page.waitForLoadState("networkidle");
 
-    await page.waitForURL(/q=vasquez/);
-    expect(page.url()).toContain("role=student");
-    expect(page.url()).toContain("status=active");
+    // The address is untouched; the filter is what changed.
+    expect(new URL(page.url()).search).toBe("");
     // And the toolbar agrees with the drawer, because they are one filter.
     await expect(page.locator("#q")).toHaveValue("vasquez");
+    await expect(page.locator(".filteractions-count")).toHaveText("3");
   });
 
   test("cancels without changing anything", async ({ page }) => {
     await openDrawer(page, "/people?role=student");
     const before = page.url();
+    expect(new URL(before).search, "the link's query is spent on arrival").toBe("");
     await page.locator("#filter-q").fill("discarded");
     await page.getByRole("button", { name: "Cancel" }).click();
 
@@ -228,10 +231,11 @@ test.describe("the filter drawer", () => {
 
   test("clears everything from inside itself", async ({ page }) => {
     await openDrawer(page, "/people?q=holm&role=instructor");
-    await page.locator(".filterdrawer").getByRole("link", { name: "Reset filter" }).click();
+    await page.locator(".filterdrawer").getByRole("button", { name: "Reset filter" }).click();
 
-    await page.waitForURL(/\/people$/);
+    await page.waitForLoadState("networkidle");
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
+    expect(new URL(page.url()).search).toBe("");
   });
 
   test("does not nest a form, and does not repeat an id", async ({ page }) => {
@@ -295,39 +299,30 @@ test.describe("as a student", () => {
   });
 });
 
-test.describe("the calendar's remembered filter", () => {
+test.describe("the calendar's stored filter", () => {
   test.use({ storageState: statePath("admin") });
 
-  test("does not undo the reset it was just cleared by", async ({ page, context }) => {
-    // A bare `/calendar` restores the last status filter — that is what the
-    // cookie is for. Reset must therefore not navigate to a bare `/calendar`,
-    // or the filter would come straight back.
-    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+  test("stays cleared once it is reset", async ({ page }) => {
+    // A bare `/calendar` shows the stored filter — that is the whole mechanism
+    // now, and it is what made resetting delicate when the address was also
+    // trying to say something.
     await page.goto("/calendar?status=scheduled");
+    await page.waitForURL(/\/calendar$/);
     await expect(page.locator(".filteractions-count")).toHaveText("1");
 
     await page.locator(".filteractions > summary").click();
-    await page.getByRole("link", { name: "Reset filter" }).click();
-
+    await page.getByRole("button", { name: /Reset filter/ }).click();
     await expect.poll(() => page.locator(".filteractions-count").count()).toBe(0);
-    expect(page.url()).not.toContain("status=");
 
-    // And it stays cleared on the next bare visit, because resetting forgets
-    // the filter rather than navigating around it. The cookie is written from the browser
-    // after paint, so wait for that rather than for a moment that is long
-    // enough on an idle machine — this raced under a parallel run.
-    await expect
-      .poll(async () =>
-        (await context.cookies()).some((c) => c.name === "toptutorsforus_calendar_status" && c.value !== ""),
-      )
-      .toBe(false);
-
+    // And it stays cleared on the next plain visit, rather than the stored
+    // value coming back.
     await page.goto("/calendar");
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
+    expect(new URL(page.url()).search).toBe("");
   });
 });
 
-test.describe("what the address ends up saying", () => {
+test.describe("what the stored filter ends up being", () => {
   test.use({ storageState: statePath("admin") });
 
   test("starts with every box ticked, on every screen that filters", async ({
@@ -387,27 +382,31 @@ test.describe("what the address ends up saying", () => {
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
   });
 
-  test("holds one status parameter, not one per status", async ({ page, context }) => {
-    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+  test("applies three statuses and says so on the button, not in the bar", async ({
+    page,
+  }) => {
     await openDrawer(page, "/calendar");
     for (const value of ["rescheduled", "cancelled", "requested", "rejected"]) {
       await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).uncheck();
     }
     await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
-    await page.waitForURL(/status=/);
+    await page.waitForLoadState("networkidle");
 
-    // The form submits a parameter per ticked box; the address holds them
-    // joined, with a real comma rather than `%2C`.
-    expect(new URL(page.url()).search).toBe("?status=scheduled,completed,missed");
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    for (const value of ["scheduled", "completed", "missed"]) {
+      await expect(
+        page.locator(`.page-toolbar input[name="status"][value="${value}"]`),
+      ).toBeChecked();
+    }
+    await expect(
+      page.locator('.page-toolbar input[name="status"][value="cancelled"]'),
+    ).not.toBeChecked();
   });
 
-  test("says nothing about the range while the range is the default", async ({
-    page,
-    context,
-  }) => {
-    // Today is what an absent date means, so writing it says nothing — and it
-    // was on every address the filter form produced.
-    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+  test("keeps the range it was on while a status is applied", async ({ page }) => {
+    // The range and the filter are one stored state, so changing one must not
+    // reset the other.
     await page.goto("/calendar");
     await page.locator(".page-toolbar-fields .filtermenu > summary").click();
     for (const value of [
@@ -421,28 +420,36 @@ test.describe("what the address ends up saying", () => {
       await page.locator(`.page-toolbar input[name="status"][value="${value}"]`).uncheck();
     }
     await page.locator("h1").click();
-    await page.waitForURL(/status=/);
+    await page.waitForLoadState("networkidle");
 
-    expect(new URL(page.url()).search).toBe("?status=missed");
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    const month = await page.locator(".cal-heading").textContent();
 
-    // Paging away is a real choice, and it is written.
-    await page.getByRole("link", { name: /Next month/ }).click();
-    await page.waitForURL(/date=/);
-    expect(page.url()).toContain("status=missed");
+    // Paging away is a real choice, and the filter comes with it. Polled
+    // rather than read once: a server action re-renders the page under us, and
+    // "no network in flight" is not the same moment as "React has painted".
+    await page.getByRole("button", { name: /Next month/ }).click();
+    await expect.poll(() => page.locator(".cal-heading").textContent()).not.toBe(month);
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    expect(new URL(page.url()).search).toBe("");
   });
 
   test("reads an address written the old way, so a bookmark still works", async ({
     page,
-    context,
   }) => {
-    await context.clearCookies({ name: "toptutorsforus_calendar_status" });
+    // The parameters are spent on arrival — see `e2e/address.spec.ts` — but the
+    // filter they asked for is the one applied.
     await page.goto("/calendar?status=scheduled&status=missed");
+    await page.waitForURL(/\/calendar$/);
 
     await expect(page.locator(".filteractions-count")).toHaveText("1");
     await expect(
       page.locator('.page-toolbar input[name="status"][value="scheduled"]'),
     ).toBeChecked();
-    // Settled into the one spelling, and it stays there.
-    expect(new URL(page.url()).search).toBe("?status=scheduled,missed");
+    await expect(
+      page.locator('.page-toolbar input[name="status"][value="cancelled"]'),
+    ).not.toBeChecked();
+    expect(new URL(page.url()).search).toBe("");
   });
 });

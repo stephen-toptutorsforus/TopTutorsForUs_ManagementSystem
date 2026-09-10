@@ -37,7 +37,8 @@ import { FilterDrawer } from "./FilterDrawer";
 
 export function FilterControl({
   active = 0,
-  resetHref,
+  reset,
+  resetFields,
   action,
   title,
   label,
@@ -45,10 +46,12 @@ export function FilterControl({
 }: {
   /** How many filters are set. The page counts them. */
   active?: number;
-  /** Where "Reset filter" goes: the page with nothing set. */
-  resetHref: string;
-  /** Where the drawer's form submits — the page's own path. */
-  action: string;
+  /** Clears the screen's stored filter. */
+  reset: (form: FormData) => void | Promise<void>;
+  /** State the reset keeps — the calendar's range. */
+  resetFields?: React.ReactNode;
+  /** What the drawer's form submits to. */
+  action: (form: FormData) => void | Promise<void>;
   title?: React.ReactNode;
   label?: string;
   /** The page's own filter fields. */
@@ -64,7 +67,8 @@ export function FilterControl({
       open={open}
       onOpenChange={setOpen}
       action={action}
-      resetHref={resetHref}
+      reset={reset}
+      resetFields={resetFields}
       title={title}
     >
       {children}
@@ -75,7 +79,8 @@ export function FilterControl({
     <>
       <FilterActions
         active={active}
-        resetHref={resetHref}
+        reset={reset}
+        resetFields={resetFields}
         label={label}
         onEditFilter={() => {
           setOpenings((count) => count + 1);

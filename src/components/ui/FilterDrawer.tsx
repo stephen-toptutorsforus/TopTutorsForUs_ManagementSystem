@@ -16,14 +16,15 @@
  * a complete one that restates it. It restates it — under different ids, since
  * two `id="q"` on one page is invalid and breaks both labels.
  *
- * **Apply is still a GET.** Which filters are set is shareable state and stays
- * in the query string; only whether the panel is showing became React's
- * business. That division is the whole point of the change.
+ * **Apply posts to a server action.** It was a GET whose whole purpose was to
+ * put the filter in the address; the filter lives in a cookie now — see
+ * `lib/web/filterState.ts` — and the address of a page no longer changes
+ * because of anything done on it.
  */
 
 import { useEffect, useRef } from "react";
 
-import { Button, LinkButton } from "./Button";
+import { Button } from "./Button";
 
 /** The panel's element id, so the trigger can point `aria-controls` at it. */
 export const FILTER_DRAWER_ID = "edit-filter";
@@ -43,17 +44,20 @@ export function FilterDrawer({
   id = FILTER_DRAWER_ID,
   title = "Edit filter",
   action,
-  resetHref,
+  reset,
+  resetFields,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   id?: string;
   title?: React.ReactNode;
-  /** Where the filter submits — the page's own path. */
-  action: string;
-  /** Where "Reset filter" inside the drawer goes. */
-  resetHref: string;
+  /** What the filter submits to. */
+  action: (form: FormData) => void | Promise<void>;
+  /** The screen's reset action, for the button in the footer. */
+  reset: (form: FormData) => void | Promise<void>;
+  /** State the reset has to keep — the calendar's range. */
+  resetFields?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const titleId = `${id}-title`;
@@ -100,7 +104,16 @@ export function FilterDrawer({
         aria-hidden="true"
         onClick={() => onOpenChange(false)}
       />
-      <form className="filterdrawer-panel" method="get" action={action} ref={panel}>
+      {/* Closed by applying, as it was when Apply was a navigation that
+          replaced the whole page. A server action re-renders underneath the
+          panel instead, so the panel has to be told. The submit is untouched:
+          this only moves the React state that draws it. */}
+      <form
+        className="filterdrawer-panel"
+        action={action}
+        ref={panel}
+        onSubmit={() => onOpenChange(false)}
+      >
         <div className="filterdrawer-head">
           <h2 id={titleId} ref={heading} tabIndex={-1}>
             {title}
@@ -118,7 +131,12 @@ export function FilterDrawer({
         <div className="filterdrawer-body">{children}</div>
 
         <div className="filterdrawer-foot">
-          <LinkButton href={resetHref}>Reset filter</LinkButton>
+          {/* Its own form, so it clears rather than applying what is on screen.
+              A form cannot be nested, so it sits beside the panel's and is
+              bound to it from outside by `form=` on the button below. */}
+          <Button type="submit" form={`${id}-reset`}>
+            Reset filter
+          </Button>
           <span className="filterdrawer-gap" />
           {/* Cancel closes and submits nothing, so nothing typed in here
               reaches the address. What was typed is discarded with it: the
@@ -131,6 +149,11 @@ export function FilterDrawer({
             Apply
           </Button>
         </div>
+      </form>
+      {/* Outside the panel's form and reached by `form=` on its button, which
+          is how HTML lets one control belong to a form it does not sit in. */}
+      <form id={`${id}-reset`} action={reset} hidden>
+        {resetFields}
       </form>
     </div>
   );

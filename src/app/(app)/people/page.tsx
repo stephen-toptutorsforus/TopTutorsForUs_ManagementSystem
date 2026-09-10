@@ -11,7 +11,6 @@
  */
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignButton, CreateUserButton } from "@/components/people/OverlayTriggers";
@@ -21,22 +20,19 @@ import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import { ROLE_FILTER_ORDER, USER_STATUS_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
+import { USER_STATUS_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import {
-  NO_DIRECTORY_FILTERS,
   PAGE_LIMIT,
   activeDirectoryFilters,
-  directoryLink,
-  directoryQuery,
   listPeople,
   parseDirectoryFilters,
 } from "@/lib/services/peopleQuery";
-import { canonicalUrl } from "@/lib/urlState";
+import { applyDirectoryFilters, resetDirectoryFilters } from "@/app/actions/filters";
+import { readScreenState } from "@/lib/web/filterState";
 import { csrfToken, requireContext } from "@/lib/web/session";
 import { guard } from "@/lib/web/interrupt";
 
-import { toSearchParams } from "../sessions/page";
 
 export const metadata = { title: "User Management · TopTutorsForUs" };
 export const dynamic = "force-dynamic";
@@ -61,20 +57,23 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default async function PeoplePage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+/**
+ * Nothing here reads `searchParams`.
+ *
+ * The screen's filter arrives from its cookie — see `lib/web/filterState.ts`.
+ * A page that still took the address as an input would be a second source for
+ * the same state, and the two would disagree the moment anybody typed one.
+ */
+export default async function PeoplePage() {
   const { principal, organization } = await requireContext();
   await guard(async () => principal.require(Permission.USER_VIEW));
 
-  const params = toSearchParams(await searchParams);
-  const filters = parseDirectoryFilters(params);
+  // The filter comes from the screen's cookie, not from the address — see
+  // `lib/web/filterState.ts`. The parser is the same one the query string went
+  // through, because the cookie holds the same canonical serialisation.
+  const state = await readScreenState("people");
+  const filters = parseDirectoryFilters(state);
   const { search, roles: chosenRoles } = filters;
-
-  const tidy = canonicalUrl("/people", params, directoryQuery(filters));
-  if (tidy !== null) redirect(tidy);
 
   const rows = await listPeople(prisma, principal, filters);
   const canManage = principal.has(Permission.USER_MANAGE);
@@ -161,12 +160,20 @@ export default async function PeoplePage({
       <PageHeader
         title="User Management"
         toolbar={
+          // Keyed by the filter that is applied, so the search box and the
+          // status menu are remounted when it changes. Their fields are
+          // uncontrolled — `defaultValue`, `defaultChecked` — and a re-render
+          // from a server action leaves the DOM values a person typed exactly
+          // where they were, which is right until the *other* form changes
+          // them. Applying from the drawer used to be a navigation, which
+          // rebuilt both.
           <PageToolbar
+            key={state.toString()}
             menu={
               <FilterControl
                 active={activeFilters}
-                resetHref={directoryLink(NO_DIRECTORY_FILTERS)}
-                action="/people"
+                reset={resetDirectoryFilters}
+                action={applyDirectoryFilters}
               >
             {/* Where somebody is placed. Three separate filters rather than one
                 cascading picker: a person can hold a school in one district and
@@ -238,7 +245,11 @@ export default async function PeoplePage({
             </FilterSection>
               </FilterControl>
             }
-            form={{ action: "/people", label: "Search and filter people", role: "search" }}
+            form={{
+              action: applyDirectoryFilters,
+              label: "Search and filter people",
+              role: "search",
+            }}
             filters={
               <>
                 <SearchField
@@ -253,7 +264,6 @@ export default async function PeoplePage({
                   singular="role"
                   plural="roles"
                   legend="Show these roles"
-                  allLink={directoryLink({ ...filters, roles: [...ROLE_FILTER_ORDER] })}
                 />
               </>
             }

@@ -471,6 +471,9 @@ body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
   background: var(--paper); border: 1px solid var(--ink-200);
   border-radius: var(--radius-lg); box-shadow: var(--shadow);
 }
+/* The reset item is a submit in a form of its own, so the form must not
+   introduce a box between the menu and the button. */
+.filteractions-menu form { display: contents; }
 .filteractions-item {
   display: flex; align-items: center; gap: 0.7rem; width: 100%;
   min-height: 44px; padding: 0 0.6rem;
@@ -975,6 +978,15 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 .filtermenu-option input { width: 18px; height: 18px; min-height: 0; flex: none; }
 /* The swatch trails the label, so the eye reads the word first. */
 .filtermenu-label { flex: 1 1 auto; }
+/* "Select all" ticks the boxes and applies; it was a link to the unfiltered
+   address, and there is no such address any more. */
+.filtermenu-link {
+  border: 0; padding: 0; background: none;
+  color: var(--brand-600); font: inherit; text-decoration: underline;
+  cursor: pointer;
+}
+.filtermenu-link:hover { color: var(--brand-700); }
+
 .filtermenu-actions {
   display: flex; gap: 0.5rem; align-items: center;
   margin: 0.4rem 0 0.2rem; padding-top: 0.5rem;
@@ -990,6 +1002,19 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   margin: 0; padding: 0 0.35rem;
   min-width: 13ch; text-align: center;
   font-size: 1.05rem; white-space: nowrap;
+}
+
+/* Every control that moves the calendar is a submit button now: the range it
+   goes to is stored state rather than an address. They are still drawn as what
+   they were, so each needs a button's own paint stripped. One rule, because
+   there are five of them and a sixth would otherwise be found by its absence. */
+.cal-view,
+.cal-more,
+.cal-daynum-link,
+.cal-list-day-link,
+.tg-dayhead-link {
+  border: 0; padding: 0; background: none;
+  font: inherit; text-align: inherit; cursor: pointer;
 }
 
 .cal-views {
@@ -1010,13 +1035,7 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   border-left: 1px solid var(--ink-200);
   border-radius: 0 999px 999px 0;
 }
-/* A <button> when it is unavailable, so it must be told to look like its
-   sibling links rather than like a form control. */
-button.cal-view {
-  border: 0; background: none; cursor: pointer;
-  font-family: inherit;
-}
-button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
+.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
 .cal-view.is-disabled {
   color: var(--ink-400); cursor: not-allowed;
 }
@@ -1057,8 +1076,9 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
 }
 
 .cal-more {
-  display: block; margin-top: 4px; padding: 0.15rem 0.35rem;
+  display: block; width: 100%; margin-top: 4px; padding: 0.15rem 0.35rem;
   font-size: 0.76rem; font-weight: 600; color: var(--brand-700);
+  text-align: left; text-decoration: underline;
 }
 
 /* Month grid */
@@ -1076,13 +1096,13 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
 .cal-cell.is-outside { background: var(--ink-050); }
 .cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--brand-600); }
 .cal-daynum { margin: 0 0 0.15rem; text-align: right; }
-.cal-daynum a {
+.cal-daynum-link {
   display: inline-block; min-width: 24px; padding: 0.05rem 0.25rem;
   font-size: 0.8rem; font-weight: 700; color: var(--ink-500);
   text-decoration: none; border-radius: 5px;
 }
-.cal-daynum a:hover { background: var(--ink-100); color: var(--ink-900); }
-.cal-cell.is-today .cal-daynum a { color: var(--brand-700); }
+.cal-daynum-link:hover { background: var(--ink-100); color: var(--ink-900); }
+.cal-cell.is-today .cal-daynum-link { color: var(--brand-700); }
 
 /* Week columns */
 
@@ -1094,6 +1114,11 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
   margin: 1.1rem 0 0.5rem;
 }
 .cal-list-day:first-child { margin-top: 0; }
+.cal-list-day-link {
+  color: var(--brand-600); font: inherit; font-weight: inherit;
+  text-decoration: underline;
+}
+.cal-list-day-link:hover { color: var(--brand-700); text-decoration: none; }
 
 @media (max-width: 900px) {
 }
@@ -1128,7 +1153,20 @@ button.cal-view.cal-view-today { border-left: 1px solid var(--ink-200); }
      view switcher on its own line at full width. */
   .page-header-secondary { flex-direction: column; align-items: stretch; }
   .cal-nav { justify-content: space-between; }
-  .cal-views { display: flex; }
+  /* Every control that moves the calendar is a submit button now: the range it
+   goes to is stored state rather than an address. They are still drawn as what
+   they were, so each needs a button's own paint stripped. One rule, because
+   there are five of them and a sixth would otherwise be found by its absence. */
+.cal-view,
+.cal-more,
+.cal-daynum-link,
+.cal-list-day-link,
+.tg-dayhead-link {
+  border: 0; padding: 0; background: none;
+  font: inherit; text-align: inherit; cursor: pointer;
+}
+
+.cal-views { display: flex; }
   .cal-view { flex: 1 1 auto; justify-content: center; padding: 0 0.5rem; }
 }
 
@@ -1330,8 +1368,8 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   grid-row: 1; margin: 0; padding: 0.5rem 0.4rem;
   text-align: center; font-size: 0.82rem; font-weight: 650;
 }
-.tg-dayhead a { color: var(--ink-700); text-decoration: none; display: block; }
-.tg-dayhead a:hover { color: var(--brand-700); }
+.tg-dayhead-link { color: var(--ink-700); text-decoration: none; display: block; width: 100%; }
+.tg-dayhead-link:hover { color: var(--brand-700); }
 .tg-dow { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); }
 .tg-dom { display: block; font-size: 1.15rem; line-height: 1.2; }
 .tg-dayhead.is-today .tg-dom {

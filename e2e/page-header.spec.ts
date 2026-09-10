@@ -54,11 +54,11 @@ test.describe("as an administrator", () => {
   }
 
   test("the calendar keeps view, date, search and every status", async ({ page }) => {
-    const url = "/calendar?view=week&date=2026-09-16&q=maths&status=scheduled&status=missed";
-    await page.goto(url);
+    // An older link, spent on arrival: what it asked for is applied, and the
+    // address is bare. See `e2e/address.spec.ts`.
+    await page.goto("/calendar?view=week&date=2026-09-16&q=maths&status=scheduled&status=missed");
+    await page.waitForURL(/\/calendar$/);
 
-    // Still the address it was given: the header did not swallow a parameter.
-    await expect(page).toHaveURL(new RegExp("view=week"));
     await expect(page.locator("#q")).toHaveValue("maths");
     // Scoped to the toolbar: the filter drawer restates the same statuses, so
     // an unscoped selector finds each twice — which is the point, they are one
@@ -68,28 +68,43 @@ test.describe("as an administrator", () => {
     await expect(toolbar.locator('input[name="status"][value="missed"]')).toBeChecked();
     await expect(toolbar.locator('input[name="status"][value="completed"]')).not.toBeChecked();
     // The view and the date ride as hidden fields, so searching keeps them.
-    await expect(page.locator('.page-toolbar input[name="view"]')).toHaveValue("week");
-    await expect(page.locator('.page-toolbar input[name="date"]')).toHaveValue("2026-09-16");
+    // Scoped to the filter form: the reset button beside it is a form of its
+    // own and carries the range too, for the same reason.
+    await expect(
+      page.locator('.page-toolbar-filters input[name="view"]'),
+    ).toHaveValue("week");
+    await expect(
+      page.locator('.page-toolbar-filters input[name="date"]'),
+    ).toHaveValue("2026-09-16");
     // Both secondary controls made the move.
     await expect(page.getByRole("navigation", { name: "Change date range" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Week", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: "Week", exact: true })).toHaveAttribute(
       "aria-current",
       "true",
     );
   });
 
   test("searching the calendar carries the view and the date with it", async ({ page }) => {
+    // The range rides in the form as hidden fields, which is what keeps a
+    // search from dropping somebody back on this month. It used to ride in the
+    // address, which did the same job in public.
     await page.goto("/calendar?view=week&date=2026-09-16");
+    await page.waitForURL(/\/calendar$/);
+    const heading = await page.locator(".cal-heading").textContent();
+
     await page.locator("#q").fill("algebra");
     await page.locator("#q").press("Enter");
+    await page.waitForLoadState("networkidle");
 
-    await page.waitForURL(/q=algebra/);
-    expect(page.url()).toContain("view=week");
-    expect(page.url()).toContain("date=2026-09-16");
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator("#q")).toHaveValue("algebra");
+    await expect(page.locator(".cal-timegrid")).toBeVisible();
+    expect(await page.locator(".cal-heading").textContent()).toBe(heading);
   });
 
   test("the directory keeps more than one role", async ({ page }) => {
     await page.goto("/people?q=a&role=instructor&role=parent");
+    await page.waitForURL(/\/people$/);
 
     await expect(page.locator("#q")).toHaveValue("a");
     // Scoped to the toolbar: the filter drawer restates the same roles, so an
@@ -99,16 +114,19 @@ test.describe("as an administrator", () => {
     await expect(toolbar.locator('input[name="role"][value="instructor"]')).toBeChecked();
     await expect(toolbar.locator('input[name="role"][value="parent"]')).toBeChecked();
     await expect(toolbar.locator('input[name="role"][value="admin"]')).not.toBeChecked();
-    // "Select all" leads back to the resting state — every role, which is
-    // written as no role parameter at all — while keeping the search text.
-    // There is no "Clear all" beside it any more: with every box ticked by
-    // default the two would be one link. Inside the closed disclosure, so they
-    // are not in the accessibility tree until it is opened — which is the
-    // disclosure working, not a missing link.
+    // "Select all" ticks every box and applies, which is the resting state
+    // reached in one gesture. It was a link to the unfiltered address; there is
+    // no such address any more. Inside the closed disclosure, so it is not in
+    // the accessibility tree until it is opened — which is the disclosure
+    // working, not a missing control.
     await toolbar.locator(".filtermenu > summary").click();
-    const all = toolbar.getByRole("link", { name: "Select all" });
-    await expect(all).toHaveAttribute("href", "/people?q=a");
-    await expect(toolbar.getByRole("link", { name: "Clear all" })).toHaveCount(0);
+    await toolbar.getByRole("button", { name: "Select all" }).click();
+    await page.waitForLoadState("networkidle");
+
+    // Every role ticked is no filter at all, and the search text survives it.
+    await expect(page.locator("#q")).toHaveValue("a");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    expect(new URL(page.url()).search).toBe("");
   });
 
   test("the directory's actions are not inside its search form", async ({ page }) => {
@@ -159,8 +177,13 @@ test.describe("as an administrator", () => {
     await page.getByRole("button", { name: "Edit filter" }).click();
     await page.locator("#filter-from").fill("2026-09-01");
     await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
+    await page.waitForLoadState("networkidle");
 
-    await page.waitForURL(/from=2026-09-01/);
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    // Reopening shows what was applied, read back from where it is stored.
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
     await expect(page.locator(".filterdrawer #filter-from")).toHaveValue("2026-09-01");
   });
 
