@@ -16,6 +16,7 @@ export { Card, CardGrid } from "./Card";
 export { EmptyState } from "./EmptyState";
 export { Choice, ChoiceGroup, Field, Hint, OptionSelect, VisuallyHidden } from "./Field";
 export { FilterActions } from "./FilterActions";
+export { FilterControl } from "./FilterControl";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";
 export { Modal } from "./Modal";
 export { PageHeader, PageToolbar, SearchField } from "./PageHeader";

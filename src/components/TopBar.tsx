@@ -43,10 +43,15 @@ export function TopBar({
   nav,
   displayName,
   organizationName,
+  navigationOpen,
+  onOpenNavigation,
 }: {
   nav: Navigation;
   displayName: string;
   organizationName: string;
+  /** Whether the drawer this button opens is showing. Announced, not drawn. */
+  navigationOpen: boolean;
+  onOpenNavigation: () => void;
 }) {
   const path = usePathname();
   // A route with no navigation entry of its own — a session detail, say — takes
@@ -68,14 +73,21 @@ export function TopBar({
         {initialsOf(displayName)}
       </span>
 
-      {/* A link to the drawer, not a button: `:target` opens it, so it works
-          with scripting off. The same reason the People modals are links. */}
-      <a className="topbar-menu" href={`#${DRAWER_ID}`}>
+      {/* A button, because it opens a panel rather than going anywhere. It
+          was a link to `#primary-nav`, which put a fragment on the address of
+          every page somebody opened the menu from. */}
+      <button
+        type="button"
+        className="topbar-menu"
+        aria-expanded={navigationOpen}
+        aria-controls={DRAWER_ID}
+        onClick={onOpenNavigation}
+      >
         <span className="glyph" aria-hidden="true">
           ☰
         </span>
         <VisuallyHidden>Open navigation</VisuallyHidden>
-      </a>
+      </button>
     </header>
   );
 }

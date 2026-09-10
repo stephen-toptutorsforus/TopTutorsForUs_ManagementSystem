@@ -90,7 +90,7 @@ describe("PageToolbar", () => {
       <PageToolbar
         form={{ action: "/people", label: "Search and filter people", role: "search" }}
         filters={<input name="q" />}
-        actions={<a href="#create-user">Create User</a>}
+        actions={<button type="button">Create User</button>}
       />,
     );
 

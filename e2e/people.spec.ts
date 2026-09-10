@@ -5,10 +5,10 @@
  * client behaviour — which branch of step two renders, when a field decides it
  * has been answered wrongly, and whether the step gate lets somebody past.
  *
- * The modal opens from the URL fragment, so every test here navigates straight
- * to `#create-user` rather than clicking the button. That is also what somebody
- * with scripting off gets, and it keeps these tests about the form rather than
- * about the button that opens it.
+ * The dialog opens from React state, so every test here presses the button a
+ * person presses. It used to open from `/people#create-user`, and these tests
+ * navigated straight to that; `e2e/overlays.spec.ts` is what now asserts that
+ * no such address is produced.
  */
 
 import { expect, test, type Page } from "@playwright/test";
@@ -18,9 +18,9 @@ import { statePath } from "./accounts";
 test.describe("creating a user", () => {
   test.use({ storageState: statePath("admin") });
 
-  /** Open the modal and put it on step two, having answered step one. */
+  /** Open the dialog and put it on step two, having answered step one. */
   const details = async (page: Page, role: string) => {
-    await page.goto("/people#create-user");
+    await open(page);
     await page.locator("#first_name").fill("Wren");
     await page.locator("#last_name").fill("Adeyemi");
     await page.locator("#new-role").selectOption(role);
@@ -29,8 +29,15 @@ test.describe("creating a user", () => {
 
   const label = (page: Page, id: string) => page.locator(`label[for="${id}"]`);
 
+  /** The directory, then the button that opens the wizard. */
+  const open = async (page: Page) => {
+    await page.goto("/people");
+    await page.getByRole("button", { name: "Create User" }).click();
+    await expect(page.getByRole("dialog", { name: "Create User" })).toBeVisible();
+  };
+
   test("opens on a real role rather than an instruction", async ({ page }) => {
-    await page.goto("/people#create-user");
+    await open(page);
 
     const select = page.locator("#new-role");
     // No empty first option: a row that is not a choice is not a choice.
@@ -68,7 +75,7 @@ test.describe("creating a user", () => {
     // so navigating to it again while it is already open changes nothing —
     // which is the disclosure working, and would leave this test filling a
     // field that step two is covering.
-    await page.goto("/people#create-user");
+    await open(page);
     await page.locator("#first_name").fill("Wren");
     await page.locator("#last_name").fill("Adeyemi");
 

@@ -15,7 +15,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { Tag, VisuallyHidden } from "@/components/ui";
 import type { Navigation, RenderedEntry, RenderedItem, RenderedPending } from "@/lib/navigation";
@@ -107,56 +107,65 @@ export function Sidebar({
   primaryRole,
   organizationName,
   csrfToken,
+  open,
+  onClose,
 }: {
   nav: Navigation;
   displayName: string;
   primaryRole: string;
   organizationName: string;
   csrfToken: string;
+  /** Below the breakpoint, whether the drawer is showing. Ignored above it. */
+  open: boolean;
+  onClose: () => void;
 }) {
   const path = usePathname();
 
+  // Closed by arriving somewhere. The route is the dependency and `onClose` is
+  // read through a ref, because a handler rebuilt on every render would make
+  // this run on every render — closing the drawer as fast as it opened.
+  const dismiss = useRef(onClose);
+  // Declared before the effect that reads it, so it is up to date by the time
+  // that one runs. Assigning during render would be reading a ref mid-render,
+  // which React does not promise anything about.
   useEffect(() => {
-    const shell = document.querySelector(".shell");
-    if (shell === null) return;
-
-    // `:target` is how the drawer opens, and with a full page load it also
-    // closes itself: the next page's URL has no fragment. Client-side routing
-    // does not give it that — Chromium keeps the element matching `:target`
-    // after a pushState to a fragmentless URL, so the drawer stayed open over
-    // the page just navigated to. This says closed explicitly, and the
-    // stylesheet gives the attribute precedence over `:target`.
-    //
-    // Only ever an addition. With scripting off the attribute is never set,
-    // `:target` alone governs, and the full page load closes the drawer as it
-    // always did.
-    shell.setAttribute("data-nav", "closed");
-
-    const reopen = () => {
-      if (window.location.hash === `#${DRAWER_ID}`) shell.removeAttribute("data-nav");
-    };
-    window.addEventListener("hashchange", reopen);
-    return () => window.removeEventListener("hashchange", reopen);
+    dismiss.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    dismiss.current();
   }, [path]);
+
+  // Escape closes it, as it closes any overlay.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismiss.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
     <>
-      {/* Below the breakpoint this is a drawer, opened by the header's link to
-          `#primary-nav` and closed by clearing the fragment. `:target` rather
-          than a scripted panel, for the reason the People modals give: a
-          control that needs JavaScript to open is, without it, a navigation
-          nobody can reach. Above the breakpoint the id does nothing and this is
-          simply the first column. */}
-      <nav className="sidebar" id={DRAWER_ID} aria-label="Primary">
-        {/* Only ever visible while the drawer is open; on a wide screen there is
-            nothing to close. Anchored to `#` because that is what clears the
-            fragment `:target` is matching. */}
-        <a className="drawer-close" href="#">
+      {/* Below the breakpoint this is a drawer, and `data-open` is what the
+          stylesheet slides. Above the breakpoint the attribute means nothing
+          and this is simply the first column. The id is what the header's
+          button points `aria-controls` at. */}
+      <nav
+        className="sidebar"
+        id={DRAWER_ID}
+        aria-label="Primary"
+        data-open={open ? "true" : "false"}
+      >
+        {/* Only ever visible while the drawer is open; on a wide screen there
+            is nothing to close. A button, not a link: it dismisses a panel
+            rather than going anywhere. */}
+        <button type="button" className="drawer-close" onClick={onClose}>
           <span className="glyph" aria-hidden="true">
             ✕
           </span>
           <VisuallyHidden>Close navigation</VisuallyHidden>
-        </a>
+        </button>
 
         {/* The wordmark carries the product name, so the image is the accessible
             name of this link and the square mark is only the collapsed-rail
@@ -200,9 +209,17 @@ export function Sidebar({
       </nav>
 
       {/* Dismisses the drawer by tapping beside it. A sibling *after* the
-          sidebar so the stylesheet can select it from `:target`, and inert
-          above the breakpoint where nothing is covering anything. */}
-      <a className="drawer-backdrop" href="#" tabIndex={-1} aria-hidden="true" />
+          sidebar so the stylesheet can select it from the sidebar's own state,
+          and inert above the breakpoint where nothing is covering anything.
+          Hidden from assistive technology, which reaches the same result
+          through the close button and Escape. */}
+      <button
+        type="button"
+        className="drawer-backdrop"
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={onClose}
+      />
     </>
   );
 }

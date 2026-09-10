@@ -362,6 +362,23 @@ a:hover { color: var(--brand-700); }
    take what they need and one child — the calendar grid — takes the rest. */
 .main-fill { display: flex; flex-direction: column; padding-bottom: 1.5rem; overflow: hidden; }
 .main-fill > .cal-grid-card { flex: 1 1 auto; min-height: 0; display: flex; }
+/* Nothing behind an open overlay scrolls.
+ *
+ * Here rather than in each component, because *which element scrolls* is a
+ * layout fact and it differs by width: above the breakpoint `body` is already
+ * `overflow: hidden` and `.main` is the scroller, below it the document scrolls
+ * and `.main` is `visible`. Three components each writing `body.style.overflow`
+ * would have been three copies of the wrong half of that.
+ *
+ * `showModal()` makes the page behind a dialog inert, which stops it being
+ * clicked but not scrolled; the drawers are ordinary elements and stop neither.
+ */
+body:has(dialog.modal[open]),
+body:has(.filterdrawer[data-open="true"]),
+body:has(.sidebar[data-open="true"]) { overflow: hidden; }
+body:has(dialog.modal[open]) .main,
+body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
+
 /* --- The page header ------------------------------------------------------
  *
  * One shape for the top of every administration screen: the title and whatever
@@ -489,10 +506,10 @@ a:hover { color: var(--brand-700); }
 
 /* --- The filter drawer -----------------------------------------------------
  *
- * A panel over the page, opened by `:target` from the filter menu and closed by
- * a link back to `#`. The same idiom as the navigation drawer and the modals,
- * and for the same reason: a filter panel that only opens under a script is a
- * filter nobody can reach when the script fails.
+ * A panel over the page, shown when React says so: `data-open` is written by
+ * the component that owns the state. It was `:target`, opened by a link to its
+ * id — which put a fragment on the address of a screen whose address is its
+ * filter, and left `#` behind after Cancel. **It needs a hydrated page now.**
  *
  * `visibility` as well as `transform`, so the panel is not a tab stop while it
  * is off screen — a translated element is still focusable.
@@ -505,14 +522,21 @@ a:hover { color: var(--brand-700); }
 .filterdrawer {
   position: fixed; inset: 0; z-index: 60;
   visibility: hidden;
+  /* Clips the panel while it is parked off the right-hand edge. Without it the
+     420px it is translated by counts as document overflow and the whole page
+     scrolls sideways — which `e2e/layout.spec.ts` catches, and did. The panel
+     still slides in from beyond the edge; it is the viewport doing the
+     clipping either way. */
+  overflow: hidden;
 }
-.filterdrawer:target { visibility: visible; }
+.filterdrawer[data-open="true"] { visibility: visible; }
 .filterdrawer-scrim {
   position: absolute; inset: 0;
+  border: 0; padding: 0;
   background: rgba(16, 22, 29, 0.45);
   opacity: 0; transition: opacity 0.16s ease;
 }
-.filterdrawer:target .filterdrawer-scrim { opacity: 1; }
+.filterdrawer[data-open="true"] .filterdrawer-scrim { opacity: 1; }
 .filterdrawer-panel {
   position: absolute; inset: 0 0 0 auto;
   display: flex; flex-direction: column;
@@ -521,7 +545,7 @@ a:hover { color: var(--brand-700); }
   box-shadow: var(--shadow);
   transform: translateX(100%); transition: transform 0.18s ease;
 }
-.filterdrawer:target .filterdrawer-panel { transform: none; }
+.filterdrawer[data-open="true"] .filterdrawer-panel { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .filterdrawer-scrim, .filterdrawer-panel { transition: none; }
 }
@@ -530,9 +554,11 @@ a:hover { color: var(--brand-700); }
   padding: 1rem 1.1rem; border-bottom: 1px solid var(--ink-200); flex: none;
 }
 .filterdrawer-head h2 { margin: 0; font-size: 1.15rem; }
+/* A button now, not a link to `#`, so it needs a button's paint stripped. */
 .filterdrawer-close {
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 44px; min-width: 44px; border-radius: var(--radius);
+  border: 0; padding: 0; background: none; cursor: pointer;
   color: var(--ink-700); text-decoration: none; font-size: 1.3rem;
 }
 .filterdrawer-close:hover { background: var(--ink-100); color: var(--ink-900); }
@@ -669,6 +695,15 @@ a:hover { color: var(--brand-700); }
 .btn-primary:hover { background: var(--brand-700); border-color: var(--brand-700); color: var(--on-brand); }
 .btn-danger { background: var(--bad-surface); border-color: var(--bad-text); color: var(--bad-text); }
 .btn-small { min-height: 34px; padding: 0 0.65rem; font-size: 0.85rem; }
+/* A button drawn as a link, for an action sitting in a column of real links —
+   "Assign" beside "Sessions" in the directory. The element stays a button, so
+   what is announced is an action; only the paint is borrowed. */
+.btn-link {
+  min-height: 0; padding: 0;
+  border: 0; background: none;
+  color: var(--brand-600); font: inherit; text-decoration: underline;
+}
+.btn-link:hover { background: none; color: var(--brand-700); text-decoration: none; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
@@ -833,21 +868,25 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
     visibility: hidden;
     transition: transform 160ms ease, visibility 160ms;
   }
-  .sidebar:target { transform: none; visibility: visible; }
-  /* Set by the shell after a client-side navigation, which leaves `:target`
-     matching a fragment the new URL does not have. Never set when scripting is
-     off, where the page load clears the fragment by itself. */
-  .shell[data-nav="closed"] .sidebar:target {
-    transform: translateX(-100%);
-    visibility: hidden;
+  /* Written by `AppShell`'s state. This was `:target`, which needed a second
+     attribute — `.shell[data-nav="closed"]`, set by an effect — to undo it
+     after a client-side navigation: Chromium keeps an element matching
+     `:target` after a pushState to a fragmentless URL, so the drawer stayed
+     open over the page it had just navigated to. One attribute, written in one
+     place, replaces both. **It needs a hydrated page**; the layout's
+     `<noscript>` lays this out as a static block instead. */
+  .sidebar[data-open="true"] { transform: none; visibility: visible; }
+  .drawer-close {
+    position: absolute; top: 0.5rem; right: 0.5rem;
+    border: 0; padding: 0; background: none; cursor: pointer;
+    color: inherit; font: inherit;
   }
-  .shell[data-nav="closed"] .sidebar:target ~ .drawer-backdrop { display: none; }
-  .drawer-close { position: absolute; top: 0.5rem; right: 0.5rem; }
   /* A sibling selector, which is why the backdrop is rendered after the
      sidebar rather than before it. */
-  .sidebar:target ~ .drawer-backdrop {
+  .sidebar[data-open="true"] ~ .drawer-backdrop {
     display: block;
     position: fixed; inset: 0; z-index: 35;
+    border: 0; padding: 0;
     background: rgba(16, 22, 29, 0.45);
   }
   .sidebar-collapse { display: none; }
@@ -1575,26 +1614,29 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 
 /* --- Modals ---------------------------------------------------------------
  *
- * Opened by the fragment in the URL and closed by clearing it, so the form is
- * reachable, submittable and dismissable with no script at all. A <dialog>
- * would need `showModal()` to be visible, which makes it a form nobody can
- * reach when the script does not run.
+ * A real `<dialog>`, opened with `showModal()` from React state. **It needs a
+ * hydrated page.** It was a `:target` panel so that it worked without one, and
+ * the comment here used to claim a script supplied focus handling and Escape —
+ * no such script existed, so what shipped was a dialog that did not move focus
+ * into itself, did not trap it, did not restore it, and could not be dismissed
+ * from the keyboard. The element supplies all four, and the backdrop.
  *
- * The script adds what CSS cannot: moving focus in, and Escape to close.
+ * The dialog fills the viewport and centres the card, so a click that lands on
+ * the dialog itself is a click beside the card — which is how dismissing by
+ * clicking away is detected, with no scrim element to do it.
  */
 
-.modal { display: none; }
-.modal:target { display: grid; }
-.modal:target {
+/* `dialog` is `display: none` until open by the UA stylesheet; this is only
+   what it becomes when it is. The element's own chrome — border, padding, a
+   width that shrink-wraps — is cleared so the card decides the size. */
+dialog.modal[open] {
   position: fixed; inset: 0; z-index: 60;
-  place-items: center;
+  display: grid; place-items: center;
+  width: 100%; max-width: 100%; height: 100%; max-height: 100%;
   padding: 1.5rem;
+  border: 0; background: none; overflow: visible;
 }
-/* The scrim is a link, so clicking away closes the modal without a script. */
-.modal-scrim {
-  position: fixed; inset: 0;
-  background: rgba(16, 22, 29, 0.45);
-}
+dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
 .modal-card {
   position: relative;
   width: min(720px, 100%); max-height: 86vh; overflow-y: auto;
@@ -1608,9 +1650,11 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   gap: 1rem; margin-bottom: 0.25rem;
 }
 .modal-head h2 { margin: 0; }
+/* A button now, so it needs a button's paint stripped. */
 .modal-close {
   display: grid; place-items: center;
   width: 40px; height: 40px; flex: none; margin: -0.35rem -0.4rem 0 0;
+  border: 0; padding: 0; background: none; cursor: pointer;
   border-radius: var(--radius);
   color: var(--ink-500); text-decoration: none; font-size: 1.5rem; line-height: 1;
 }

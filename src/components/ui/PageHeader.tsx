@@ -45,19 +45,12 @@ export function PageHeader({
   actions,
   toolbar,
   secondary,
-  drawer,
   className,
 }: {
   title: React.ReactNode;
   actions?: React.ReactNode;
   toolbar?: React.ReactNode;
   secondary?: React.ReactNode;
-  /**
-   * A `FilterDrawer`. Rendered last and positioned over the page, so where it
-   * sits in the markup decides nothing about the layout — but it belongs to the
-   * header, because the button that opens it does.
-   */
-  drawer?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -74,7 +67,6 @@ export function PageHeader({
       </div>
       {toolbar}
       {isPresent(secondary) && <div className="page-header-secondary">{secondary}</div>}
-      {drawer}
     </header>
   );
 }
@@ -120,9 +112,14 @@ export function PageToolbar({
   className,
 }: {
   /**
-   * A `FilterActions` button, before the search box. Outside the form: what it
-   * holds are links and one disabled control, not fields, and a menu that
-   * submitted the filters by being opened would be a surprise.
+   * A `FilterControl` — the filter button, its menu, and the panel it opens —
+   * before the search box. Outside the form, which is what keeps the panel's
+   * own form from nesting inside this one, and what stops a menu press from
+   * submitting the filters.
+   *
+   * There was a `drawer` slot on `PageHeader` beside this, for the panel. It
+   * existed only because a fragment id was the only thing joining the button to
+   * the panel; one component owns both now, so a page passes one slot.
    */
   menu?: React.ReactNode;
   filters?: React.ReactNode;

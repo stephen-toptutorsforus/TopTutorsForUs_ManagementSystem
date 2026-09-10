@@ -2,13 +2,15 @@
  * The filter button, its menu, and the drawer it opens.
  *
  * Against a build, not the dev server — which matters more here than anywhere
- * else in this suite. Half of what these assert is client behaviour, and a dev
- * server whose HMR socket has dropped serves the previous bundle quite happily:
- * the menu's dismissal appeared broken for a while purely because of that.
+ * else in this suite. All of what these assert is client behaviour now, and a
+ * dev server whose HMR socket has dropped serves the previous bundle quite
+ * happily: the menu's dismissal appeared broken for a while purely because of
+ * that.
  *
- * The `:target` half is deliberately checked without any interaction too, by
- * navigating straight to the fragment — that is what a person with scripting
- * off gets, and it is the whole reason the drawer is not a `<dialog>`.
+ * The drawer used to open from the address — `?...#edit-filter` — and half of
+ * these tests navigated straight to that fragment. It is React state now, so
+ * they go through the control a person would use, and several of them assert
+ * that doing so leaves the address exactly as it was.
  */
 
 import { expect, test, type Page } from "@playwright/test";
@@ -36,6 +38,19 @@ const ready = async (page: Page, url: string) => {
   await page.goto(url, { waitUntil: "load" });
   await page.locator("h1").waitFor();
   await expect(page.locator(".filteractions > summary")).toBeVisible();
+};
+
+/**
+ * Open the drawer the way a person does: the filter button, then Edit filter.
+ *
+ * There is no address that opens it any more, which is the point of the change
+ * — so there is no shortcut for these tests either.
+ */
+const openDrawer = async (page: Page, url: string) => {
+  await ready(page, url);
+  await page.locator(".filteractions > summary").click();
+  await page.getByRole("button", { name: "Edit filter" }).click();
+  await expect.poll(() => drawerShown(page)).toBe("visible");
 };
 
 test.describe("the filter menu", () => {
@@ -72,19 +87,33 @@ test.describe("the filter menu", () => {
       expect(page.url()).not.toContain("q=");
     });
 
-    test(`${screen.path} opens its drawer from the address alone`, async ({ page }) => {
-      // No script involved: this is what a `<dialog>` could not do.
-      await page.goto(`${screen.path}#edit-filter`);
-      await expect(page.locator(".filterdrawer")).toHaveAttribute("role", "dialog");
+    test(`${screen.path} opens its drawer without touching the address`, async ({
+      page,
+    }) => {
+      await ready(page, screen.filtered);
+      const before = page.url();
+
+      await page.locator(".filteractions > summary").click();
+      await page.getByRole("button", { name: "Edit filter" }).click();
+
       await expect.poll(() => drawerShown(page)).toBe("visible");
+      await expect(page.locator(".filterdrawer")).toHaveAttribute("role", "dialog");
       await expect(page.getByRole("heading", { name: "Edit filter" })).toBeVisible();
       await expect(page.locator("h1")).toHaveCount(1);
+      // The filter is still in the query string; opening the panel added
+      // nothing — no `#edit-filter`, no bare `#`.
+      expect(page.url()).toBe(before);
+
+      // And closing it leaves the address alone too.
+      await page.getByRole("button", { name: "Close filter panel" }).click();
+      await expect.poll(() => drawerShown(page)).toBe("hidden");
+      expect(page.url()).toBe(before);
     });
 
     test(`${screen.path} does not repeat an id or nest a form`, async ({ page }) => {
       // Each drawer restates the search box its toolbar shows, so each one is
       // a chance to collide with it.
-      await page.goto(`${screen.path}#edit-filter`);
+      await openDrawer(page, screen.path);
 
       const trouble = await page.evaluate(() => {
         const ids = [...document.querySelectorAll("[id]")].map((el) => el.id);
@@ -116,7 +145,7 @@ test.describe("the filter menu", () => {
     await ready(page, "/people");
 
     await page.locator(".filteractions > summary").click();
-    await page.getByRole("link", { name: "Edit filter" }).click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
 
     await expect.poll(() => drawerShown(page)).toBe("visible");
     await expect.poll(() => menuOpen(page)).toBe(false);
@@ -146,7 +175,7 @@ test.describe("the filter drawer", () => {
   });
 
   test("shows the filter the page is already under", async ({ page }) => {
-    await page.goto("/people?q=holm&role=instructor&status=active#edit-filter");
+    await openDrawer(page, "/people?q=holm&role=instructor&status=active");
 
     await expect(page.locator("#filter-q")).toHaveValue("holm");
     await expect(
@@ -163,7 +192,7 @@ test.describe("the filter drawer", () => {
   }) => {
     // The drawer is a whole form rather than a fragment of the toolbar's, so
     // Apply must not drop the text the toolbar was showing.
-    await page.goto("/people?role=student#edit-filter");
+    await openDrawer(page, "/people?role=student");
     await page.locator("#filter-q").fill("vasquez");
     // Every box starts ticked, so narrowing to Active means unticking the rest
     // rather than ticking one.
@@ -180,19 +209,26 @@ test.describe("the filter drawer", () => {
   });
 
   test("cancels without changing anything", async ({ page }) => {
-    await page.goto("/people?role=student#edit-filter");
+    await openDrawer(page, "/people?role=student");
+    const before = page.url();
     await page.locator("#filter-q").fill("discarded");
-    await page.getByRole("link", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Cancel" }).click();
 
     await expect.poll(() => drawerShown(page)).toBe("hidden");
-    expect(page.url()).toContain("role=student");
-    expect(page.url()).not.toContain("discarded");
+    expect(page.url()).toBe(before);
     await expect(page.locator("#q")).toHaveValue("");
+
+    // Reopening shows the filter the page is actually under, not the edit that
+    // was thrown away: the panel is remounted on each opening.
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
+    await expect.poll(() => drawerShown(page)).toBe("visible");
+    await expect(page.locator("#filter-q")).toHaveValue("");
   });
 
   test("clears everything from inside itself", async ({ page }) => {
-    await page.goto("/people?q=holm&role=instructor#edit-filter");
-    await page.getByRole("link", { name: "Reset filter" }).click();
+    await openDrawer(page, "/people?q=holm&role=instructor");
+    await page.locator(".filterdrawer").getByRole("link", { name: "Reset filter" }).click();
 
     await page.waitForURL(/\/people$/);
     await expect(page.locator(".filteractions-count")).toHaveCount(0);
@@ -201,7 +237,7 @@ test.describe("the filter drawer", () => {
   test("does not nest a form, and does not repeat an id", async ({ page }) => {
     // The drawer restates the search box the toolbar shows. Two `id="q"` would
     // be invalid and would break both labels.
-    await page.goto("/people#edit-filter");
+    await openDrawer(page, "/people");
 
     const trouble = await page.evaluate(() => {
       const ids = [...document.querySelectorAll("[id]")].map((el) => el.id);
@@ -215,7 +251,7 @@ test.describe("the filter drawer", () => {
   });
 
   test("still has exactly one h1 with the drawer open", async ({ page }) => {
-    await page.goto("/people#edit-filter");
+    await openDrawer(page, "/people");
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 2, name: "Edit filter" })).toBeVisible();
   });
@@ -251,8 +287,10 @@ test.describe("as a student", () => {
   test.use({ storageState: statePath("student") });
 
   test("cannot reach the directory at all, drawer or no drawer", async ({ page }) => {
-    // The drawer is a rendering concern; who may see the directory is not.
-    const response = await page.goto("/people#edit-filter");
+    // The drawer is a rendering concern; who may see the directory is not —
+    // and a fragment never reached the server anyway, so this is the plain
+    // address now.
+    const response = await page.goto("/people");
     expect(response?.status()).toBe(403);
   });
 });
@@ -300,17 +338,17 @@ test.describe("what the address ends up saying", () => {
     // rather than explained. It used to be an empty set of boxes under a hint.
     await context.clearCookies({ name: "toptutorsforus_calendar_status" });
 
-    await page.goto("/calendar#edit-filter");
+    await openDrawer(page, "/calendar");
     for (const box of await page.locator('.filterdrawer input[name="status"]').all()) {
       await expect(box).toBeChecked();
     }
 
-    await page.goto("/sessions#edit-filter");
+    await openDrawer(page, "/sessions");
     for (const box of await page.locator('.filterdrawer input[name="status"]').all()) {
       await expect(box).toBeChecked();
     }
 
-    await page.goto("/people#edit-filter");
+    await openDrawer(page, "/people");
     for (const name of ["role", "status"]) {
       for (const box of await page.locator(`.filterdrawer input[name="${name}"]`).all()) {
         await expect(box).toBeChecked();
@@ -331,7 +369,7 @@ test.describe("what the address ends up saying", () => {
     // reached the long way round. It has to write what the resting state
     // writes: nothing.
     await context.clearCookies({ name: "toptutorsforus_calendar_status" });
-    await page.goto("/calendar?status=missed#edit-filter");
+    await openDrawer(page, "/calendar?status=missed");
     for (const value of [
       "scheduled",
       "rescheduled",
@@ -351,7 +389,7 @@ test.describe("what the address ends up saying", () => {
 
   test("holds one status parameter, not one per status", async ({ page, context }) => {
     await context.clearCookies({ name: "toptutorsforus_calendar_status" });
-    await page.goto("/calendar#edit-filter");
+    await openDrawer(page, "/calendar");
     for (const value of ["rescheduled", "cancelled", "requested", "rejected"]) {
       await page.locator(`.filterdrawer input[name="status"][value="${value}"]`).uncheck();
     }

@@ -115,8 +115,10 @@ test.describe("as an administrator", () => {
     await page.goto("/people");
 
     const outside = await page.evaluate(() => {
-      const create = document.querySelector('a[href="#create-user"]');
-      return create !== null && create.closest("form") === null;
+      const create = [...document.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Create User"),
+      );
+      return create !== undefined && create.closest("form") === null;
     });
     expect(outside, "Create User must not be inside the GET form").toBe(true);
     await expect(page.getByRole("button", { name: /Upload Users/ })).toBeDisabled();
@@ -154,7 +156,7 @@ test.describe("as an administrator", () => {
   }) => {
     await page.goto("/sessions");
     await page.locator(".filteractions > summary").click();
-    await page.getByRole("link", { name: "Edit filter" }).click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
     await page.locator("#filter-from").fill("2026-09-01");
     await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
 

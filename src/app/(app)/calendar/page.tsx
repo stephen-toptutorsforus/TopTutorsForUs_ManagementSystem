@@ -15,7 +15,7 @@ import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import {
   CalendarView,
   MONTH_CELL_LIMIT,
@@ -211,10 +211,54 @@ export default async function CalendarPage({
         toolbar={
           <PageToolbar
             menu={
-              <FilterActions
+              <FilterControl
                 active={activeCalendarFilters(filters)}
                 resetHref={unfiltered}
-              />
+                action="/calendar"
+              >
+            {/* The range travels with the filter. Without these the drawer's
+                Apply would submit a bare `/calendar` and drop somebody back on
+                this month, having asked only to change a status — except where
+                the range is already the default, which is what its absence
+                means. */}
+            {view !== CalendarView.MONTH && (
+              <input type="hidden" name="view" value={view} />
+            )}
+            {window.anchor !== today && (
+              <input type="hidden" name="date" value={window.anchor} />
+            )}
+
+            <FilterSection legend="Sessions">
+              <Field id="filter-q" label="Search session titles">
+                <input
+                  id="filter-q"
+                  name="q"
+                  type="search"
+                  defaultValue={filters.search}
+                  placeholder="Session title"
+                />
+              </Field>
+
+              <ChoiceGroup
+                legend="Status"
+                hint={<p className="hint">Untick a status to hide it.</p>}
+              >
+                {statusFilterOptions().map((option) => (
+                  <Choice
+                    key={option.value}
+                    type="checkbox"
+                    name="status"
+                    value={option.value}
+                    defaultChecked={ticked(
+                      filters.statuses.map((status) => status.toLowerCase()),
+                      option.value,
+                    )}
+                    label={option.label}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FilterSection>
+              </FilterControl>
             }
             form={{ action: "/calendar", label: "Filter the calendar", role: "search" }}
             filters={
@@ -264,52 +308,6 @@ export default async function CalendarPage({
               ) : undefined
             }
           />
-        }
-        drawer={
-          <FilterDrawer action="/calendar" resetHref={unfiltered}>
-            {/* The range travels with the filter. Without these the drawer's
-                Apply would submit a bare `/calendar` and drop somebody back on
-                this month, having asked only to change a status — except where
-                the range is already the default, which is what its absence
-                means. */}
-            {view !== CalendarView.MONTH && (
-              <input type="hidden" name="view" value={view} />
-            )}
-            {window.anchor !== today && (
-              <input type="hidden" name="date" value={window.anchor} />
-            )}
-
-            <FilterSection legend="Sessions">
-              <Field id="filter-q" label="Search session titles">
-                <input
-                  id="filter-q"
-                  name="q"
-                  type="search"
-                  defaultValue={filters.search}
-                  placeholder="Session title"
-                />
-              </Field>
-
-              <ChoiceGroup
-                legend="Status"
-                hint={<p className="hint">Untick a status to hide it.</p>}
-              >
-                {statusFilterOptions().map((option) => (
-                  <Choice
-                    key={option.value}
-                    type="checkbox"
-                    name="status"
-                    value={option.value}
-                    defaultChecked={ticked(
-                      filters.statuses.map((status) => status.toLowerCase()),
-                      option.value,
-                    )}
-                    label={option.label}
-                  />
-                ))}
-              </ChoiceGroup>
-            </FilterSection>
-          </FilterDrawer>
         }
         secondary={
           <>

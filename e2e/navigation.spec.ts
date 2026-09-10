@@ -1,9 +1,15 @@
 /**
  * The navigation, at both widths.
  *
- * Below the breakpoint it is a drawer; above it, a column. The drawer opens on
- * `:target`, so these tests exercise the real mechanism — a fragment in the URL
- * — rather than a scripted one that would keep working if the CSS broke.
+ * Below the breakpoint it is a drawer; above it, a column. The drawer opened on
+ * `:target` and now opens from React state, so these press the button rather
+ * than navigating to a fragment — and assert that pressing it leaves the
+ * address alone, which is the reason for the change.
+ *
+ * With no script the drawer cannot open at all, and on a phone the sidebar is
+ * the only route to any other page. The layout ships a `<noscript>` stylesheet
+ * that lays the navigation out as a static block instead; the last group here
+ * is what holds it to that.
  */
 
 import { expect, test, type Page } from "@playwright/test";
@@ -39,9 +45,37 @@ test.describe("on a phone", () => {
     await expect(page.locator(".topbar-title")).toHaveText("Sessions");
   });
 
+  test("opens from a button, and says so while it is open", async ({ page }) => {
+    await page.goto("/people");
+    const button = page.getByRole("button", { name: "Open navigation" });
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await expect(button).toHaveAttribute("aria-controls", "primary-nav");
+
+    const before = page.url();
+    await button.click();
+    await expect(sidebar(page)).toBeVisible();
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    // Opening the menu is not a place you can be sent to.
+    expect(page.url()).toBe(before);
+
+    await page.getByRole("button", { name: "Close navigation" }).click();
+    await expect(sidebar(page)).toBeHidden();
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(page.url()).toBe(before);
+  });
+
+  test("closes on Escape", async ({ page }) => {
+    await page.goto("/people");
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(sidebar(page)).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(sidebar(page)).toBeHidden();
+  });
+
   test("opens, and closes by tapping beside it", async ({ page }) => {
     await page.goto("/people");
-    await page.getByRole("link", { name: "Open navigation" }).click();
+    await page.getByRole("button", { name: "Open navigation" }).click();
     await expect(sidebar(page)).toBeVisible();
     await expect(sidebar(page).getByRole("link", { name: "Groups" })).toBeVisible();
 
@@ -52,7 +86,7 @@ test.describe("on a phone", () => {
 
   test("closes itself when you go somewhere", async ({ page }) => {
     await page.goto("/people");
-    await page.getByRole("link", { name: "Open navigation" }).click();
+    await page.getByRole("button", { name: "Open navigation" }).click();
     await expect(sidebar(page)).toBeVisible();
 
     await sidebar(page).getByRole("link", { name: "Groups" }).click();
@@ -62,29 +96,28 @@ test.describe("on a phone", () => {
 });
 
 /**
- * The reason the drawer is `:target` and not a scripted panel.
+ * What is left when the script does not run.
  *
- * A control that needs JavaScript to open is, without it, a navigation nobody
- * can reach — on a phone, where the sidebar is the only way to any other page,
- * that is the whole application. Asserted rather than assumed, because nothing
- * else in the suite would notice it regressing.
+ * The drawer needs React now, so it cannot be opened — and on a phone the
+ * sidebar is the only way to any other page, which would make the whole
+ * application unreachable. The layout's `<noscript>` stylesheet lays the
+ * navigation out as a static block instead: no drawer, no button, every link
+ * on the page from the start.
+ *
+ * Asserted rather than assumed, because nothing else in the suite would notice
+ * it regressing, and because it is the one thing the move to React state could
+ * have quietly taken away.
  */
 test.describe("with scripting off", () => {
   test.use({ javaScriptEnabled: false });
   test.skip(({ viewport }) => (viewport?.width ?? 0) > 720, "drawer only exists below 720px");
 
-  test("the drawer still opens and still navigates", async ({ page }) => {
+  test("the navigation is all on the page, and still navigates", async ({ page }) => {
     await page.goto("/people");
-    await expect(sidebar(page)).toBeHidden();
 
-    await page.getByRole("link", { name: "Open navigation" }).click();
+    // Not a drawer waiting to be opened: laid out, visible, and reachable.
     await expect(sidebar(page)).toBeVisible();
-
-    // The drawer slides in. Clicking a link while it is still moving races the
-    // transition against a full page load, so wait for it to come to rest.
-    await sidebar(page).evaluate((el) =>
-      Promise.all(el.getAnimations().map((animation) => animation.finished)),
-    );
+    await expect(page.getByRole("button", { name: "Open navigation" })).toBeHidden();
 
     await sidebar(page).getByRole("link", { name: "Locations" }).click();
     await expect(page).toHaveURL(/\/locations$/);

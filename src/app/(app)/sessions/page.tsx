@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AnchorButton, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -175,41 +175,11 @@ export default async function SessionsPage({
         toolbar={
           <PageToolbar
             menu={
-              <FilterActions
+              <FilterControl
                 active={activeSessionFilters(filters)}
                 resetHref="/sessions"
-              />
-            }
-            form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
-            filters={
-              <>
-                <SearchField
-                  label="Search session titles"
-                  placeholder="Session title"
-                  defaultValue={filters.search}
-                />
-
-                {/* The same control the calendar and the directory use, in the
-                    same place, applying the same way. It kept its own Apply
-                    while the toolbar also held five other filters; the drawer
-                    holds those now, so this is one filter again and closing it
-                    is what applies it. Clearing is "Reset filter" in the menu,
-                    which every screen has. */}
-                <FilterMenu
-                  name="status"
-                  options={statusFilterOptions()}
-                  selected={filters.statuses.map((status) => status.toLowerCase())}
-                  singular="status"
-                  plural="statuses"
-                  legend="Show these statuses"
-                  allLink={allStatuses}
-                />
-              </>
-            }
-          />
-        }
-        drawer={
-          <FilterDrawer action="/sessions" resetHref="/sessions">
+                action="/sessions"
+              >
             <FilterSection legend="Sessions">
               <Field id="filter-q" label="Search titles">
                 <input
@@ -312,8 +282,37 @@ export default async function SessionsPage({
                 ))}
               </ChoiceGroup>
             </FilterSection>
-          </FilterDrawer>
+              </FilterControl>
+            }
+            form={{ action: "/sessions", label: "Search and filter sessions", role: "search" }}
+            filters={
+              <>
+                <SearchField
+                  label="Search session titles"
+                  placeholder="Session title"
+                  defaultValue={filters.search}
+                />
+
+                {/* The same control the calendar and the directory use, in the
+                    same place, applying the same way. It kept its own Apply
+                    while the toolbar also held five other filters; the drawer
+                    holds those now, so this is one filter again and closing it
+                    is what applies it. Clearing is "Reset filter" in the menu,
+                    which every screen has. */}
+                <FilterMenu
+                  name="status"
+                  options={statusFilterOptions()}
+                  selected={filters.statuses.map((status) => status.toLowerCase())}
+                  singular="status"
+                  plural="statuses"
+                  legend="Show these statuses"
+                  allLink={allStatuses}
+                />
+              </>
+            }
+          />
         }
+
       />
 
       {results.rows.length > 0 ? (

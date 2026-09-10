@@ -3,11 +3,17 @@
 /**
  * The filter button before the search box, and the menu it opens.
  *
- * A client component for one reason: a `<details>` closes only when its own
- * summary is pressed, so without a listener the menu sits open behind the
- * drawer it has just opened. Everything it contains still works with scripting
- * off — the items are links, the panel is `:target`, and only the dismissal is
- * lost.
+ * A `<details>` still, because a disclosure is what this is and the element
+ * brings the keyboard behaviour with it. What is written here is the dismissal
+ * the element does not do — a `<details>` closes only when its own summary is
+ * pressed, so without a listener the menu sits open behind the panel it has
+ * just opened.
+ *
+ * "Edit filter" is a button. It was a link to `#edit-filter`, which is how the
+ * panel used to open; the panel is React state now, and the item calls a
+ * handler. "Reset filter" stays a link, because it really is a navigation — to
+ * the same page with nothing set, which is a different address and a different
+ * result.
  */
 
 import { useRef } from "react";
@@ -36,6 +42,7 @@ import { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon } from "./icons";
 export function FilterActions({
   active = 0,
   resetHref,
+  onEditFilter,
   drawerId = FILTER_DRAWER_ID,
   label = "Filters",
 }: {
@@ -43,6 +50,9 @@ export function FilterActions({
   active?: number;
   /** Where "Reset filter" goes: the page with nothing set. */
   resetHref: string;
+  /** Opens the panel. Owned by `FilterControl`, which renders both. */
+  onEditFilter: () => void;
+  /** The panel's element id, for `aria-controls`. */
   drawerId?: string;
   label?: string;
 }) {
@@ -67,12 +77,12 @@ export function FilterActions({
       </summary>
 
       <div className="filteractions-menu">
-        <a className="filteractions-item" href={`#${drawerId}`}>
+        <button type="button" className="filteractions-item" aria-controls={drawerId} onClick={onEditFilter}>
           <span className="glyph" aria-hidden="true">
             <FunnelIcon />
           </span>
           Edit filter
-        </a>
+        </button>
         <a className="filteractions-item" href={resetHref}>
           <span className="glyph" aria-hidden="true">
             <ResetIcon />
@@ -83,9 +93,9 @@ export function FilterActions({
 
         <hr />
 
-        {/* The one item that needs a script, and the only one with a
-            fallback: with scripting off the address bar already holds the
-            filter, so the note says to copy it from there. */}
+        {/* Copying needs the clipboard API, which can be refused. With no
+            script at all the whole menu is unreachable, but the address bar
+            still holds the filter — which is what this says. */}
         <noscript>
           <p className="filteractions-note">
             This filter is the page&rsquo;s address — copy it from the address bar to

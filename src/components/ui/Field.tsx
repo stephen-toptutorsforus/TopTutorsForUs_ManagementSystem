@@ -62,7 +62,10 @@ export function OptionSelect({
   options: readonly { value: string; label: string }[];
   /** The label on the empty first option. Omitted where a choice is required. */
   placeholder?: string;
-} & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  // `WithRef`, so a caller can hold the element — the assign dialog focuses its
+  // first select when it opens. In React 19 a ref is an ordinary prop, but the
+  // attribute types do not include it, so it has to be asked for.
+} & React.ComponentPropsWithRef<"select">) {
   return (
     <select {...select}>
       {placeholder !== undefined && <option value="">{placeholder}</option>}

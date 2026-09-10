@@ -14,9 +14,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { FilterMenu } from "@/components/FilterMenu";
-import { AssignModal } from "@/components/people/AssignModal";
-import { CreateUserModal } from "@/components/people/CreateUserModal";
-import { AnchorButton, Badge, Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterActions, FilterDrawer, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AssignButton, CreateUserButton } from "@/components/people/OverlayTriggers";
+import { PeopleOverlays } from "@/components/people/PeopleOverlays";
+import { Badge, Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -135,60 +135,39 @@ export default async function PeoplePage({
   };
 
   return (
-    <>
+    // The dialogs and the buttons that open them are the only client state on
+    // this page. Everything inside is server-rendered and passes through
+    // untouched — the provider is a wrapper, not a boundary the table crosses.
+    <PeopleOverlays
+      enabled={canManage}
+      csrfToken={await csrfToken()}
+      create={{
+        creatableRoles: CREATABLE_ROLES.map((role) => ({
+          value: role.toLowerCase(),
+          label: titleCase(role),
+        })),
+        guardianRelationships: Object.values(GuardianRelationship).map((kind) => ({
+          value: kind.toLowerCase(),
+          label: titleCase(kind),
+        })),
+        instructors: instructors.map(named),
+        students: students.map(named),
+        parents: parents.map(namedWithEmail),
+        schools: schools.map((school) => ({ ref: school.ref, label: school.name })),
+        regions: regions.map((region) => ({ ref: region.ref, label: region.name })),
+      }}
+      assign={{ instructors: instructors.map(named), students: students.map(named) }}
+    >
       <PageHeader
         title="User Management"
         toolbar={
           <PageToolbar
             menu={
-              <FilterActions active={activeFilters} resetHref={directoryLink(NO_DIRECTORY_FILTERS)} />
-            }
-            form={{ action: "/people", label: "Search and filter people", role: "search" }}
-            filters={
-              <>
-                <SearchField
-                  label="Search by name or email"
-                  placeholder="Name or email"
-                  defaultValue={search}
-                />
-                <FilterMenu
-                  name="role"
-                  options={roleOptions}
-                  selected={chosenRoles.map((role) => role.toLowerCase())}
-                  singular="role"
-                  plural="roles"
-                  legend="Show these roles"
-                  allLink={directoryLink({ ...filters, roles: [...ROLE_FILTER_ORDER] })}
-                />
-              </>
-            }
-            actions={
-              canManage ? (
-                <>
-                  <AnchorButton variant="primary" href="#create-user">
-                    <span aria-hidden="true">＋</span> Create User
-                  </AnchorButton>
-                  {/* Bulk import is not built. A disabled control says the
-                      feature exists and is unavailable; a working-looking
-                      button that did nothing, or a missing one, would each say
-                      something untrue. It is a `type="button"`, so being inside
-                      no form is not what keeps it from submitting — being
-                      disabled is. */}
-                  <Button
-                    className="is-disabled"
-                    type="button"
-                    disabled
-                    title="Bulk import is not built yet — create users one at a time below"
-                  >
-                    <span aria-hidden="true">↥</span> Upload Users
-                  </Button>
-                </>
-              ) : undefined
-            }
-          />
-        }
-        drawer={
-          <FilterDrawer action="/people" resetHref={directoryLink(NO_DIRECTORY_FILTERS)}>
+              <FilterControl
+                active={activeFilters}
+                resetHref={directoryLink(NO_DIRECTORY_FILTERS)}
+                action="/people"
+              >
             {/* Where somebody is placed. Three separate filters rather than one
                 cascading picker: a person can hold a school in one district and
                 a district in another, and a picker that narrowed the next list
@@ -257,8 +236,51 @@ export default async function PeoplePage({
                 ))}
               </ChoiceGroup>
             </FilterSection>
-          </FilterDrawer>
+              </FilterControl>
+            }
+            form={{ action: "/people", label: "Search and filter people", role: "search" }}
+            filters={
+              <>
+                <SearchField
+                  label="Search by name or email"
+                  placeholder="Name or email"
+                  defaultValue={search}
+                />
+                <FilterMenu
+                  name="role"
+                  options={roleOptions}
+                  selected={chosenRoles.map((role) => role.toLowerCase())}
+                  singular="role"
+                  plural="roles"
+                  legend="Show these roles"
+                  allLink={directoryLink({ ...filters, roles: [...ROLE_FILTER_ORDER] })}
+                />
+              </>
+            }
+            actions={
+              canManage ? (
+                <>
+                  <CreateUserButton />
+                  {/* Bulk import is not built. A disabled control says the
+                      feature exists and is unavailable; a working-looking
+                      button that did nothing, or a missing one, would each say
+                      something untrue. It is a `type="button"`, so being inside
+                      no form is not what keeps it from submitting — being
+                      disabled is. */}
+                  <Button
+                    className="is-disabled"
+                    type="button"
+                    disabled
+                    title="Bulk import is not built yet — create users one at a time below"
+                  >
+                    <span aria-hidden="true">↥</span> Upload Users
+                  </Button>
+                </>
+              ) : undefined
+            }
+          />
         }
+
       />
 
       {rows.length > 0 ? (
@@ -366,7 +388,9 @@ export default async function PeoplePage({
                       {isInstructor ? (
                         <Link href={`/sessions?instructor=${person.ref}`}>Sessions</Link>
                       ) : canManage ? (
-                        <a href="#assign-people">Assign</a>
+                        <AssignButton
+                          target={{ ref: person.ref, label: displayName }}
+                        />
                       ) : (
                         <Hint>—</Hint>
                       )}
@@ -402,36 +426,6 @@ export default async function PeoplePage({
           />
         </Card>
       )}
-
-      {canManage && (
-        <>
-          {/* Two modals, opened by the fragment in the URL and closed by
-              clearing it. `:target` rather than <dialog>, because a <dialog>
-              without a script is a form nobody can reach — this way the panels
-              open, submit and close with JavaScript unavailable. */}
-          <CreateUserModal
-            csrfToken={await csrfToken()}
-            creatableRoles={CREATABLE_ROLES.map((role) => ({
-              value: role.toLowerCase(),
-              label: titleCase(role),
-            }))}
-            guardianRelationships={Object.values(GuardianRelationship).map((kind) => ({
-              value: kind.toLowerCase(),
-              label: titleCase(kind),
-            }))}
-            instructors={instructors.map(named)}
-            students={students.map(named)}
-            parents={parents.map(namedWithEmail)}
-            schools={schools.map((school) => ({ ref: school.ref, label: school.name }))}
-            regions={regions.map((region) => ({ ref: region.ref, label: region.name }))}
-          />
-          <AssignModal
-            csrfToken={await csrfToken()}
-            instructors={instructors.map(named)}
-            students={students.map(named)}
-          />
-        </>
-      )}
-    </>
+    </PeopleOverlays>
   );
 }

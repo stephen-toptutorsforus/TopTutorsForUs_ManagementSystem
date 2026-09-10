@@ -13,12 +13,17 @@
  * One role is chosen here. A person may hold several; the rest are added once
  * the account exists, so they keep one account and one history.
  *
- * The modal opens from the URL fragment, which is what the stylesheet's
- * `:target` rules key on — the panel opens, submits and closes with the script
- * doing nothing, and the script only adds the steps and the summary.
+ * Opened and closed by `PeopleOverlays`, which also remounts it on each opening
+ * — so dismissing a half-filled wizard discards it, and a submission that comes
+ * back with an error keeps every word of it, because a failed submission does
+ * not reopen anything.
+ *
+ * It does not close itself when the action succeeds. The confirmation is a
+ * notice inside the panel, and a panel that vanished at the moment it had
+ * something to say would be a form that appeared to do nothing.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { createPersonAction } from "@/app/actions/people";
 import {
@@ -39,6 +44,8 @@ import { LocationPickers } from "./LocationPickers";
 import { Picker, type PickerOption } from "./Picker";
 
 export interface CreateUserModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   csrfToken: string;
   creatableRoles: { value: string; label: string }[];
   guardianRelationships: { value: string; label: string }[];
@@ -54,6 +61,9 @@ const STEPS = ["Who", "Details", "Confirm"] as const;
 export function CreateUserModal(props: CreateUserModalProps) {
   const [state, submit, pending] = useActionState(createPersonAction, {});
   const [step, setStep] = useState(1);
+  // Focus lands on the first thing being asked for rather than on the close
+  // button, which is what `showModal()` would otherwise choose.
+  const firstField = useRef<HTMLInputElement>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -157,7 +167,21 @@ export function CreateUserModal(props: CreateUserModalProps) {
       : []),
   ];
 
-  /** Both are visible with no script; with one, only the current step is. */
+  /**
+   * All three panels are in the form; one of them is shown.
+   *
+   * They have to all be there. The submit button is on step three, and a field
+   * React has unmounted is not in the form data — rendering only the current
+   * step would post a person with no name. So the other two are `hidden`, which
+   * takes them out of the tab order and off the screen while leaving them in
+   * the form.
+   *
+   * The comment here used to say the three were all visible without a script.
+   * They were not: nothing in the stylesheet reveals a hidden panel, so with
+   * scripting off this was step one and a Next button that did nothing. The
+   * dialog needs a script to open at all now, so there is no case left to
+   * pretend to serve.
+   */
   const panel = (index: number) => ({
     className: "step-panel",
     "data-step": index,
@@ -166,7 +190,9 @@ export function CreateUserModal(props: CreateUserModalProps) {
 
   return (
     <Modal
-      id="create-user"
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      initialFocusRef={firstField}
       // One title for every step and every role: the heading names the
       // task, and a heading that changed under the person would read as a
       // different form each time.
@@ -205,6 +231,7 @@ export function CreateUserModal(props: CreateUserModalProps) {
                 id="first_name"
                 name="first_name"
                 type="text"
+                ref={firstField}
                 required
                 maxLength={80}
                 value={firstName}

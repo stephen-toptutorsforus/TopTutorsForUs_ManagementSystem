@@ -14,7 +14,14 @@ import { Children } from "react";
 
 import Link from "next/link";
 
-export type ButtonVariant = "default" | "primary" | "danger";
+/**
+ * `link` is a button that looks like a link, for an action that sits in a row
+ * of real links — "Assign" beside "Sessions" in the directory's Actions column.
+ * The alternative was an anchor going nowhere, which is announced as a link to
+ * nothing and swallows middle-click and Enter conventions to no purpose. Looking
+ * alike is a style; being alike is not.
+ */
+export type ButtonVariant = "default" | "primary" | "danger" | "link";
 export type ButtonSize = "default" | "small";
 
 /**
@@ -61,8 +68,12 @@ export function LinkButton({
 }
 
 /**
- * Goes somewhere a `Link` cannot: a fragment that opens a `:target` panel, or
- * a route handler that streams a file rather than rendering a page.
+ * Goes somewhere a `Link` cannot — a route handler that streams a file rather
+ * than rendering a page, which is Export CSV and nothing else at present.
+ *
+ * Not for opening a panel. That used to be a fragment link, and this component
+ * used to recommend it; overlays are React state now, and the control that
+ * opens one is a `Button`.
  */
 export function AnchorButton({
   variant = "default",
