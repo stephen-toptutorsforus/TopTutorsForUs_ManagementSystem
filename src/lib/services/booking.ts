@@ -40,6 +40,8 @@ import type { Db } from "@/lib/db";
 import { ConflictError, Forbidden, ValidationError } from "@/lib/errors";
 import {
   type ConfigurableOrganization,
+  MAX_OCCURRENCES_PER_SERIES,
+  MAX_SERIES_HORIZON_DAYS,
   deliveryAvailable,
   settingNumber,
   settingsReader,
@@ -270,8 +272,16 @@ export async function plan(
   });
 
   const reader = settingsReader(organization);
-  const maxOccurrences = settingNumber(reader, ["booking", "max_occurrences_per_series"], 60);
-  const maxHorizon = settingNumber(reader, ["booking", "max_series_horizon_days"], 365);
+  const maxOccurrences = settingNumber(
+    reader,
+    ["booking", "max_occurrences_per_series"],
+    MAX_OCCURRENCES_PER_SERIES,
+  );
+  const maxHorizon = settingNumber(
+    reader,
+    ["booking", "max_series_horizon_days"],
+    MAX_SERIES_HORIZON_DAYS,
+  );
   const horizonEnd = addDays(request.startDate, maxHorizon);
   const offDays = await organizationOffDays(
     db,
@@ -621,7 +631,11 @@ function validateRequest(
     // past it — a closure pushing the last session over the horizon — but wrong
     // for a number typed straight in: silently booking 60 when 500 was asked
     // for is not an answer to the question.
-    const ceiling = settingNumber(reader, ["booking", "max_occurrences_per_series"], 60);
+    const ceiling = settingNumber(
+      reader,
+      ["booking", "max_occurrences_per_series"],
+      MAX_OCCURRENCES_PER_SERIES,
+    );
     const endMode = request.endMode ?? "count";
     if (
       endMode === "count" &&

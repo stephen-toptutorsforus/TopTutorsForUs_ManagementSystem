@@ -21,7 +21,12 @@ import {
   openings,
 } from "@/lib/availability";
 import type { Db } from "@/lib/db";
-import { deliveryAvailable, settingNumber, settingsReader } from "@/lib/organization";
+import {
+  MAX_OCCURRENCES_PER_SERIES,
+  deliveryAvailable,
+  settingNumber,
+  settingsReader,
+} from "@/lib/organization";
 import {
   eligibleInstructors,
   resolveRosterFromRefs,
@@ -348,7 +353,11 @@ export async function bookingContext(
 
   // One value for the field's max attribute, the help text, and the service
   // check, so the three cannot drift apart.
-  const maxOccurrences = settingNumber(reader, ["booking", "max_occurrences_per_series"], 60);
+  const maxOccurrences = settingNumber(
+    reader,
+    ["booking", "max_occurrences_per_series"],
+    MAX_OCCURRENCES_PER_SERIES,
+  );
 
   const boundsSetting = reader.setting(["booking", "duration_bounds_minutes"]);
   const bounds: [number, number] =

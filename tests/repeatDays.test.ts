@@ -162,6 +162,75 @@ describe("a repeat whose days differ", () => {
     ]);
   });
 
+  it("spills the remainder into a partial final week", () => {
+    // The arithmetic the whole panel rests on. "Number of sessions" is the
+    // total, not a figure per week: 100 across three weekdays is 33 full weeks
+    // of three, and the hundredth lands on the Monday of the 34th — the run
+    // ends mid-week rather than rounding up to 34 weeks of three.
+    const expanded = expand(
+      rule({ weekdays: ["mon", "wed", "fri"], occurrenceCount: 100 }),
+      { maxOccurrences: 200, maxHorizonDays: 365 },
+    );
+
+    expect(expanded.occurrences).toHaveLength(100);
+    expect(expanded.truncated).toBe(false);
+    expect(expanded.occurrences[0]!.localDate).toBe(MONDAY);
+    expect(expanded.occurrences.at(-1)!.localDate).toBe("2026-11-23");
+
+    // 33 whole weeks between the first and the last, so the last is in the 34th.
+    const week = (day: string) =>
+      Math.floor(
+        (Date.parse(`${day}T00:00:00Z`) - Date.parse(`${MONDAY}T00:00:00Z`)) /
+          (7 * 86_400_000),
+      );
+    expect(week(expanded.occurrences.at(-1)!.localDate)).toBe(33);
+
+    // Three in every week but the last, and one in the last.
+    const perWeek = new Map<number, number>();
+    for (const occurrence of expanded.occurrences) {
+      const index = week(occurrence.localDate);
+      perWeek.set(index, (perWeek.get(index) ?? 0) + 1);
+    }
+    expect(perWeek.size).toBe(34);
+    expect([...perWeek.values()].filter((n) => n === 3)).toHaveLength(33);
+    expect(perWeek.get(33)).toBe(1);
+  });
+
+  it("gives the leftover session to the earliest day, at that day's own time", () => {
+    // The walk is chronological, so a remainder of one goes to the first
+    // selected weekday — and runs at that weekday's time, not the first row's.
+    const expanded = expand(
+      rule({
+        weekdays: ["mon", "wed", "fri"],
+        occurrenceCount: 4,
+        perWeekday: {
+          mon: { startTime: "16:00", durationMinutes: 60 },
+          wed: { startTime: "17:30", durationMinutes: 30 },
+          fri: { startTime: "09:00", durationMinutes: 90 },
+        },
+      }),
+    );
+
+    const last = expanded.occurrences.at(-1)!;
+    expect(last.localDate).toBe("2026-04-13");
+    expect(last.startTime).toBe("16:00");
+    expect(last.durationMinutes).toBe(60);
+  });
+
+  it("reports the horizon rather than silently shortening a two-year run", () => {
+    // 100 weekly sessions is nearly two years, past the 365-day horizon. The
+    // count is not refused — it is reachable at three days a week — so the run
+    // stops and says why, and the preview shows that notice.
+    const expanded = expand(rule({ weekdays: ["mon"], occurrenceCount: 100 }), {
+      maxOccurrences: 200,
+      maxHorizonDays: 365,
+    });
+
+    expect(expanded.occurrences.length).toBeLessThan(100);
+    expect(expanded.truncated).toBe(true);
+    expect(expanded.truncationReason).toContain("365-day booking horizon");
+  });
+
   it("says what a date runs at without expanding the whole rule", () => {
     const built = rule({
       weekdays: ["mon", "wed"],

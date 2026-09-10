@@ -16,6 +16,23 @@ import type { Prisma } from "@/generated/prisma/client";
 export type JsonObject = Record<string, unknown>;
 
 /**
+ * How many sessions one booking may create, and how far ahead it may reach.
+ *
+ * Named rather than written four times. They were: once in the shipped
+ * defaults and once as the fallback at each of the three places that read
+ * them, which is three chances for the refusal, the field's `max` attribute
+ * and the expansion to disagree about the same number.
+ *
+ * 200 because a run is bounded by the horizon as well as by the count, and a
+ * school year at five days a week is about 180 sessions — so this is roughly
+ * the widest realistic run that fits inside one horizon year. A weekly run of
+ * 100 sessions is two years and stops at the horizon instead, which the
+ * preview reports rather than silently shortening.
+ */
+export const MAX_OCCURRENCES_PER_SERIES = 200;
+export const MAX_SERIES_HORIZON_DAYS = 365;
+
+/**
  * Booking, classroom, and notification defaults. Every key is overridable per
  * tenant; nothing here names a specific customer, program, or price.
  */
@@ -43,8 +60,8 @@ export const DEFAULT_SETTINGS: JsonObject = {
     // session may occupy, shown beside it so the offered set does not read as
     // the only thing the platform will ever allow.
     duration_bounds_minutes: [15, 210],
-    max_occurrences_per_series: 60,
-    max_series_horizon_days: 365,
+    max_occurrences_per_series: MAX_OCCURRENCES_PER_SERIES,
+    max_series_horizon_days: MAX_SERIES_HORIZON_DAYS,
     conflict_override_roles: ["admin"],
   },
   classroom: {

@@ -751,14 +751,44 @@ describeDb("booking", () => {
     );
   });
 
+  it("books a hundred sessions across three days, ending mid-week", async () => {
+    // The example this ceiling was raised for. 33 whole weeks of three, and the
+    // hundredth on the Monday of the 34th — through the real service, so the
+    // count check, the expansion and the write all agree about it.
+    const request = booking(instructor, student, {
+      repeat: true,
+      occurrenceCount: 100,
+      weekdays: ["mon", "wed", "fri"],
+      perWeekday: {
+        mon: { startTime: "16:00", durationMinutes: 60 },
+        wed: { startTime: "17:30", durationMinutes: 30 },
+        fri: { startTime: "09:00", durationMinutes: 90 },
+      },
+    });
+
+    const previewed = await plan(db, org, admin, request, before(request));
+    expect(planTotal(previewed)).toBe(100);
+    expect(previewed.expansion.truncated).toBe(false);
+    expect(civilDate(previewed.sessions.at(-1)!.occurrence.start, NY)).toBe("2026-11-23");
+
+    // Three distinct lengths in the run, and the leftover Monday keeps
+    // Monday's hour rather than inheriting the previous day's.
+    const minutes = previewed.sessions.map((s) => s.occurrence.durationMinutes);
+    expect(new Set(minutes)).toEqual(new Set([60, 30, 90]));
+    expect(minutes.at(-1)).toBe(60);
+  });
+
   it("refuses a count past the tenant ceiling rather than silently truncating", async () => {
+    // Configured rather than relying on the shipped number, so raising the
+    // default does not quietly turn this into a test of nothing.
+    await configure({ booking: { max_occurrences_per_series: 12 } });
     const request = booking(instructor, student, {
       repeat: true,
       weekdays: ["mon"],
       occurrenceCount: 500,
     });
     await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
-      "book at most 60 sessions at once",
+      "book at most 12 sessions at once",
     );
   });
 
