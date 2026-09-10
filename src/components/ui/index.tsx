@@ -18,6 +18,7 @@ export { Choice, ChoiceGroup, Field, Hint, OptionSelect, VisuallyHidden } from "
 export { FilterActions } from "./FilterActions";
 export { FilterControl } from "./FilterControl";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";
+export { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon, SearchIcon, ShareIcon, TrashIcon } from "./icons";
 export { Modal } from "./Modal";
 export { PageHeader, PageToolbar, SearchField } from "./PageHeader";
 export { Notice } from "./Notice";

@@ -1,0 +1,220 @@
+/**
+ * The repeat panel, and the clock beside it.
+ *
+ * The panel only exists above one session, its first row is the session date
+ * said again, and it may not name more weekdays than the run has sessions.
+ * All three are relationships between controls rather than properties of any
+ * one of them, which is why they are asked of a browser: each half looks
+ * correct on its own.
+ *
+ * The clock is here for a plainer reason. It replaced the browser's own time
+ * picker, which closed on the first choice, so what is worth pinning is that
+ * hour, minute and meridiem are now one choice from one list.
+ */
+
+import { expect, test, type Page } from "@playwright/test";
+
+import { statePath } from "./accounts";
+
+test.use({ storageState: statePath("admin") });
+
+const PANEL = ".repeat-panel";
+const ROWS = ".repeat-row";
+
+/** The next Monday, so a chosen date's weekday is known without reading it back. */
+function nextMonday(): string {
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + ((8 - day.getUTCDay()) % 7 || 7));
+  return day.toISOString().slice(0, 10);
+}
+
+/**
+ * The form's own debounce, mirrored — see `e2e/booking.spec.ts`. The panel
+ * seeds its first row from the *returned* context, so a wait that stops before
+ * the request has even been sent reads the length and time from before the
+ * change and this file would report a bug the screen does not have.
+ */
+const REFRESH_DELAY_MS = 200;
+
+async function settled(page: Page): Promise<void> {
+  await page.waitForTimeout(REFRESH_DELAY_MS + 60);
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".availability")).not.toHaveAttribute("aria-busy", "true");
+}
+
+async function openBooking(page: Page): Promise<void> {
+  await page.goto("/sessions/new");
+  await expect(page.locator("h1")).toHaveText("Session Booking");
+  await page.locator("#start_date").fill(nextMonday());
+  await settled(page);
+}
+
+/** Ask for a run of this many sessions. */
+async function sessions(page: Page, count: number): Promise<void> {
+  await page.locator("#occurrence_count").fill(String(count));
+  await page.locator("#occurrence_count").dispatchEvent("change");
+}
+
+test.describe("the repeat panel", () => {
+  test("appears only once the run is more than one session", async ({ page }) => {
+    await openBooking(page);
+    await expect(page.locator(PANEL)).toBeHidden();
+
+    await sessions(page, 3);
+    await expect(page.locator(PANEL)).toBeVisible();
+    await expect(page.locator(ROWS)).toHaveCount(1);
+
+    await sessions(page, 1);
+    await expect(page.locator(PANEL)).toBeHidden();
+  });
+
+  test("starts on the session date's own weekday, length and time", async ({ page }) => {
+    // The first row is those three fields said again in the shape the rest of
+    // the run is said in, so it must not open on a different day from the one
+    // above it.
+    await openBooking(page);
+    await page.locator("#duration_minutes").selectOption("90");
+    await settled(page);
+    await page.locator("#start_time").selectOption("17:30");
+    await settled(page);
+
+    await sessions(page, 4);
+
+    await expect(page.locator("#repeat_weekday_0")).toHaveValue("mon");
+    await expect(page.locator("#repeat_length_0")).toHaveValue("90");
+    await expect(page.locator("#repeat_time_0")).toHaveValue("17:30");
+  });
+
+  test("follows the session date when it moves", async ({ page }) => {
+    await openBooking(page);
+    await sessions(page, 4);
+    await expect(page.locator("#repeat_weekday_0")).toHaveValue("mon");
+
+    // The Wednesday of the same week. The date is the stronger statement, so
+    // the row follows it rather than the two disagreeing.
+    const wednesday = new Date(`${nextMonday()}T00:00:00Z`);
+    wednesday.setUTCDate(wednesday.getUTCDate() + 2);
+    await page.locator("#start_date").fill(wednesday.toISOString().slice(0, 10));
+    await settled(page);
+
+    await expect(page.locator("#repeat_weekday_0")).toHaveValue("wed");
+  });
+
+  test("adds days up to the number of sessions, then stops offering", async ({ page }) => {
+    // Three sessions cannot usefully name four weekdays: the fourth would
+    // never come round, and the preview would be short of what was asked for.
+    await openBooking(page);
+    await sessions(page, 3);
+
+    const add = page.getByRole("button", { name: "Add Day" });
+    await add.click();
+    await expect(page.locator(ROWS)).toHaveCount(2);
+    await add.click();
+    await expect(page.locator(ROWS)).toHaveCount(3);
+    await expect(add).toHaveCount(0);
+    await expect(page.locator(PANEL)).toContainText("Up to 3 days");
+  });
+
+  test("trims the rows when the run is shortened under them", async ({ page }) => {
+    await openBooking(page);
+    await sessions(page, 4);
+    await page.getByRole("button", { name: "Add Day" }).click();
+    await page.getByRole("button", { name: "Add Day" }).click();
+    await expect(page.locator(ROWS)).toHaveCount(3);
+
+    await sessions(page, 2);
+    await expect(page.locator(ROWS)).toHaveCount(2);
+  });
+
+  test("never offers one weekday twice, and can drop a row", async ({ page }) => {
+    await openBooking(page);
+    await sessions(page, 4);
+    await page.getByRole("button", { name: "Add Day" }).click();
+
+    // The second row cannot be set to the first row's day, because the action
+    // refuses two rows on one weekday and an always-refused option should not
+    // be offered.
+    const second = page.locator("#repeat_weekday_1");
+    await expect(second.locator('option[value="mon"]')).toHaveCount(0);
+    await expect(second.locator('option[value="tue"]')).toHaveCount(1);
+
+    // The first row's own day stays in its own list, so it is not stuck.
+    await expect(page.locator('#repeat_weekday_0 option[value="mon"]')).toHaveCount(1);
+
+    await page.getByRole("button", { name: /^Remove Tuesday/ }).click();
+    await expect(page.locator(ROWS)).toHaveCount(1);
+    // The last row cannot be removed — a repeating run needs a day.
+    await expect(page.getByRole("button", { name: /^Remove Monday/ })).toBeDisabled();
+  });
+
+  test("previews a run whose days differ, without changing the address", async ({
+    page,
+  }) => {
+    await openBooking(page);
+    await page.locator("#title").fill("Algebra practice");
+
+    // A real booking needs a student and an instructor who may teach them. The
+    // seed assigns each student to exactly one, so choosing the student leaves
+    // one name in the list.
+    await page.locator("#student_picker").selectOption({ label: "Teo Vasquez" });
+    await settled(page);
+    await page.locator("#instructor_ref").selectOption({ index: 1 });
+    await settled(page);
+
+    await sessions(page, 4);
+    await page.getByRole("button", { name: "Add Day" }).click();
+
+    await page.locator("#repeat_weekday_1").selectOption("wed");
+    await page.locator("#repeat_length_1").selectOption("30");
+    await page.locator("#repeat_time_1").selectOption("17:30");
+
+    await page.getByRole("button", { name: /^Preview session/ }).click();
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator(".preview-list")).toBeVisible();
+
+    // Four sessions alternating between the two days, and no refusal.
+    await expect(page.locator(".booking .notice-bad")).toHaveCount(0);
+    // Four sessions, alternating Monday and Wednesday.
+    await expect(page.locator(".preview-list .preview-item")).toHaveCount(4);
+    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(
+      "/sessions/new",
+    );
+  });
+});
+
+test.describe("the Type list and the clock", () => {
+  test("does not offer a delivery type nothing implements", async ({ page }) => {
+    // The advanced classroom is behind a feature flag that ships off.
+    await openBooking(page);
+    const labels = await page.locator("#delivery_type option").allTextContents();
+    expect(labels.join(" ")).not.toContain("Advanced");
+    expect(labels.join(" ")).toContain("Online Classroom");
+    // And it is no longer "Other", because there is nothing left to be other than.
+    expect(labels.join(" ")).not.toContain("Other Online Classroom");
+  });
+
+  test("names the link field after the classroom it points at", async ({ page }) => {
+    await openBooking(page);
+    await expect(page.locator('label[for="meeting_url"]')).toHaveText(
+      "Online Classroom link",
+    );
+  });
+
+  test("sets hour, minute and meridiem in one choice", async ({ page }) => {
+    // The browser's time picker closed on the first of the three. This is a
+    // list, so one open and one choice settles all of it.
+    await openBooking(page);
+    const clock = page.locator("#start_time");
+    await expect(clock).toHaveJSProperty("tagName", "SELECT");
+
+    await clock.selectOption("13:15");
+    await settled(page);
+    await expect(clock).toHaveValue("13:15");
+    await expect(clock.locator("option:checked")).toHaveText("1:15 PM");
+
+    // A whole day at quarter hours, midnight to a quarter to midnight.
+    await expect(clock.locator("option")).toHaveCount(96);
+    await expect(clock.locator("option").first()).toHaveText("12:00 AM");
+    await expect(clock.locator("option").last()).toHaveText("11:45 PM");
+  });
+});

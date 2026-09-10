@@ -28,10 +28,18 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Field, Hint, Notice, OptionSelect } from "@/components/ui";
+import { Button, Card, Field, Hint, Notice, OptionSelect, TrashIcon } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { noEligibleInstructors } from "@/lib/web/eligibilityCopy";
-import { clockDuration, durationWords } from "@/lib/presentation";
+import {
+  WEEKDAY_CHOICES,
+  clockDuration,
+  clockTimes,
+  durationWords,
+  maxRepeatDays,
+  nearestClockTime,
+  weekdayOf,
+} from "@/lib/presentation";
 
 import { AvailabilityBlock } from "./AvailabilityBlock";
 import { PreviewBlock } from "./PreviewBlock";
@@ -42,6 +50,117 @@ import { PreviewBlock } from "./PreviewBlock";
  * three students is one question rather than three.
  */
 const REFRESH_DELAY_MS = 200;
+
+/**
+ * The clock's grid, and the repeat panel's ceiling.
+ *
+ * Quarter hours because that is the finest session length the product offers,
+ * and because a select of every minute is 1,440 options nobody can scroll.
+ * Seven days because a weekly pattern cannot hold an eighth — and a run of
+ * three sessions cannot usefully name more than three weekdays either, so the
+ * ceiling is the smaller of the two.
+ */
+const CLOCK_STEP_MINUTES = 15;
+const TIME_OPTIONS = clockTimes(CLOCK_STEP_MINUTES);
+
+/** One row of the repeat panel: a weekday, and what it runs at. */
+interface RepeatDay {
+  /**
+   * Identity, not content.
+   *
+   * The rows were keyed by their weekday, which meant changing a row's day
+   * unmounted it and mounted a different one — and a controlled `<select>`
+   * that comes back from a remount comes back showing its first option, so
+   * the state said Wednesday while the control said Monday. A key has to
+   * survive every edit to the thing it identifies.
+   */
+  id: string;
+  weekday: string;
+  length: string;
+  time: string;
+}
+
+/**
+ * Row identity. A counter rather than `crypto.randomUUID`, because these are
+ * only ever compared with each other and a readable id is easier to find in a
+ * failing test. Safe across the server render: the panel is hidden at one
+ * session, so the first paint creates no rows at all.
+ */
+let nextRowId = 0;
+function rowId(): string {
+  nextRowId += 1;
+  return `d${nextRowId}`;
+}
+
+/** What the panel is anchored to. A change in any of these re-seeds its first row. */
+interface RepeatAnchor {
+  repeating: boolean;
+  date: string;
+  length: number;
+  time: string;
+  count: number;
+}
+
+/**
+ * Bring the rows back into line with the fields above them.
+ *
+ * The first row *is* the session date, its length and its time, said again in
+ * the shape the rest of the run is said in — so when one of those three
+ * changes, the corresponding part of the first row follows it. Only the part
+ * that changed: re-seeding the whole row when somebody edits the start time
+ * would silently undo a weekday they had chosen.
+ *
+ * Later rows are left alone except for two rules that cannot be broken — no
+ * two rows on one weekday, and never more rows than the run has sessions,
+ * because a weekday that never comes round is a promise the preview cannot
+ * keep.
+ */
+function reconcile(rows: RepeatDay[], previous: RepeatAnchor, next: RepeatAnchor): RepeatDay[] {
+  if (!next.repeating) return rows.length === 0 ? rows : [];
+
+  const seeded = {
+    weekday: weekdayOf(next.date),
+    length: String(next.length),
+    time: next.time,
+  };
+  const first = rows[0];
+  const head: RepeatDay =
+    first === undefined
+      ? { id: rowId(), ...seeded }
+      : {
+          id: first.id,
+          weekday: next.date !== previous.date ? seeded.weekday : first.weekday,
+          length: next.length !== previous.length ? seeded.length : first.length,
+          time: next.time !== previous.time ? seeded.time : first.time,
+        };
+
+  const rest = rows.slice(1).filter((row) => row.weekday !== head.weekday);
+  const settled = [head, ...rest].slice(0, maxRepeatDays(next.count));
+
+  // Same content, same array: an adjustment during render that always produced
+  // a new reference would re-render on every pass.
+  const unchanged =
+    settled.length === rows.length &&
+    settled.every((row, index) => {
+      const was = rows[index]!;
+      return (
+        row.id === was.id &&
+        row.weekday === was.weekday &&
+        row.length === was.length &&
+        row.time === was.time
+      );
+    });
+  return unchanged ? rows : settled;
+}
+
+/** The next weekday not already claimed by a row, so Add Day never duplicates. */
+function freeWeekday(taken: readonly RepeatDay[]): string {
+  const used = new Set(taken.map((day) => day.weekday));
+  return (
+    WEEKDAY_CHOICES.find((choice) => !used.has(choice.value))?.value ??
+    WEEKDAY_CHOICES[0]!.value
+  );
+}
 
 export function BookingForm({
   initial,
@@ -58,6 +177,15 @@ export function BookingForm({
   const [students, setStudents] = useState<string[]>(state.selectedStudents);
   const [matrixDays, setMatrixDays] = useState(context.matrixDays);
 
+  const value = (name: string, fallback = "") => values[name] ?? fallback;
+  const chosenDate = value("start_date");
+  // Snapped onto the clock's grid, so a time stored off it — by the API, or by
+  // a tenant whose step used to differ — still selects something rather than
+  // leaving the field on the first option and silently moving the session.
+  const chosenTime = nearestClockTime(value("start_time", "16:00"), CLOCK_STEP_MINUTES);
+  const [counted, setCounted] = useState(
+    () => Number.parseInt(values.occurrence_count ?? "1", 10) || 1,
+  );
   // The day count is re-seeded from whatever the action handed back, because
   // the server clamps it. The chip list deliberately is not: the server only
   // ever echoes the roster it was sent, so re-seeding could only ever overwrite
@@ -67,11 +195,47 @@ export function BookingForm({
   if (seen !== state) {
     setSeen(state);
     setMatrixDays(state.context.matrixDays);
+    setCounted(Number.parseInt(state.values.occurrence_count ?? "1", 10) || 1);
   }
 
-  const value = (name: string, fallback = "") => values[name] ?? fallback;
-  const chosenDate = value("start_date");
-  const counted = Number.parseInt(value("occurrence_count", "1"), 10) || 1;
+  const repeating = counted > 1;
+
+  const [repeatDays, setRepeatDays] = useState<RepeatDay[]>(() =>
+    reconcile(
+      [],
+      { repeating, date: chosenDate, length: context.chosenDuration, time: chosenTime, count: counted },
+      { repeating, date: chosenDate, length: context.chosenDuration, time: chosenTime, count: counted },
+    ),
+  );
+
+  // Adjusted during render rather than in an effect, the same way the day count
+  // above is: an effect would paint a panel that disagrees with the date field
+  // and then correct it, and React re-runs this component without committing
+  // the discarded pass.
+  const anchor: RepeatAnchor = {
+    repeating,
+    date: chosenDate,
+    length: context.chosenDuration,
+    time: chosenTime,
+    count: counted,
+  };
+  const [anchored, setAnchored] = useState(anchor);
+  if (
+    anchored.repeating !== anchor.repeating ||
+    anchored.date !== anchor.date ||
+    anchored.length !== anchor.length ||
+    anchored.time !== anchor.time ||
+    anchored.count !== anchor.count
+  ) {
+    setAnchored(anchor);
+    setRepeatDays((rows) => reconcile(rows, anchored, anchor));
+  }
+
+  const editRow = (index: number, patch: Partial<RepeatDay>) => {
+    setRepeatDays((rows) =>
+      rows.map((row, position) => (position === index ? { ...row, ...patch } : row)),
+    );
+  };
 
   const refreshButton = useRef<HTMLButtonElement>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,7 +352,7 @@ export function BookingForm({
           {/* Only one of these belongs to the chosen type. Both stay in the form;
               the action reads only the one that matches the type, so a stale
               value from a browser that filled both cannot reach the session. */}
-          <Field id="meeting_url" label="Other Online Classroom link" data-when-delivery="external_link">
+          <Field id="meeting_url" label="Online Classroom link" data-when-delivery="external_link">
             <input
               id="meeting_url"
               name="meeting_url"
@@ -267,15 +431,19 @@ export function BookingForm({
               </Hint>
                         </Field>
             <Field id="start_time" label="Start time">
-              <input
+              {/* A list, not the browser's time picker. That picker closes on
+                  the first choice, so setting an hour, a minute and a meridiem
+                  meant opening it three times; this is one open and one
+                  choice, and it works with the script inert. */}
+              <OptionSelect
                 id="start_time"
                 name="start_time"
-                type="time"
                 required
-                key={`time-${value("start_time", "16:00")}`}
-                defaultValue={value("start_time", "16:00")}
+                key={`time-${chosenTime}`}
+                defaultValue={chosenTime}
                 aria-describedby="tz-hint"
                 onChange={() => refresh()}
+                options={TIME_OPTIONS}
               />
               <Hint id="tz-hint">
                 {context.zone}
@@ -305,6 +473,9 @@ export function BookingForm({
               defaultValue={value("occurrence_count", "1")}
               disabled={!chosenDate}
               aria-describedby="count-hint count-repeat"
+              onChange={(event) =>
+                setCounted(Number.parseInt(event.target.value, 10) || 1)
+              }
             />
             <Hint id="count-hint">
               Total sessions, including the first. More than one repeats weekly on the
@@ -313,11 +484,127 @@ export function BookingForm({
             <Hint id="count-repeat">
               {!chosenDate
                 ? "Choose a session date first."
-                : counted > 1
-                  ? `${counted} sessions, repeating every ${context.chosenWeekday}.`
+                : repeating
+                  ? `${counted} sessions, on the days below.`
                   : `One session on ${context.chosenWeekday}.`}
             </Hint>
                     </Field>
+
+          {/* Above one session the run needs days, and each may run at its own
+              time and length — "Mondays at 4 for an hour, Wednesdays at 5:30
+              for half of one" is one arrangement a family keeps, not two
+              bookings. The panel is hidden rather than unmounted below two
+              sessions so that nothing typed into it is lost by nudging the
+              count down and back up; its fields are ignored by the action
+              unless the run repeats. */}
+          <div className="repeat-panel" hidden={!repeating}>
+            <p className="repeat-heading" id="repeat-heading">
+              Repeat days
+            </p>
+            <ul className="repeat-rows" aria-labelledby="repeat-heading">
+              {repeatDays.map((row, index) => {
+                const taken = new Set(
+                  repeatDays.filter((_, other) => other !== index).map((other) => other.weekday),
+                );
+                const named =
+                  WEEKDAY_CHOICES.find((choice) => choice.value === row.weekday)?.label ??
+                  row.weekday;
+                return (
+                  <li className="repeat-row" key={row.id}>
+                    <Field id={`repeat_weekday_${index}`} label="Repeat Every">
+                      {/* `key` and `defaultValue` rather than a controlled
+                          `value`, which is the idiom the rest of this form
+                          uses and for a reason worth stating: React resets the
+                          form after a form action, and a reset restores each
+                          control to its *attribute* default. A controlled
+                          select has no `selected` attribute, so every refresh
+                          silently put these three back to their first option
+                          while React state still held the real answer. */}
+                      <OptionSelect
+                        id={`repeat_weekday_${index}`}
+                        name="repeat_weekday"
+                        key={`wd-${row.id}-${row.weekday}`}
+                        defaultValue={row.weekday}
+                        onChange={(event) => editRow(index, { weekday: event.target.value })}
+                        // Only the days still free, plus this row's own. Two
+                        // rows on one weekday is refused by the action, and an
+                        // option that is always refused should not be offered.
+                        options={WEEKDAY_CHOICES.filter(
+                          (choice) => !taken.has(choice.value),
+                        )}
+                      />
+                    </Field>
+                    <Field id={`repeat_length_${index}`} label="Session Length">
+                      <OptionSelect
+                        id={`repeat_length_${index}`}
+                        name="repeat_length"
+                        key={`len-${row.id}-${row.length}`}
+                        defaultValue={row.length}
+                        onChange={(event) => editRow(index, { length: event.target.value })}
+                        options={context.durations.map((minutes) => ({
+                          value: String(minutes),
+                          label: durationWords(minutes),
+                        }))}
+                      />
+                    </Field>
+                    <Field id={`repeat_time_${index}`} label="Start Time">
+                      <OptionSelect
+                        id={`repeat_time_${index}`}
+                        name="repeat_time"
+                        key={`at-${row.id}-${row.time}`}
+                        defaultValue={row.time}
+                        onChange={(event) => editRow(index, { time: event.target.value })}
+                        options={TIME_OPTIONS}
+                      />
+                    </Field>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="repeat-remove"
+                      aria-label={`Remove ${named} from the repeat`}
+                      disabled={repeatDays.length === 1}
+                      onClick={() =>
+                        setRepeatDays((rows) =>
+                          rows.filter((_, position) => position !== index),
+                        )
+                      }
+                    >
+                      <TrashIcon />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {repeatDays.length < maxRepeatDays(counted) && (
+              <Button
+                type="button"
+                variant="primary"
+                size="small"
+                className="repeat-add"
+                onClick={() =>
+                  setRepeatDays((rows) => [
+                    ...rows,
+                    {
+                      id: rowId(),
+                      weekday: freeWeekday(rows),
+                      length: String(context.chosenDuration),
+                      time: chosenTime,
+                    },
+                  ])
+                }
+              >
+                Add Day
+              </Button>
+            )}
+            <Hint>
+              {counted < WEEKDAY_CHOICES.length
+                ? `Up to ${maxRepeatDays(counted)} ${
+                    maxRepeatDays(counted) === 1 ? "day" : "days"
+                  }, because the run is ${counted} sessions long.`
+                : "Up to seven days — the run repeats weekly on the days listed."}
+            </Hint>
+          </div>
 
         </fieldset>
 

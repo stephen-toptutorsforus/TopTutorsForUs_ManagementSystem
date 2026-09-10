@@ -427,6 +427,122 @@ describeDb("booking", () => {
     );
   });
 
+  // --- Repeat days ---------------------------------------------------------
+  //
+  // A run whose Mondays and Wednesdays differ. The engine is held in
+  // `tests/repeatDays.test.ts`; these are about what reaches the database,
+  // because occurrences owning their own schedule is what makes it possible at
+  // all — nothing below the recurrence module had to change.
+
+  it("writes each repeat day at its own time and length", async () => {
+    const { series, created } = await book(
+      booking(instructor, student, {
+        repeat: true,
+        occurrenceCount: 4,
+        weekdays: ["mon", "wed"],
+        perWeekday: {
+          mon: { startTime: "16:00", durationMinutes: 60 },
+          wed: { startTime: "17:30", durationMinutes: 30 },
+        },
+      }),
+    );
+
+    expect(series).not.toBeNull();
+    expect(created).toHaveLength(4);
+
+    const minutes = created.map(
+      (row) => (row.scheduledEnd.getTime() - row.scheduledStart.getTime()) / 60_000,
+    );
+    expect(minutes).toEqual([60, 30, 60, 30]);
+
+    // And the dates, read back in the session's own zone rather than trusting
+    // the instants to look right in UTC.
+    expect(created.map((row) => civilDate(row.scheduledStart, NY))).toEqual([
+      "2026-04-06",
+      "2026-04-08",
+      "2026-04-13",
+      "2026-04-15",
+    ]);
+  });
+
+  it("keeps the series' own default while its occurrences differ", async () => {
+    // The series row is a template, not a second copy of the schedule. It
+    // records the pattern's first day; the occurrences carry the rest, which
+    // is the architecture's whole reason for materialising them.
+    const { series, created } = await book(
+      booking(instructor, student, {
+        repeat: true,
+        occurrenceCount: 2,
+        weekdays: ["mon", "wed"],
+        perWeekday: {
+          mon: { startTime: "16:00", durationMinutes: 60 },
+          wed: { startTime: "17:30", durationMinutes: 30 },
+        },
+      }),
+    );
+
+    expect(series!.defaultDurationMinutes).toBe(60);
+    expect(series!.weekdays).toEqual(["mon", "wed"]);
+    expect(
+      (created[1]!.scheduledEnd.getTime() - created[1]!.scheduledStart.getTime()) / 60_000,
+    ).toBe(30);
+  });
+
+  it("refuses a repeat day whose length the tenant does not offer", async () => {
+    // The per-day field is repeated, which is not a reason to trust it. Without
+    // this the top-level length is checked and the rest go straight through.
+    const request = booking(instructor, student, {
+      repeat: true,
+      occurrenceCount: 2,
+      weekdays: ["mon", "wed"],
+      perWeekday: { wed: { startTime: "17:30", durationMinutes: 37 } },
+    });
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      /length for wed/,
+    );
+  });
+
+  it("ignores a repeat pattern on a booking that does not repeat", async () => {
+    // The panel is hidden below two sessions but its fields still submit.
+    const { series, created } = await book(
+      booking(instructor, student, {
+        repeat: false,
+        occurrenceCount: 1,
+        weekdays: ["mon", "wed"],
+        perWeekday: { mon: { startTime: "09:00", durationMinutes: 15 } },
+      }),
+    );
+
+    expect(series).toBeNull();
+    expect(created).toHaveLength(1);
+    expect(
+      (created[0]!.scheduledEnd.getTime() - created[0]!.scheduledStart.getTime()) / 60_000,
+    ).toBe(60);
+  });
+
+  it("refuses a delivery type whose feature the tenant does not have", async () => {
+    // It was in the shipped `enabled_delivery_types` while `DEFAULT_FEATURES`
+    // shipped the feature off — an option for a way of delivering a session
+    // that nothing implements.
+    await configure({
+      classroom: { enabled_delivery_types: ["advanced_classroom", "external_link"] },
+    });
+    const request = booking(instructor, student, {
+      deliveryType: DeliveryType.ADVANCED_CLASSROOM,
+    });
+    await expect(plan(db, org, admin, request, before(request))).rejects.toThrow(
+      "not enabled",
+    );
+
+    // With the feature on it is an ordinary delivery type again.
+    org = (await db.organization.update({
+      where: { id: org.id },
+      data: { features: { advanced_classroom: true } },
+    })) as typeof org;
+    const allowed = await plan(db, org, admin, request, before(request));
+    expect(planTotal(allowed)).toBe(1);
+  });
+
   it("refuses a disabled delivery type", async () => {
     await configure({ classroom: { enabled_delivery_types: ["in_person"] } });
 

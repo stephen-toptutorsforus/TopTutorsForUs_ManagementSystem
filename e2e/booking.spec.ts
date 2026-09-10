@@ -160,7 +160,8 @@ test.describe("what a refresh must not disturb", () => {
     await page.locator("#title").fill("Algebra practice");
     await page.locator("#description").fill("Quadratics before the test.");
     await page.locator("#start_date").fill(today!);
-    await page.locator("#start_time").fill("17:30");
+    // A select since the clock changed — see `e2e/repeat-days.spec.ts`.
+    await page.locator("#start_time").selectOption("17:30");
     await page.locator("#duration_minutes").selectOption("90");
     await settled(page);
 

@@ -40,8 +40,8 @@ import type { Db } from "@/lib/db";
 import { ConflictError, Forbidden, ValidationError } from "@/lib/errors";
 import {
   type ConfigurableOrganization,
+  deliveryAvailable,
   settingNumber,
-  settingStrings,
   settingsReader,
 } from "@/lib/organization";
 import { Permission as P } from "@/lib/policies/permissions";
@@ -55,6 +55,7 @@ import {
   type RecurrenceFrequency,
   type RecurrenceRule,
   type Weekday,
+  type WeekdaySchedule,
   buildRule,
   expand,
 } from "@/lib/recurrence";
@@ -150,6 +151,12 @@ export interface BookingRequest {
   frequency?: RecurrenceFrequency;
   intervalN?: number;
   weekdays?: readonly string[];
+  /**
+   * Per-weekday start time and length, for a run whose days differ. Absent for
+   * every booking that repeats at one time, which is the ordinary case and the
+   * only one that existed before.
+   */
+  perWeekday?: Readonly<Record<string, WeekdaySchedule>>;
   endMode?: RecurrenceEndMode;
   occurrenceCount?: number | null;
   untilDate?: CivilDate | null;
@@ -256,6 +263,10 @@ export async function plan(
     endMode: repeat ? (request.endMode ?? "count") : "count",
     occurrenceCount: repeat ? (request.occurrenceCount ?? null) : 1,
     untilDate: repeat ? (request.untilDate ?? null) : null,
+    // A single session runs at the time it was given, whatever a leftover
+    // repeat pattern says: the panel that produces one is hidden below two
+    // sessions, and its fields still submit.
+    perWeekday: repeat ? (request.perWeekday ?? null) : null,
   });
 
   const reader = settingsReader(organization);
@@ -563,19 +574,29 @@ function validateRequest(
   const durations = reader.setting(["booking", "selectable_durations_minutes"], [60]);
   if (Array.isArray(durations) && durations.length > 0) {
     const allowed = durations.map(Number);
+    const named = () => allowed.map((d) => `${d} min`).join(", ");
     if (!allowed.includes(request.durationMinutes)) {
-      throw new ValidationError(
-        `session length must be one of: ${allowed.map((d) => `${d} min`).join(", ")}`,
-      );
+      throw new ValidationError(`session length must be one of: ${named()}`);
+    }
+    // Each repeat day carries its own length, so each is checked. Without
+    // this, the top-level field is validated and a per-day one goes straight
+    // to the database — the field being repeated is not a reason to trust it.
+    for (const [weekday, schedule] of Object.entries(request.perWeekday ?? {})) {
+      if (!allowed.includes(schedule.durationMinutes)) {
+        throw new ValidationError(
+          `the length for ${weekday} must be one of: ${named()}`,
+        );
+      }
     }
   }
 
-  const enabled = settingStrings(reader, ["classroom", "enabled_delivery_types"]);
-  if (enabled !== null && enabled.length > 0) {
-    const wire = request.deliveryType.toLowerCase();
-    if (!enabled.includes(wire)) {
-      throw new ValidationError(`${wire} sessions are not enabled here`);
-    }
+  // Enabled *and* its feature on. Filtering the Type list would otherwise be
+  // the only thing stopping a delivery type nothing implements, and a hidden
+  // option is not a constraint.
+  if (!deliveryAvailable(organization, request.deliveryType.toLowerCase())) {
+    throw new ValidationError(
+      `${request.deliveryType.toLowerCase()} sessions are not enabled here`,
+    );
   }
 
   // Neither the meeting link nor the room is required to book. The booking form
@@ -628,6 +649,7 @@ function validateRequest(
         endMode,
         occurrenceCount: request.occurrenceCount ?? null,
         untilDate: request.untilDate ?? null,
+        perWeekday: request.perWeekday ?? null,
       });
     } catch (error) {
       if (error instanceof RecurrenceError) throw new ValidationError(error.message);

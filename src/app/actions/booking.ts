@@ -31,7 +31,9 @@ import {
   createFromPlan,
   plan as planBooking,
 } from "@/lib/services/booking";
+import type { WeekdaySchedule } from "@/lib/recurrence";
 import { type CivilDate, type CivilTime, isValidZone } from "@/lib/time";
+import { maxRepeatDays, weekdayOf } from "@/lib/presentation";
 import {
   MATRIX_MAX_DAYS,
   MATRIX_PAGE_DAYS,
@@ -93,7 +95,11 @@ function capturedValues(form: FormData): Record<string, string> {
   const values: Record<string, string> = {};
   for (const [key, value] of form.entries()) {
     if (typeof value !== "string") continue;
-    if (key === "student_refs") continue; // a list; kept separately
+    // Lists, all of them, and a `Record<string, string>` would keep only the
+    // last of each. The form owns these in React state and the server echoes
+    // nothing back, the same way it does not echo the chip list.
+    if (key === "student_refs") continue;
+    if (key.startsWith("repeat_")) continue;
     values[key] = value;
   }
   // A date or time picked from the grid outranks the field, the same way the
@@ -108,6 +114,32 @@ function capturedValues(form: FormData): Record<string, string> {
   delete values.pick_instructor;
   delete values.clear_instructor;
   return values;
+}
+
+/**
+ * The repeat panel, as rows.
+ *
+ * Three parallel lists rather than one encoded field, because that is what a
+ * repeated set of `<select>`s submits and it needs no format nobody can read in
+ * a request log. Index `i` of each is one row; a row missing any of the three
+ * is dropped rather than half-read.
+ */
+function repeatRows(form: FormData): { weekday: string; schedule: WeekdaySchedule }[] {
+  const strings = (name: string) =>
+    form.getAll(name).filter((value): value is string => typeof value === "string");
+
+  const weekdays = strings("repeat_weekday");
+  const times = strings("repeat_time");
+  const lengths = strings("repeat_length");
+
+  const rows: { weekday: string; schedule: WeekdaySchedule }[] = [];
+  for (const [index, weekday] of weekdays.entries()) {
+    const startTime = times[index] ?? "";
+    const minutes = Number.parseInt(lengths[index] ?? "", 10);
+    if (!weekday || !CIVIL_TIME.test(startTime) || !Number.isFinite(minutes)) continue;
+    rows.push({ weekday, schedule: { startTime, durationMinutes: minutes } });
+  }
+  return rows;
 }
 
 /**
@@ -170,6 +202,42 @@ async function bookingFromForm(
     repeat = count > 1;
   }
 
+  // The repeat panel. It only exists above one session, and its fields still
+  // submit when it is hidden, so a single booking ignores it entirely.
+  let weekdays: string[] | undefined;
+  let perWeekday: Record<string, WeekdaySchedule> | undefined;
+  let patternStart: WeekdaySchedule | undefined;
+
+  if (repeat) {
+    const rows = repeatRows(form);
+    if (rows.length > 0) {
+      const seen = new Set<string>();
+      for (const row of rows) {
+        if (seen.has(row.weekday)) {
+          // Two rows on one weekday would silently become one, and the second
+          // row's time would be the one that survived — a change nobody made.
+          throw new ValidationError("each repeat day must be a different weekday");
+        }
+        seen.add(row.weekday);
+      }
+      const ceiling = maxRepeatDays(count ?? rows.length);
+      if (rows.length > ceiling) {
+        throw new ValidationError(
+          `a run of ${count} sessions can repeat on at most ${ceiling} ` +
+            `${ceiling === 1 ? "day" : "days"}`,
+        );
+      }
+
+      weekdays = rows.map((row) => row.weekday);
+      perWeekday = Object.fromEntries(rows.map((row) => [row.weekday, row.schedule]));
+      // The lead-time and horizon checks are made against the request's own
+      // start time, so it has to be the time the first session actually runs
+      // at: the row for the start date's own weekday when there is one, and
+      // otherwise the first row, which is the earliest the run can begin.
+      patternStart = perWeekday[weekdayOf(startDate)] ?? rows[0]!.schedule;
+    }
+  }
+
   const asked = one(form, "delivery_type", "external_link");
   const delivery = (Object.values(DeliveryType) as DeliveryType[]).find(
     (type) => type.toLowerCase() === asked,
@@ -193,8 +261,8 @@ async function bookingFromForm(
     meetingUrl: link || null,
     locationDetail: detail || null,
     startDate,
-    startTime,
-    durationMinutes: duration,
+    startTime: patternStart?.startTime ?? startTime,
+    durationMinutes: patternStart?.durationMinutes ?? duration,
     timezone,
     instructorId: await resolve(prisma.user, chosenInstructorRef(form)),
     studentIds,
@@ -202,9 +270,12 @@ async function bookingFromForm(
     programId: await resolve(prisma.program, one(form, "program_ref")),
     billable: one(form, "billable") === "on",
     repeat,
-    // A repeat is weekly, every week, on whichever weekday the first session
-    // falls on. An empty weekday list is how `buildRule` is asked for that.
+    // Weekly. With no repeat panel the weekday list is empty, which is how
+    // `buildRule` is asked for "whichever weekday the first session falls on"
+    // — the behaviour every booking had before the panel existed.
     frequency: "weekly",
+    weekdays,
+    perWeekday,
     endMode,
     occurrenceCount: count,
     untilDate: until,

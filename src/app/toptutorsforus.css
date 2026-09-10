@@ -1783,6 +1783,56 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
   color: var(--ink-500);
 }
 
+/* --- The repeat panel ------------------------------------------------------
+ *
+ * Shown once a run is more than one session. Each row is a weekday and what it
+ * runs at, laid out on the same auto-fit grid as `.form-row` so the three
+ * controls line up with the Date / Length / Time row above that seeded them —
+ * they are the same three questions, asked again per day, and they should not
+ * look like different ones. Below 720px the grid collapses to one column on
+ * its own, which is what `auto-fit` with a floor already does.
+ */
+.repeat-panel {
+  margin: 0.35rem 0 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+  background: var(--ink-050);
+}
+
+.repeat-heading {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-500);
+}
+
+.repeat-rows { list-style: none; margin: 0; padding: 0; }
+
+.repeat-row {
+  display: grid;
+  gap: 0 1rem;
+  /* The three fields share the space; the remove button takes only its own. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+}
+
+.repeat-row .field { margin-bottom: 0.75rem; }
+
+/* Aligned with the bottom of the controls beside it rather than with their
+   labels, and given the full 44px target the rest of the interface promises. */
+.repeat-remove {
+  min-width: 44px; min-height: 44px;
+  margin-bottom: 0.75rem;
+  padding: 0 0.6rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-500);
+}
+.repeat-remove:hover:not(:disabled) { color: var(--bad-text); }
+.repeat-remove:disabled { opacity: 0.4; }
+
+.repeat-add { margin: 0 0 0.6rem; }
+
 .booking-actions {
   display: flex; flex-wrap: wrap; gap: 0.6rem;
   justify-content: flex-end; margin-bottom: 2rem;

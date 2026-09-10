@@ -18,6 +18,15 @@
  * otherwise generate thousands of rows. Expansion stops at the tenant's
  * ceiling or horizon and *reports* that it did, so a preview can say "stopped
  * at 60 of a requested 104" rather than silently producing 60.
+ *
+ * **A weekday may carry its own time and length.** "Mondays at 4pm for an hour
+ * and Wednesdays at 5:30 for half of one" is one series, not two, and a family
+ * who books it that way should not have to. `perWeekday` holds those
+ * overrides; a weekday without one falls back to the rule's own `startTime`
+ * and `durationMinutes`, which is every rule written before this existed. The
+ * per-day values reach the database because occurrences are materialised rows
+ * that own their own schedule — nothing had to change below this module for a
+ * series to hold two different session lengths.
  */
 
 import {
@@ -64,6 +73,14 @@ const WEEKDAY_BY_ISO: Record<number, Weekday> = {
 /** A rule that cannot be expanded. Thrown before any row is written. */
 export class RecurrenceError extends Error {}
 
+/** When a particular weekday starts, and how long it runs. */
+export interface WeekdaySchedule {
+  readonly startTime: CivilTime;
+  readonly durationMinutes: number;
+}
+
+export type WeekdaySchedules = Readonly<Partial<Record<Weekday, WeekdaySchedule>>>;
+
 /** A validated recurrence. Build one through `buildRule` to get the checks. */
 export interface RecurrenceRule {
   readonly frequency: RecurrenceFrequency;
@@ -76,6 +93,12 @@ export interface RecurrenceRule {
   readonly endMode: RecurrenceEndMode;
   readonly occurrenceCount: number | null;
   readonly untilDate: CivilDate | null;
+  /**
+   * Per-weekday overrides of `startTime` and `durationMinutes`. Empty for a
+   * rule that runs at one time, which is every rule that does not say
+   * otherwise.
+   */
+  readonly perWeekday: WeekdaySchedules;
 }
 
 /** One occurrence a rule would produce, before anything is saved. */
@@ -86,6 +109,13 @@ export interface PlannedOccurrence {
   readonly start: Date;
   readonly end: Date;
   readonly dstEdge: DstEdge;
+  /**
+   * What this occurrence was expanded at, which is not always the rule's own
+   * values. Carried so a preview can show a run whose Wednesdays are shorter
+   * than its Mondays without recomputing which weekday each date fell on.
+   */
+  readonly startTime: CivilTime;
+  readonly durationMinutes: number;
 }
 
 export function shiftedByDst(occurrence: PlannedOccurrence): boolean {
@@ -125,6 +155,12 @@ export interface BuildRuleInput {
   weekdays?: readonly string[] | null;
   occurrenceCount?: number | null;
   untilDate?: CivilDate | null;
+  /**
+   * Per-weekday times and lengths. A key for a weekday the rule does not run
+   * on is dropped rather than refused: the form can leave a row behind when a
+   * weekday is changed, and the rule's weekday list is what decides.
+   */
+  perWeekday?: Readonly<Record<string, WeekdaySchedule>> | null;
 }
 
 /**
@@ -181,6 +217,30 @@ export function buildRule(input: BuildRuleInput): RecurrenceRule {
     }
   }
 
+  const perWeekday: Partial<Record<Weekday, WeekdaySchedule>> = {};
+  for (const [raw, schedule] of Object.entries(input.perWeekday ?? {})) {
+    if (!(raw in WEEKDAY_ISO)) {
+      throw new RecurrenceError(`unknown weekday in the repeat pattern: ${raw}`);
+    }
+    // Only for weekdays the rule actually runs on. A row left behind by the
+    // form when somebody changed a day would otherwise sit in the rule
+    // affecting nothing, and show up in a diff of two identical series.
+    if (!weekdays.includes(raw as Weekday)) continue;
+    if (
+      !Number.isInteger(schedule.durationMinutes) ||
+      schedule.durationMinutes < 1
+    ) {
+      throw new RecurrenceError("each repeat day needs a length of at least 1 minute");
+    }
+    if (!/^\d{2}:\d{2}$/.test(schedule.startTime)) {
+      throw new RecurrenceError("each repeat day needs a start time");
+    }
+    perWeekday[raw as Weekday] = {
+      startTime: schedule.startTime,
+      durationMinutes: schedule.durationMinutes,
+    };
+  }
+
   return {
     frequency: input.frequency,
     intervalN,
@@ -192,7 +252,15 @@ export function buildRule(input: BuildRuleInput): RecurrenceRule {
     endMode: input.endMode,
     occurrenceCount,
     untilDate,
+    perWeekday,
   };
+}
+
+/** What this rule runs at on this civil date. */
+export function scheduleOn(rule: RecurrenceRule, day: CivilDate): WeekdaySchedule {
+  const weekday = WEEKDAY_BY_ISO[isoWeekday(day)];
+  const override = weekday === undefined ? undefined : rule.perWeekday[weekday];
+  return override ?? { startTime: rule.startTime, durationMinutes: rule.durationMinutes };
 }
 
 export interface ExpandOptions {
@@ -224,7 +292,6 @@ export function expand(rule: RecurrenceRule, options: ExpandOptions = {}): Expan
   let truncated = false;
   let reason: string | null = null;
 
-  const durationMs = rule.durationMinutes * 60_000;
   let index = options.startIndex ?? 1;
   let day = rule.startDate;
   let examined = 0;
@@ -253,13 +320,16 @@ export function expand(rule: RecurrenceRule, options: ExpandOptions = {}): Expan
           break;
         }
 
-        const resolved = resolveCivil(day, rule.startTime, rule.timezone);
+        const schedule = scheduleOn(rule, day);
+        const resolved = resolveCivil(day, schedule.startTime, rule.timezone);
         occurrences.push({
           index,
           localDate: day,
           start: resolved.instant,
-          end: new Date(resolved.instant.getTime() + durationMs),
+          end: new Date(resolved.instant.getTime() + schedule.durationMinutes * 60_000),
           dstEdge: resolved.edge,
+          startTime: schedule.startTime,
+          durationMinutes: schedule.durationMinutes,
         });
         index += 1;
 

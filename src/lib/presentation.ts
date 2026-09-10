@@ -86,7 +86,10 @@ export const DELIVERY_META: Record<DeliveryType, Badge & { choice: string }> = {
   },
   [DeliveryType.EXTERNAL_LINK]: {
     label: "Online",
-    choice: "Other Online Classroom (Zoom, etc.)",
+    // Not "Other Online Classroom" any more. It was named against the
+    // advanced classroom beside it, and that one is behind a feature flag no
+    // tenant has on, so "other" contrasted with nothing.
+    choice: "Online Classroom (Zoom, etc.)",
     icon: "↗",
     tone: "info",
   },
@@ -286,4 +289,95 @@ export function clockDuration(minutes: number | null): string {
 
 export function percent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
+
+// --- The clock, and the week -------------------------------------------------
+//
+// Both are drawn by client components, so they live here rather than in
+// `lib/web/booking.ts`: that module reaches the eligibility service and,
+// through it, Prisma, and nothing that imports it can cross into the browser.
+
+const MERIDIEM_HOURS = 12;
+
+/** `"16:45"` → `"4:45 PM"`. The form people read a class time in. */
+export function clockTime(value: string): string {
+  const [rawHour = "0", rawMinute = "0"] = value.split(":");
+  const hour24 = Number.parseInt(rawHour, 10);
+  if (!Number.isFinite(hour24)) return value;
+  const hour = hour24 % MERIDIEM_HOURS || MERIDIEM_HOURS;
+  const suffix = hour24 < MERIDIEM_HOURS ? "AM" : "PM";
+  return `${hour}:${rawMinute.padStart(2, "0")} ${suffix}`;
+}
+
+/**
+ * Every time of day, at a step.
+ *
+ * A list rather than a picker. The native time input opens a dropdown that
+ * closes on the first choice, so changing the hour, the minute and the
+ * meridiem meant opening it three times — a select is one open and one choice,
+ * it works with the script inert, and it needs no popover of our own to trap
+ * focus in. The cost is that a time off the step cannot be typed, which is why
+ * the step is the finest session length the tenant offers.
+ */
+export function clockTimes(stepMinutes = 15): { value: string; label: string }[] {
+  const step = Number.isFinite(stepMinutes) && stepMinutes > 0 ? Math.floor(stepMinutes) : 15;
+  const options: { value: string; label: string }[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
+    const value = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(
+      minutes % 60,
+    ).padStart(2, "0")}`;
+    options.push({ value, label: clockTime(value) });
+  }
+  return options;
+}
+
+/**
+ * Snap a time onto the step, so a value stored before the step changed — or
+ * typed into the API — still selects something rather than leaving the field
+ * showing the first option and quietly moving the session to midnight.
+ */
+export function nearestClockTime(value: string, stepMinutes = 15): string {
+  const [rawHour = "0", rawMinute = "0"] = value.split(":");
+  const total = Number.parseInt(rawHour, 10) * 60 + Number.parseInt(rawMinute, 10);
+  if (!Number.isFinite(total)) return "00:00";
+  const step = stepMinutes > 0 ? stepMinutes : 15;
+  const snapped = Math.min(24 * 60 - step, Math.round(total / step) * step);
+  return `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(
+    snapped % 60,
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * The week, in the order it is read, using the names the recurrence engine
+ * stores. Monday first because the ISO weekday numbering the rest of the
+ * scheduler counts in starts there.
+ */
+export const WEEKDAY_CHOICES: readonly { value: string; label: string }[] = [
+  { value: "mon", label: "Monday" },
+  { value: "tue", label: "Tuesday" },
+  { value: "wed", label: "Wednesday" },
+  { value: "thu", label: "Thursday" },
+  { value: "fri", label: "Friday" },
+  { value: "sat", label: "Saturday" },
+  { value: "sun", label: "Sunday" },
+];
+
+/**
+ * The most weekdays a run may repeat on.
+ *
+ * A week, and never more days than the run has sessions: a weekday that never
+ * comes round is a row the preview cannot honour. The booking form draws the
+ * ceiling and the action enforces it, so it is defined once — a second copy in
+ * the action would also have to be `async`, because that file is `"use server"`
+ * and may export nothing else.
+ */
+export function maxRepeatDays(occurrenceCount: number): number {
+  return Math.max(1, Math.min(WEEKDAY_CHOICES.length, occurrenceCount));
+}
+
+/** The stored weekday name for a civil date, without importing the engine. */
+export function weekdayOf(day: string): string {
+  const parsed = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return "mon";
+  return WEEKDAY_CHOICES[(parsed.getUTCDay() + 6) % 7]!.value;
 }

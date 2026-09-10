@@ -112,6 +112,16 @@ edges have a stated, tested policy — gaps shift forward, overlaps take the fir
 **Preview and creation share one function.** What somebody is shown before
 pressing the button is by construction what gets written.
 
+**A weekday may carry its own time and length.** "Mondays at four for an hour,
+Wednesdays at half five for thirty minutes" is one series. `perWeekday` on the
+recurrence rule holds those overrides and a weekday without one falls back to
+the rule's own values, which is every rule written before the booking form's
+repeat panel existed. Nothing below `lib/recurrence.ts` had to change for it:
+occurrences are materialised rows that own their own schedule, so a series
+whose days differ is already expressible. The series row keeps the pattern's
+first day as its default — it is a template, not a second copy of the
+schedule.
+
 **Eligibility is asked before availability, and again before the write.**
 Whether an instructor *may* teach a student is a relationship question, and
 `src/lib/services/instructorEligibility.ts` is the only place it is answered —
@@ -189,6 +199,18 @@ the bare path, which is the only place a URL changes on its own and happens
 before anything renders. And nothing on an address identifies anybody: the
 parameters that name a record carry an opaque `ref`.
 
+**On a form submitted by React, a select must be `key` + `defaultValue`.**
+`useActionState` resets the form after every action, and a reset restores each
+control to its *attribute* default. A controlled `<select value>` has no
+`selected` attribute to be restored to, so it silently returns to its first
+option while React state still holds the real answer — the booking form's
+repeat panel showed Monday for a Wednesday row exactly this way, with the
+remove button beside it correctly labelled "Remove Wednesday". Keying on the
+current value and passing `defaultValue` remounts the control with a real
+`selected` attribute, which survives the reset. Every select on that form does
+it this way; a `value` prop there is a bug waiting to be found by somebody
+else.
+
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal
 — and pages import from it rather than combining class names by hand. Each module
@@ -239,7 +261,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-485 tests — 246 pure, 239 database-backed — plus 306 browser tests and
+503 tests — 259 pure, 244 database-backed — plus 326 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

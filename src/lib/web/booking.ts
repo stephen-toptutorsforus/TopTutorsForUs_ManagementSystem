@@ -21,7 +21,7 @@ import {
   openings,
 } from "@/lib/availability";
 import type { Db } from "@/lib/db";
-import { settingNumber, settingStrings, settingsReader } from "@/lib/organization";
+import { deliveryAvailable, settingNumber, settingsReader } from "@/lib/organization";
 import {
   eligibleInstructors,
   resolveRosterFromRefs,
@@ -377,9 +377,8 @@ export async function bookingContext(
     }),
   ]);
 
-  const enabled = settingStrings(reader, ["classroom", "enabled_delivery_types"]) ?? [];
   const deliveryTypes = (Object.values(DeliveryType) as DeliveryType[])
-    .filter((type) => enabled.length === 0 || enabled.includes(type.toLowerCase()))
+    .filter((type) => deliveryAvailable(organization, type.toLowerCase()))
     .map((type) => ({ value: type.toLowerCase(), label: deliveryMeta(type).choice }));
 
   return {

@@ -130,6 +130,31 @@ export function setting(
   return fallback;
 }
 
+/**
+ * Delivery types that exist in the enum but need a feature switched on.
+ *
+ * The advanced classroom is a later phase: `DEFAULT_FEATURES` ships it off and
+ * nothing implements it. It was still in `enabled_delivery_types` and so still
+ * in the booking form's Type list, which offered a way to deliver a session
+ * that does not exist — a seam made to look implemented. Listing it here gates
+ * the option and the write together.
+ */
+export const DELIVERY_FEATURES: Readonly<Record<string, string>> = {
+  advanced_classroom: "advanced_classroom",
+};
+
+/** Is this delivery type available here — enabled, and its feature on? */
+export function deliveryAvailable(
+  organization: ConfigurableOrganization | null | undefined,
+  wire: string,
+): boolean {
+  const enabled = setting(organization, ["classroom", "enabled_delivery_types"]);
+  const list = Array.isArray(enabled) ? enabled.map(String) : [];
+  if (list.length > 0 && !list.includes(wire)) return false;
+  const needed = DELIVERY_FEATURES[wire];
+  return needed === undefined || feature(organization, needed);
+}
+
 export function feature(
   organization: ConfigurableOrganization | null | undefined,
   name: string,

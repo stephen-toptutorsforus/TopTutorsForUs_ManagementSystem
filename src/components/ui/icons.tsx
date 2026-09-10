@@ -85,3 +85,20 @@ export function SaveIcon() {
     </Svg>
   );
 }
+
+/**
+ * Remove a row. Here rather than `🗑` for the reason at the top of this file,
+ * and one it demonstrates especially well: the emoji is drawn in colour on
+ * some platforms, monochrome on others, and is missing entirely from several
+ * Windows fonts — three renderings of one control.
+ */
+export function TrashIcon() {
+  return (
+    <Svg>
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </Svg>
+  );
+}
