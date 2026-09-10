@@ -14,6 +14,21 @@ const nextConfig: NextConfig = {
    */
   serverExternalPackages: ["@node-rs/argon2"],
 
+  /**
+   * `CLAUDE.md` says the dev server is at `http://127.0.0.1:3000`, and Next 16
+   * serves it on `localhost`. Dev resources — `/_next/webpack-hmr` and the
+   * client chunks with it — are refused across that difference by default, so
+   * at 127.0.0.1 the page renders, styles, and **never hydrates**: no handler
+   * anywhere on the page runs.
+   *
+   * It cost nothing while every panel opened from a URL fragment, because CSS
+   * did that work. Now that the overlays are React state, an unhydrated page is
+   * an application whose buttons do nothing — which is exactly how this was
+   * found. The two addresses are the same machine; saying so here is the whole
+   * fix, and it applies to development only.
+   */
+  allowedDevOrigins: ["127.0.0.1"],
+
   experimental: {
     /**
      * `forbidden()` and `unauthorized()`. Without them a refusal from the
