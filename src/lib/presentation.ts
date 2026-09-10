@@ -157,6 +157,61 @@ export const ROLE_FILTER_ORDER: readonly Role[] = [
 ];
 
 /**
+ * What each account state means, and how it is drawn.
+ *
+ * The directory drew all five as one of two badges — green and ticked for
+ * active, grey and hollow for every other — so "invited", "bounced" and
+ * "disabled" were the same picture with a different word under it, and the
+ * difference between "we are waiting for them" and "the address does not work"
+ * was invisible at a glance.
+ *
+ * `meaning` is the sentence: the states are not self-explanatory, and nothing
+ * in the product defined them anywhere a person could read. It is the badge's
+ * `title` and the same words appear on the help page, so one definition serves
+ * the hover and the reference.
+ *
+ * `bounced` is a warning rather than a failure. Nobody did anything wrong and
+ * the account is not broken — an address needs correcting, which is work, not
+ * damage.
+ */
+export const USER_STATUS_META: Record<UserStatus, Badge & { meaning: string }> = {
+  [UserStatus.ACTIVE]: {
+    label: "Active",
+    tone: "good",
+    icon: "✓",
+    meaning: "Account setup is complete; the user can sign in.",
+  },
+  [UserStatus.INVITED]: {
+    label: "Invited",
+    tone: "info",
+    icon: "✉",
+    meaning: "The invitation was sent, but registration is unfinished.",
+  },
+  [UserStatus.PENDING_INVITE]: {
+    label: "Pending invite",
+    tone: "pending",
+    icon: "◷",
+    meaning: "The user was created; the invitation is waiting to be sent.",
+  },
+  [UserStatus.BOUNCED]: {
+    label: "Bounced",
+    tone: "warn",
+    icon: "!",
+    meaning: "The invitation email could not be delivered.",
+  },
+  [UserStatus.DISABLED]: {
+    label: "Disabled",
+    tone: "muted",
+    icon: "⊘",
+    meaning: "Access was turned off; the user cannot sign in.",
+  },
+};
+
+export function userStatusMeta(status: UserStatus): Badge & { meaning: string } {
+  return USER_STATUS_META[status] ?? { ...UNKNOWN, meaning: "" };
+}
+
+/**
  * The account states the directory filters by — every one in the enum, unlike
  * the roles. Here so the page that draws the ticks and the query that reads
  * them share one list; two copies would disagree about what "all of them"

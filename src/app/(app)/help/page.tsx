@@ -117,6 +117,17 @@ export default async function HelpPage() {
             Marking everyone present only fills places nobody has judged yet. An excused
             absence does not count against an attendance rate.
           </dd>
+          <dt>Account status</dt>
+          <dd>
+            <strong>Active</strong> — setup is complete and the person can sign in.
+            <strong> Invited</strong> — the invitation went out and registration is
+            unfinished. <strong>Pending invite</strong> — the account exists and the
+            invitation is waiting to be sent. <strong>Bounced</strong> — the invitation
+            could not be delivered, so the address needs correcting.
+            <strong> Disabled</strong> — access was turned off and the person cannot
+            sign in. A new account starts <em>invited</em> and has no password until its
+            owner sets one.
+          </dd>
           <dt>Keyboard</dt>
           <dd>
             Every control is reachable by <kbd>Tab</kbd>. <kbd>Esc</kbd> closes the status

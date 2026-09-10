@@ -193,6 +193,10 @@ export function CreateUserModal(props: CreateUserModalProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       initialFocusRef={firstField}
+      // Three steps of typing is not something to lose to a click on the page
+      // behind it. Escape and the close button still work, because both are
+      // things somebody meant to do.
+      dismissOnBackdrop={false}
       // One title for every step and every role: the heading names the
       // task, and a heading that changed under the person would read as a
       // different form each time.

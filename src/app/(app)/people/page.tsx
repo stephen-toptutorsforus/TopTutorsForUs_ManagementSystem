@@ -15,7 +15,7 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { AssignButton, CreateUserButton } from "@/components/people/OverlayTriggers";
 import { PeopleOverlays } from "@/components/people/PeopleOverlays";
-import { Badge, Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -321,7 +321,6 @@ export default async function PeoplePage() {
                 const displayName =
                   `${person.firstName} ${person.lastName}`.trim() || person.ref;
                 const isInstructor = row.roleNames.includes("Instructor");
-                const active = person.status === "ACTIVE";
                 return (
                   <tr key={String(person.id)}>
                     <td data-label="" className="people-avatar">
@@ -390,9 +389,7 @@ export default async function PeoplePage() {
                       )}
                     </td>
                     <td data-label="Status">
-                      <Badge tone={active ? "good" : "muted"} glyph={active ? "✓" : "○"}>
-                        {titleCase(person.status)}
-                      </Badge>
+                      <UserStatusBadge status={person.status} />
                     </td>
                     <td data-label="Actions">
                       {isInstructor ? (

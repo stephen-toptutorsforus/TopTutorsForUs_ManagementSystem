@@ -149,17 +149,38 @@ test.describe("the dialog itself", () => {
     await expect(createUser(page)).toBeHidden();
   });
 
-  test("a click beside it closes it, and one inside it does not", async ({ page }) => {
+  test("a click beside the wizard does not throw away what is in it", async ({ page }) => {
+    // A click on empty space is a gesture people make without meaning anything
+    // by it, and this dialog holds three steps of typing.
     await openCreate(page);
+    await page.locator("#first_name").fill("Wren");
 
-    // Inside the card: the heading is as inside as it gets.
     await page.getByRole("heading", { name: "Create User" }).click();
     await expect(createUser(page)).toBeVisible();
 
     // Beside it. The dialog fills the viewport and centres the card, so the
     // very top-left corner is the dialog's own padding.
     await page.locator("dialog.modal[open]").click({ position: { x: 4, y: 4 } });
+    await expect(createUser(page)).toBeVisible();
+    await expect(page.locator("#first_name")).toHaveValue("Wren");
+
+    // The two deliberate ways out still work.
+    await page.keyboard.press("Escape");
     await expect(createUser(page)).toBeHidden();
+  });
+
+  test("a click beside the assign dialog does close it", async ({ page }) => {
+    // It holds one question, not a form somebody has been filling in, so
+    // dismissing it costs nothing.
+    await page.goto("/people?role=student");
+    await page.waitForURL(/\/people$/);
+    const trigger = page.getByRole("button", { name: /^Assign/ }).first();
+    test.skip((await trigger.count()) === 0, "the seed has nobody to assign");
+
+    await trigger.click();
+    await expect(assign(page)).toBeVisible();
+    await page.locator("dialog.modal[open]").click({ position: { x: 4, y: 4 } });
+    await expect(assign(page)).toBeHidden();
   });
 
   test("focus goes in, is kept in, and comes back", async ({ page }) => {

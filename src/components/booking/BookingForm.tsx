@@ -113,7 +113,6 @@ export function BookingForm({
             fieldsets mean the grouping is in the markup, not only in the
             spacing. */}
         <fieldset className="booking-section">
-          <legend className="booking-subhead">Session details</legend>
 
           <div className="booking-row booking-row-type">
             <Field id="delivery_type" label="Type">

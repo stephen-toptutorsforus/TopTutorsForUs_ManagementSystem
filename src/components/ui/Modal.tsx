@@ -41,6 +41,7 @@ export function Modal({
   children,
   initialFocusRef,
   labelledBy,
+  dismissOnBackdrop = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +56,16 @@ export function Modal({
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Overrides the generated id, for a caller that needs a stable one. */
   labelledBy?: string;
+  /**
+   * Whether a click beside the panel closes it. True for a dialog holding a
+   * question; false for one holding work.
+   *
+   * A stray click on the page behind a half-filled form throws the form away,
+   * and the gesture that does it — a click on empty space — is one people make
+   * without meaning anything by it. Escape and the close button are both
+   * deliberate; clicking beside a panel is not.
+   */
+  dismissOnBackdrop?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   // Generated, not a fixed string: two dialogs are mounted on the directory at
@@ -91,6 +102,7 @@ export function Modal({
       // card. A click inside the card has the card, or something in it, as its
       // target and does nothing.
       onClick={(event) => {
+        if (!dismissOnBackdrop) return;
         if (event.target === dialog.current) onOpenChange(false);
       }}
     >

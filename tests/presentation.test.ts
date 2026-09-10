@@ -20,6 +20,7 @@ import {
   ROLE_FILTER_ORDER,
   STATUS_FILTER_ORDER,
   USER_STATUS_FILTER_ORDER,
+  userStatusMeta,
 } from "@/lib/presentation";
 import { narrows, ticked } from "@/lib/selection";
 
@@ -98,5 +99,38 @@ describe("drawing and reading a set of ticks", () => {
 
   it("reads one missing tick as a filter", () => {
     expect(narrows(STATUS_FILTER_ORDER.slice(1), STATUS_FILTER_ORDER)).toBe(true);
+  });
+});
+
+describe("what an account state is drawn as", () => {
+  // Four of the five used to be one grey badge with a different word under it,
+  // so "we are waiting for them" and "the address does not work" looked alike.
+
+  it("gives every state its own glyph and its own colour", () => {
+    const tones = new Set(Object.values(UserStatus).map((s) => userStatusMeta(s).tone));
+    const glyphs = new Set(Object.values(UserStatus).map((s) => userStatusMeta(s).icon));
+
+    expect(tones.size, "two states drawn the same colour").toBe(
+      Object.values(UserStatus).length,
+    );
+    expect(glyphs.size, "two states drawn the same glyph").toBe(
+      Object.values(UserStatus).length,
+    );
+  });
+
+  it("says what each one means, in a sentence", () => {
+    for (const status of Object.values(UserStatus)) {
+      const meta = userStatusMeta(status);
+      expect(meta.meaning, status).not.toBe("");
+      expect(meta.meaning.endsWith("."), `${status} should read as a sentence`).toBe(true);
+    }
+  });
+
+  it("covers every state the enum has", () => {
+    // A state with no entry would fall back to "Unknown" with no meaning at
+    // all, which is worse than the single grey badge this replaced.
+    for (const status of Object.values(UserStatus)) {
+      expect(userStatusMeta(status).label, status).not.toBe("Unknown");
+    }
   });
 });

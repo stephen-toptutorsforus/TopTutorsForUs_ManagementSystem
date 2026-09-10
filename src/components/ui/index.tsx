@@ -8,7 +8,7 @@
  * `Badge.tsx`'s job to know that a cancelled session is a red one.
  */
 
-export { Badge, StatusBadge, AttendanceBadge, DeliveryBadge, Tag } from "./Badge";
+export { Badge, StatusBadge, UserStatusBadge, AttendanceBadge, DeliveryBadge, Tag } from "./Badge";
 export type { Tone } from "./Badge";
 export { Button, LinkButton, AnchorButton, ButtonRow } from "./Button";
 export type { ButtonVariant, ButtonSize } from "./Button";
