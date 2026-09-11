@@ -1361,13 +1361,18 @@ button.quartercell:hover { background: var(--brand-100); color: var(--brand-700)
 /* Unavailable is a span, never a button: nothing to tab to, nothing to press,
    no dead control that looks like it should do something. */
 .quartercell.is-out { color: var(--ink-400); font-weight: 500; }
+/* A start time is an instant, not a span, so it is drawn as a line at the edge
+   the session begins on rather than as a filled quarter. The same inset rule
+   the selected navigation row uses. Filling the quarter said "these fifteen
+   minutes", which is the length's job and not this one's. */
 .quartercell.is-chosen {
-  background: var(--brand-600); color: var(--on-brand); font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--brand-600);
+  color: var(--brand-700); font-weight: 700;
 }
-button.quartercell.is-chosen:hover { background: var(--brand-700); color: var(--on-brand); }
-/* Set here, but the instructor is not free at it. Struck through rather than a
-   second fill, so "this is where the row stands" survives while the quarter
-   still looks unlike the ones that can be pressed. */
+button.quartercell.is-chosen:hover { color: var(--brand-700); }
+/* Set here, but the instructor is not free at it. Struck through rather than
+   given a fill of its own, so "this is where the row stands" survives while the
+   quarter still looks unlike the ones that can be pressed. */
 .quartercell.is-out.is-chosen { text-decoration: line-through; }
 
 /* Wide enough to be a table: the hour label sits over its own quarters, and
@@ -1417,6 +1422,11 @@ button.quartercell.is-chosen:hover { background: var(--brand-700); color: var(--
   .daygrid-week .quartercell {
     border-radius: var(--radius);
     padding: 0.7rem 0; font-size: 0.75rem;
+  }
+  /* Square where the session starts, so the marker is a straight line rather
+     than a curve the corner radius has bent. */
+  .daygrid-week .quartercell.is-chosen {
+    border-top-left-radius: 0; border-bottom-left-radius: 0;
   }
 }
 

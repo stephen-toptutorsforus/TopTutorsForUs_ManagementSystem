@@ -267,7 +267,11 @@ test.describe("the dialog itself", () => {
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Create user", exact: true }).click();
 
-    await expect(page.getByRole("alert")).toBeVisible();
+    // Scoped to the dialog. Next's route announcer is also `role="alert"`, and
+    // it is in the document from the first client navigation onwards — so an
+    // unscoped lookup matched two elements and failed strict mode depending on
+    // how the run reached this page.
+    await expect(createUser(page).getByRole("alert")).toBeVisible();
     await expect(createUser(page)).toBeVisible();
     // And nothing was thrown away: Back reaches the details as they were.
     await page.getByRole("button", { name: "Back" }).click();
