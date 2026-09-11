@@ -1347,24 +1347,20 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-700);
   transition: opacity 0.12s ease;
 }
+/* Every quarter alike, because every quarter is on offer. The table does not
+   narrow times — `outside_availability` is an overridable conflict the preview
+   reports, not a rule a picker could enforce — so a second fill here would be
+   a distinction the screen cannot act on. */
 .quartercell {
   flex: 1 1 0; min-width: 0;
   padding: 0.45rem 0;
-  border: 0; background: var(--ink-050);
+  border: 0; background: var(--good-surface);
   font: inherit; font-size: 0.68rem; font-weight: 650;
   font-variant-numeric: tabular-nums; color: var(--good-text);
   white-space: nowrap;
-  opacity: 1;
+  cursor: pointer;
 }
-button.quartercell { cursor: pointer; background: var(--good-surface); }
-button.quartercell:hover { background: var(--brand-100); color: var(--brand-700); }
-/* Outside the instructor's declared hours, and still pressable: the service
-   treats that as an overridable conflict rather than a refusal, so this is a
-   quieter cell and not a disabled one. Quiet by weight and colour, because the
-   fill is what says which times are inside the window and the two must not be
-   the same signal. */
-.quartercell.is-out { background: var(--ink-050); color: var(--ink-400); font-weight: 500; }
-button.quartercell.is-out:hover { background: var(--brand-100); color: var(--brand-700); }
+.quartercell:hover { background: var(--brand-100); color: var(--brand-700); }
 /* A start time is an instant, not a span, so it is drawn as a line at the edge
    the session begins on rather than as a filled quarter. The same inset rule
    the selected navigation row uses. Filling the quarter said "these fifteen
@@ -1373,11 +1369,7 @@ button.quartercell.is-out:hover { background: var(--brand-100); color: var(--bra
   box-shadow: inset 3px 0 0 var(--brand-600);
   color: var(--brand-700); font-weight: 700;
 }
-button.quartercell.is-chosen:hover { color: var(--brand-700); }
-/* Set here, but the instructor is not free at it. Struck through rather than
-   given a fill of its own, so "this is where the row stands" survives while the
-   quarter still looks unlike the ones that can be pressed. */
-.quartercell.is-out.is-chosen { text-decoration: line-through; }
+.quartercell.is-chosen:hover { color: var(--brand-700); }
 
 /* Wide enough to be a table: the hour label sits over its own quarters, and
    the quarters are labelled only once the hour is pointed at or tabbed into.

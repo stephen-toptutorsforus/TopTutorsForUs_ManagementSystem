@@ -165,10 +165,18 @@ export interface SerialisedWeekPlan {
      * and light none, which is the truth: the select below still shows 9:15.
      */
     startTime: CivilTime;
-    /** One array of quarters per hour column, in the columns' own order. */
-    free: boolean[][];
     closedReason: string | null;
   }[];
+  /**
+   * Whether any of these weekdays has a declared window long enough for it.
+   *
+   * The only thing left of the per-quarter answer, because the table draws
+   * every quarter the same: it offers times rather than narrowing them, and
+   * `outside_availability` is an overridable conflict the preview reports
+   * rather than a rule this table could enforce. Kept as one boolean per grid
+   * so the block can still say when a run is asking for days the instructor
+   * has not declared at all.
+   */
   anyOpen: boolean;
 }
 
@@ -279,21 +287,22 @@ function serialiseWeekPlan(
   // this cannot quietly mis-group if the axis ever starts somewhere other than
   // midnight or the step stops dividing an hour. The hour takes its heading
   // from its first column, which is the one on the hour.
+  //
+  // `grid.rows[].free` is deliberately not carried across. Every quarter is
+  // drawn the same, so a hundred booleans a row would be a hundred booleans
+  // nothing reads — `anyOpen` below is all the table has left to say.
   const columns: WeekPlanHour[] = [];
-  const grouping: number[][] = [];
   let currentHour: string | null = null;
-  for (const [position, column] of grid.columns.entries()) {
+  for (const column of grid.columns) {
     const hour = column.value.slice(0, 2);
     if (hour !== currentHour) {
       currentHour = hour;
       columns.push({ label: column.label, slots: [] });
-      grouping.push([]);
     }
     columns[columns.length - 1]!.slots.push({
       value: column.value,
       label: `:${column.value.slice(3)}`,
     });
-    grouping[grouping.length - 1]!.push(position);
   }
 
   return {
@@ -304,7 +313,6 @@ function serialiseWeekPlan(
       dayLabel: dayLabel(row.day),
       durationMinutes: row.durationMinutes,
       startTime: chosen.find((day) => day.weekday === row.weekday)?.startTime ?? "",
-      free: grouping.map((positions) => positions.map((position) => row.free[position]!)),
       closedReason: row.closedReason,
     })),
     anyOpen: grid.rows.some((row) => row.free.some(Boolean)),

@@ -218,14 +218,16 @@ which weekday happened to sort first. The quarter a row is set to is drawn as
 pressed, including where the instructor is not free at it: that is where the
 row stands, and hiding it is worst exactly when it matters.
 
-Every quarter of it is pressable, inside the instructor's declared hours or
-not. `outside_availability` is an *overridable* conflict rather than a refusal
-— the service lets a run be booked outside declared hours by somebody permitted
-to override — and the Start time select has always offered the whole day, so a
-table that refused would have been the one control on the form forbidding what
-the service allows. The shading says which times are inside the window and the
-preview reports the ones that are not, which is the same division of labour as
-the rest of the block: the table narrows the search, the preview decides.
+Every quarter of it is on offer, and every quarter is drawn alike.
+`outside_availability` is an *overridable* conflict rather than a refusal — the
+service lets a run be booked outside declared hours by somebody permitted to
+override — and the Start time select has always offered the whole day, so a
+table that refused, or that shaded as though it might, would be claiming a rule
+that does not exist. This one state of the block is therefore a picker and not
+a narrowing: what the declared hours are is said by the line under the table
+for a day with none, and by Preview for a time outside them. The per-quarter
+answer is not serialised at all, because nothing would read it — `anyOpen` is
+what survives of it.
 
 Its resolution and its layout are deliberately different numbers. Every other
 time control on the form offers quarter hours, so a table that could only set a

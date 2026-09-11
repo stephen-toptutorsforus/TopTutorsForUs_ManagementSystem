@@ -342,30 +342,20 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     await expect(midnight.nth(2)).toContainText("12:30 AM");
   });
 
-  test("offers every time of day, inside the declared hours or not", async ({
-    page,
-  }) => {
+  test("offers every time of day, drawn alike", async ({ page }) => {
     // `outside_availability` is an overridable conflict rather than a refusal,
-    // and the Start time select above offers the whole day — so the table must
-    // not be the one control on the form that forbids what the service allows.
-    // The shading still says which times are inside the declared window.
+    // and the Start time select above offers the whole day — so the table does
+    // not narrow times, and does not shade as though it did. Every quarter of
+    // every hour is one pressable control like any other.
     await twoDayRun(page);
     const first = page
       .locator('table[aria-labelledby="weekplan-heading"] tbody tr')
       .first();
-    await expect(first.locator(".quartercell")).toHaveCount(24 * 4);
     await expect(first.locator("button.quartercell")).toHaveCount(24 * 4);
+    await expect(first.locator(".quartercell:not(button)")).toHaveCount(0);
 
-    // Both kinds are present in a day, so the shading still carries meaning.
-    expect(await first.locator("button.quartercell.is-out").count()).toBeGreaterThan(0);
-    expect(
-      await first.locator("button.quartercell:not(.is-out)").count(),
-    ).toBeGreaterThan(0);
-
-    // And one outside the window really does set the time. 3 AM: nothing the
-    // seed declares reaches it, on any weekday.
+    // 3 AM is well outside anything the seed declares, and still sets the time.
     const small = first.locator("td").nth(3).locator(".quartercell").first();
-    await expect(small).toHaveClass(/is-out/);
     await small.click();
     await settled(page);
     await expect(page.locator('.repeat-row select[name="repeat_time"]').first()).toHaveValue(
