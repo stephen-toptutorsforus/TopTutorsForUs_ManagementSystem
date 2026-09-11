@@ -1424,11 +1424,6 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   .daygrid-week .quartercell.is-chosen {
     border-top-left-radius: 0; border-bottom-left-radius: 0;
   }
-  /* An hour a row is twenty-four rows per weekday, so a three-day run is a
-     grid taller than the rest of the form put together. Capped and scrolled
-     inside itself: the whole day is still reachable, but it stops deciding how
-     far down the page everything after it sits. */
-  .daygrid-week-scroll { max-height: 60vh; overflow-y: auto; }
 }
 
 .timecell {
@@ -1953,25 +1948,9 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
 
 .repeat-add { margin: 0 0 0.6rem; }
 
-/* Preview and Book, kept against the bottom of the scroller.
- *
- * They used to sit wherever the form ended, which was fine until the
- * availability table above them became the whole day: an hour a column on a
- * wide screen, an hour a *row* on a narrow one. Measured on a phone, the
- * actions were 3,751px down a 844px viewport — four and a half screens below
- * the control that had just produced them, and Book only appears after
- * Preview, so the one that matters was the further away of the two. Sticky
- * costs a strip of the screen and settles it in every state, rather than
- * leaving the primary action's reachability to depend on how tall the grid
- * happens to be. */
 .booking-actions {
-  position: sticky; bottom: 0; z-index: 4;
   display: flex; flex-wrap: wrap; gap: 0.6rem;
-  justify-content: flex-end;
-  margin-bottom: 2rem; padding: 0.75rem 0;
-  /* The page's own ground, not the card's — this bar sits on the page. */
-  background: var(--ink-050);
-  border-top: 1px solid var(--ink-100);
+  justify-content: flex-end; margin-bottom: 2rem;
 }
 
 /* A switch that is a real checkbox underneath, so it keeps native keyboard

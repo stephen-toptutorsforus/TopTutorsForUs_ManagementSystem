@@ -239,15 +239,6 @@ the hour is pointed at or tabbed into. Below the table's card breakpoint there
 are no columns to be short of and no pointer to wait for, so each hour is its
 own row with all five labels showing.
 
-Preview and Book are sticky against the bottom of the scroller for the same
-reason. A table that is the whole day is taller than the screen — an hour a
-column wide, an hour a *row* narrow — and the actions sat below all of it: on a
-phone, 3,751px down an 844px viewport. Book only exists once Preview has been
-pressed, so the button that mattered was the further away of the two, and the
-screen read as having no way to save. On a narrow viewport the grid is also
-capped at `60vh` and scrolls inside itself, so it stops deciding how far down
-the page everything after it sits.
-
 A wide table inside a `fieldset` does not scroll, whatever its wrapper says:
 the UA gives `fieldset` `min-width: min-content`, so the group refuses to be
 narrower than the grid and the card grows instead. `.booking-section` sets
@@ -334,7 +325,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-517 tests — 266 pure, 251 database-backed — plus 350 browser tests and
+517 tests — 266 pure, 251 database-backed — plus 348 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

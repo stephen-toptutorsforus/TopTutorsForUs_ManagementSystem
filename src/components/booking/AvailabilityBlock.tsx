@@ -153,7 +153,7 @@ export function AvailabilityBlock({
               {selectedInstructor?.displayName} &middot; {block.zone}
             </span>
           </h3>
-          <div className="daygrid-scroll daygrid-week-scroll">
+          <div className="daygrid-scroll">
             <table className="daygrid daygrid-suggest daygrid-week" aria-labelledby="weekplan-heading">
               <caption className="visually-hidden">
                 One row per weekday the run repeats on, every hour of the day across
