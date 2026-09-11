@@ -312,6 +312,13 @@ export async function bookingStep(
     // for React to commit the new hidden inputs before submitting.
     studentRefs: selectedStudents,
     groupRef: one(form, "group_ref"),
+    // The weekdays the run falls on, so a chosen instructor's availability can
+    // be drawn a row per weekday. Only above one session: below it the panel is
+    // hidden and its fields still submit.
+    repeatDays:
+      intOr(one(form, "occurrence_count"), 1) > 1
+        ? repeatRows(form).map((row) => ({ weekday: row.weekday, ...row.schedule }))
+        : [],
   });
 
   const base: BookingState = { context, values, selectedStudents, plan: null };

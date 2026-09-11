@@ -199,17 +199,36 @@ the bare path, which is the only place a URL changes on its own and happens
 before anything renders. And nothing on an address identifies anybody: the
 parameters that name a record carry an opaque `ref`.
 
-**On a form submitted by React, a select must be `key` + `defaultValue`.**
+**The booking screen's availability block has four states, in the order the
+questions get asked.** No date: which day. A date but no instructor: who, on
+that day. Both: when, with that person. And a run repeating on several
+weekdays with one instructor: when, on *each* of those weekdays — one row per
+weekday, resolved forward from the session date so no row is a date already
+past, and each row tested against its own weekday's length. All four read
+`resolveDay`, so none of them can disagree with the one that led there.
+
+**On a form submitted by React, an uncontrolled field must be keyed on its own
+value.**
 `useActionState` resets the form after every action, and a reset restores each
-control to its *attribute* default. A controlled `<select value>` has no
-`selected` attribute to be restored to, so it silently returns to its first
-option while React state still holds the real answer — the booking form's
-repeat panel showed Monday for a Wednesday row exactly this way, with the
-remove button beside it correctly labelled "Remove Wednesday". Keying on the
-current value and passing `defaultValue` remounts the control with a real
-`selected` attribute, which survives the reset. Every select on that form does
-it this way; a `value` prop there is a bug waiting to be found by somebody
-else.
+control to the `defaultValue` it was last *mounted* with. Two ways to get this
+wrong, both found in the booking form:
+
+- A controlled `<select value>` has no `selected` attribute to be restored to,
+  so it silently returns to its first option while React state still holds the
+  real answer. The repeat panel showed Monday for a Wednesday row exactly this
+  way, with the remove button beside it correctly labelled "Remove Wednesday".
+- A field keyed on something *other* than its own value is never remounted when
+  that value changes, so the attribute goes stale. "Number of sessions" was
+  keyed on the chosen date: typing 4 left React holding four and the field
+  holding one, and the next refresh submitted the one.
+
+`key` on the current value plus `defaultValue` fixes both, and is what every
+other field on that form already does.
+
+One thing it does not fix, stated in the component: an edit made between a
+refresh being sent and its reply landing is still discarded by the reset. The
+debounce keeps each action to one request, which keeps that window to about a
+round trip.
 
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal
@@ -261,7 +280,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-503 tests — 259 pure, 244 database-backed — plus 326 browser tests and
+516 tests — 266 pure, 250 database-backed — plus 336 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

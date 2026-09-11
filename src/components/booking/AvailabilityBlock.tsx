@@ -21,6 +21,7 @@
  */
 
 import { Button, Hint, VisuallyHidden } from "@/components/ui";
+import { durationWords } from "@/lib/presentation";
 import {
   ELIGIBLE_BUT_UNAVAILABLE,
   noEligibleInstructors,
@@ -56,9 +57,12 @@ function domOf(day: string): string {
 export function AvailabilityBlock({
   block,
   onLoadMoreDays,
+  onPickRepeatTime,
 }: {
   block: Block;
   onLoadMoreDays: (days: number) => void;
+  /** Set one repeat day's start time from its row in the week plan. */
+  onPickRepeatTime?: (weekday: string, time: string) => void;
 }) {
   if (block.error) {
     return (
@@ -88,7 +92,7 @@ export function AvailabilityBlock({
     );
   }
 
-  const { selectedInstructor, suggestions, grid } = block;
+  const { selectedInstructor, suggestions, grid, weekPlan } = block;
   const noneFreeMessage = block.eligibilityNarrowed
     ? ELIGIBLE_BUT_UNAVAILABLE
     : "No instructor has a window long enough for this session on that date.";
@@ -141,7 +145,93 @@ export function AvailabilityBlock({
         </>
       )}
 
-      {suggestions ? (
+      {weekPlan ? (
+        <>
+          <h3 className="booking-subhead" id="weekplan-heading">
+            Availability by day{" "}
+            <span className="subhead-note">
+              {selectedInstructor?.displayName} &middot; {block.zone}
+            </span>
+          </h3>
+          <div className="daygrid-scroll">
+            <table className="daygrid daygrid-suggest" aria-labelledby="weekplan-heading">
+              <caption className="visually-hidden">
+                One row per weekday the run repeats on, start times across the top.
+                Each row is checked against that day&rsquo;s own session length, and
+                against the next date that weekday falls on. Conflicts with existing
+                bookings are checked by Preview.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" className="daygrid-who">
+                    Day
+                  </th>
+                  {weekPlan.columns.map((column) => (
+                    <th scope="col" key={column.value}>
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weekPlan.rows.map((row) => (
+                  <tr key={row.weekday}>
+                    <th scope="row" className="daygrid-who">
+                      <span className="daygrid-person">
+                        <span className="daygrid-name">{row.name}</span>
+                        <Hint>
+                          {row.dayLabel} &middot; {durationWords(row.durationMinutes)}
+                        </Hint>
+                      </span>
+                    </th>
+                    {row.free.map((open, index) => {
+                      const column = weekPlan.columns[index]!;
+                      return (
+                        <td className={open ? "is-free" : ""} key={column.value}>
+                          {open ? (
+                            <button
+                              className="timecell"
+                              type="button"
+                              onClick={() => onPickRepeatTime?.(row.weekday, column.value)}
+                            >
+                              <span aria-hidden="true">{column.label}</span>
+                              <VisuallyHidden>
+                                Start {row.name} sessions at {column.label}.
+                              </VisuallyHidden>
+                            </button>
+                          ) : (
+                            <span className="timecell is-out">
+                              <span aria-hidden="true">&mdash;</span>
+                              <VisuallyHidden>
+                                {column.label} unavailable on {row.name}.
+                              </VisuallyHidden>
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {weekPlan.rows.some((row) => row.closedReason !== null) && (
+            <p className="hint">
+              {weekPlan.rows
+                .filter((row) => row.closedReason !== null)
+                .map((row) => `${row.name}: ${row.closedReason}`)
+                .join(" · ")}
+            </p>
+          )}
+          {!weekPlan.anyOpen && (
+            <p className="hint">
+              {selectedInstructor?.displayName} has no declared window long enough on
+              any of these days at these times. Try a different day, an earlier start,
+              or a shorter length.
+            </p>
+          )}
+        </>
+      ) : suggestions ? (
         <>
           <h3 className="booking-subhead" id="suggested-heading">
             Suggested start times <span className="subhead-note">{block.zone}</span>

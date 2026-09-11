@@ -10,7 +10,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "@/generated/prisma/client";
-import { isAvailable, matrix, organizationOffDays, resolveDay } from "@/lib/availability";
+import {
+  isAvailable,
+  matrix,
+  organizationOffDays,
+  resolveDay,
+  weekdayGrid,
+} from "@/lib/availability";
 import { dateToDb, resolveCivil, timeToDb, toZone } from "@/lib/time";
 
 import {
@@ -417,6 +423,143 @@ describeDb("availability", () => {
       expect(before.windows[0]!.start.getUTCHours()).not.toBe(
         after.windows[0]!.start.getUTCHours(),
       );
+    });
+  });
+  // --- The repeat grid ------------------------------------------------------
+  //
+  // One instructor, one row per weekday a repeating run falls on. It is the
+  // table the booking form draws once a run has several days and a chosen
+  // tutor, and the thing worth pinning is that each row is asked about its own
+  // weekday's length on its own date — not all of them about the first row's.
+
+  describe("weekdayGrid", () => {
+    /** A Monday, so the weekdays below resolve predictably. */
+    const MONDAY = "2026-04-06";
+
+    beforeEach(async () => {
+      await openWeekdays();
+    });
+
+    it("returns a row per weekday asked for, in date order", async () => {
+      await declare("mon", "09:00", "17:00");
+      await declare("wed", "09:00", "17:00");
+      await declare("fri", "09:00", "17:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [
+          { weekday: "fri", durationMinutes: 60 },
+          { weekday: "mon", durationMinutes: 60 },
+          { weekday: "wed", durationMinutes: 60 },
+        ],
+        { from: MONDAY, fromTime: "09:00", timezone: NY, columns: 4, stepMinutes: 60 },
+      );
+
+      // Asked out of order, answered in the order the run will happen.
+      expect(grid.rows.map((row) => row.weekday)).toEqual(["mon", "wed", "fri"]);
+      expect(grid.rows.map((row) => row.day)).toEqual([
+        "2026-04-06",
+        "2026-04-08",
+        "2026-04-10",
+      ]);
+      expect(grid.columns.map((column) => column.value)).toEqual([
+        "09:00",
+        "10:00",
+        "11:00",
+        "12:00",
+      ]);
+    });
+
+    it("sends a weekday earlier than the start date into the following week", async () => {
+      // Never a date in the past: a Monday row on a run that starts on
+      // Wednesday is next Monday, which is when it will first be taught.
+      await declare("mon", "09:00", "17:00");
+      await declare("wed", "09:00", "17:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [
+          { weekday: "mon", durationMinutes: 60 },
+          { weekday: "wed", durationMinutes: 60 },
+        ],
+        { from: "2026-04-08", fromTime: "09:00", timezone: NY, columns: 2, stepMinutes: 60 },
+      );
+
+      expect(grid.rows.map((row) => [row.weekday, row.day])).toEqual([
+        ["wed", "2026-04-08"],
+        ["mon", "2026-04-13"],
+      ]);
+    });
+
+    it("tests each row against its own length, not the first row's", async () => {
+      // The whole reason a per-day length exists. A window of exactly one hour
+      // holds the 30-minute day twice over and the 90-minute day not at all.
+      await declare("mon", "09:00", "10:00");
+      await declare("wed", "09:00", "10:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [
+          { weekday: "mon", durationMinutes: 90 },
+          { weekday: "wed", durationMinutes: 30 },
+        ],
+        { from: MONDAY, fromTime: "09:00", timezone: NY, columns: 2, stepMinutes: 30 },
+      );
+
+      const [monday, wednesday] = grid.rows;
+      expect(monday!.durationMinutes).toBe(90);
+      expect(monday!.free).toEqual([false, false]);
+      expect(wednesday!.durationMinutes).toBe(30);
+      expect(wednesday!.free).toEqual([true, true]);
+    });
+
+    it("gives a shut day its own reason rather than an empty row", async () => {
+      await declare("mon", "09:00", "17:00");
+      // Wednesday has no rule at all, so it is closed for a stated reason.
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [
+          { weekday: "mon", durationMinutes: 60 },
+          { weekday: "wed", durationMinutes: 60 },
+        ],
+        { from: MONDAY, fromTime: "09:00", timezone: NY, columns: 2, stepMinutes: 60 },
+      );
+
+      expect(grid.rows[0]!.free).toEqual([true, true]);
+      expect(grid.rows[1]!.free).toEqual([false, false]);
+      expect(grid.rows[1]!.closedReason).not.toBeNull();
+    });
+
+    it("asks every row about the same clock time, not the same instant", async () => {
+      // Across a daylight-saving change the two are different questions, and
+      // the header can only mean one of them. 8 March 2026 is the spring
+      // forward in New York, so this run's Sunday and its Wednesday straddle it.
+      await declare("sun", "09:00", "17:00");
+      await declare("wed", "09:00", "17:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [
+          { weekday: "sun", durationMinutes: 60 },
+          { weekday: "wed", durationMinutes: 60 },
+        ],
+        { from: "2026-03-08", fromTime: "10:00", timezone: NY, columns: 2, stepMinutes: 60 },
+      );
+
+      expect(grid.columns.map((column) => column.value)).toEqual(["10:00", "11:00"]);
+      // Both days are open at the clock times the header names, which is what
+      // an instant-based comparison would have got wrong for one of them.
+      for (const row of grid.rows) expect(row.free).toEqual([true, true]);
     });
   });
 });

@@ -88,6 +88,11 @@ test.describe("the repeat panel", () => {
   test("follows the session date when it moves", async ({ page }) => {
     await openBooking(page);
     await sessions(page, 4);
+    // Settled before touching the date. The form is submitted by React and
+    // React resets it afterwards, so an edit made while a refresh is in flight
+    // is discarded — see the note in `BookingForm`. This test is about the
+    // panel following the date, not about that race.
+    await settled(page);
     await expect(page.locator("#repeat_weekday_0")).toHaveValue("mon");
 
     // The Wednesday of the same week. The date is the stronger statement, so
@@ -165,8 +170,11 @@ test.describe("the repeat panel", () => {
     await page.getByRole("button", { name: "Add Day" }).click();
 
     await page.locator("#repeat_weekday_1").selectOption("wed");
+    await settled(page);
     await page.locator("#repeat_length_1").selectOption("30");
+    await settled(page);
     await page.locator("#repeat_time_1").selectOption("17:30");
+    await settled(page);
 
     await page.getByRole("button", { name: /^Preview session/ }).click();
     await page.waitForLoadState("networkidle");
@@ -179,6 +187,119 @@ test.describe("the repeat panel", () => {
     expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(
       "/sessions/new",
     );
+  });
+});
+
+test.describe("the chosen tutor's availability, a row per day", () => {
+  /** A run of four on Monday and Wednesday, with one instructor chosen. */
+  async function twoDayRun(page: Page): Promise<void> {
+    await openBooking(page);
+    // Choosing the student leaves exactly one eligible instructor, so which
+    // tutor the table is about is not left to the order of a dropdown.
+    await page.locator("#student_picker").selectOption({ label: "Teo Vasquez" });
+    await settled(page);
+    await page.locator("#instructor_ref").selectOption({ index: 1 });
+    await settled(page);
+
+    await sessions(page, 4);
+    await settled(page);
+    await page.getByRole("button", { name: "Add Day" }).click();
+    await settled(page);
+    await page.locator("#repeat_weekday_1").selectOption("wed");
+    await settled(page);
+  }
+
+  test("shows one row per repeat day once a tutor is chosen", async ({ page }) => {
+    await twoDayRun(page);
+
+    const table = page.locator('table[aria-labelledby="weekplan-heading"]');
+    await expect(table).toBeVisible();
+    await expect(table.locator("tbody tr")).toHaveCount(2);
+    await expect(table.locator("tbody tr th").first()).toContainText("Monday");
+    await expect(table.locator("tbody tr th").nth(1)).toContainText("Wednesday");
+
+    // A third day is a third row.
+    await page.getByRole("button", { name: "Add Day" }).click();
+    await settled(page);
+    await expect(table.locator("tbody tr")).toHaveCount(3);
+  });
+
+  test("names the date each weekday resolves to", async ({ page }) => {
+    // The row is only checkable if it says which date it is about — the
+    // availability shown is that date's, exceptions and time off included.
+    await twoDayRun(page);
+
+    const rows = page.locator('table[aria-labelledby="weekplan-heading"] tbody tr th');
+    await expect(rows.first()).toContainText(/Monday, \w{3} \d+/);
+    await expect(rows.nth(1)).toContainText(/Wednesday, \w{3} \d+/);
+  });
+
+  test("says each row's own length, and follows it when it changes", async ({ page }) => {
+    await twoDayRun(page);
+    const wednesday = page
+      .locator('table[aria-labelledby="weekplan-heading"] tbody tr')
+      .nth(1);
+    // A new row is seeded with the length the fields above hold, which is the
+    // tenant's shortest offering until somebody changes it.
+    await expect(wednesday.locator("th")).toContainText("15 minutes");
+
+    await page.locator("#repeat_length_1").selectOption("90");
+    await settled(page);
+    await expect(wednesday.locator("th")).toContainText("1 hour 30 minutes");
+  });
+
+  test("picking a cell sets that day's start time and nothing else's", async ({
+    page,
+  }) => {
+    await twoDayRun(page);
+    const times = () =>
+      page.locator('.repeat-row select[name="repeat_time"]').evaluateAll((nodes) =>
+        nodes.map((node) => (node as HTMLSelectElement).value),
+      );
+    const before = await times();
+
+    // Whichever row is open, rather than a named weekday: the seed closes one
+    // date a fortnight out, so which of these days has free cells depends on
+    // when the database was seeded. Not the first free cell either — the
+    // columns open at the top-level start time, which every row was seeded
+    // with, so picking that would prove nothing about which row changed.
+    const cell = page
+      .locator('table[aria-labelledby="weekplan-heading"] button.timecell')
+      .nth(2);
+    // The time the cell stands for, from where it sits: the columns are
+    // half-hours from the top-level start time. Read from the position rather
+    // than the label, because the grid's header drops a ":00" that the select
+    // keeps — one says "5 PM" where the other says "5:00 PM".
+    const column = await cell.evaluate(
+      (node) => (node.closest("td") as HTMLTableCellElement).cellIndex - 1,
+    );
+    const opened = await page.locator("#start_time").inputValue();
+    const minutes =
+      Number(opened.slice(0, 2)) * 60 + Number(opened.slice(3)) + column * 30;
+    const expected = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(
+      minutes % 60,
+    ).padStart(2, "0")}`;
+
+    await cell.click();
+    await settled(page);
+
+    const after = await times();
+    expect(after).toHaveLength(before.length);
+    const changed = after.filter((value, index) => value !== before[index]);
+    expect(changed, "exactly one day's time should have changed").toEqual([expected]);
+  });
+
+  test("goes back to the single-day view when the run stops repeating", async ({
+    page,
+  }) => {
+    await twoDayRun(page);
+    await expect(page.locator('table[aria-labelledby="weekplan-heading"]')).toBeVisible();
+
+    await sessions(page, 1);
+    await settled(page);
+    await expect(page.locator('table[aria-labelledby="weekplan-heading"]')).toHaveCount(0);
+    // The older "when, with this person" table is what a single session wants.
+    await expect(page.locator('table[aria-labelledby="suggested-heading"]')).toBeVisible();
   });
 });
 

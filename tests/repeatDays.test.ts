@@ -22,6 +22,7 @@ import {
   nearestClockTime,
   weekdayOf,
 } from "@/lib/presentation";
+import { onOrAfter } from "@/lib/availability";
 import { RecurrenceError, buildRule, expand, scheduleOn } from "@/lib/recurrence";
 import { DstEdge } from "@/lib/time";
 
@@ -241,6 +242,39 @@ describe("a repeat whose days differ", () => {
       durationMinutes: 30,
     });
     expect(scheduleOn(built, MONDAY)).toEqual({ startTime: "16:00", durationMinutes: 60 });
+  });
+});
+
+describe("which date a weekday means", () => {
+  it("is the start date itself when the weekday matches", () => {
+    expect(onOrAfter(MONDAY, "mon")).toBe(MONDAY);
+  });
+
+  it("is later in the same week when the weekday is still to come", () => {
+    expect(onOrAfter(MONDAY, "wed")).toBe("2026-04-08");
+    expect(onOrAfter(MONDAY, "sun")).toBe("2026-04-12");
+  });
+
+  it("rolls into the following week rather than looking backwards", () => {
+    // The rule the availability table rests on: a Monday row on a run that
+    // starts on a Wednesday is next Monday, never the one already past.
+    expect(onOrAfter("2026-04-08", "mon")).toBe("2026-04-13");
+    expect(onOrAfter("2026-04-12", "sat")).toBe("2026-04-18");
+  });
+
+  it("agrees with the engine about where the first session of each day falls", () => {
+    // The table and the run must name the same dates, or the availability
+    // shown is for a week the sessions are not in.
+    const weekdays = ["mon", "wed", "fri"];
+    const expanded = expand(rule({ weekdays, occurrenceCount: 3 }));
+    const firstOfEach = new Map<string, string>();
+    for (const occurrence of expanded.occurrences) {
+      const named = weekdayOf(occurrence.localDate);
+      if (!firstOfEach.has(named)) firstOfEach.set(named, occurrence.localDate);
+    }
+    for (const weekday of weekdays) {
+      expect(onOrAfter(MONDAY, weekday)).toBe(firstOfEach.get(weekday));
+    }
   });
 });
 

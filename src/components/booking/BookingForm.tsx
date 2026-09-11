@@ -235,6 +235,9 @@ export function BookingForm({
     setRepeatDays((rows) =>
       rows.map((row, position) => (position === index ? { ...row, ...patch } : row)),
     );
+    // The instructor's availability is drawn a row per weekday, so which
+    // weekdays — and how long each one runs — changes what that table says.
+    refresh();
   };
 
   const refreshButton = useRef<HTMLButtonElement>(null);
@@ -248,6 +251,17 @@ export function BookingForm({
    * mean three round trips whose answers arrived in no guaranteed order. The
    * delay also gives React time to commit whatever state the caller just set,
    * so the submit reads the fields as they now are rather than as they were.
+   */
+  /**
+   * Known limitation, stated where somebody will hit it. React resets the form
+   * after each action, restoring every uncontrolled field to the
+   * `defaultValue` it was last rendered with. So an edit made between a
+   * refresh being sent and its reply landing — roughly the debounce plus one
+   * round trip — is discarded. The debounce coalesces each action into a
+   * single request, which keeps the window small, and closing it entirely
+   * means holding every scheduling field in client state behind a `key` that
+   * changes with its value: that would remount the date input on each segment
+   * typed, which is a worse fault than the one it fixes.
    */
   const refresh = useCallback((days?: number) => {
     if (days !== undefined) setMatrixDays(days);
@@ -469,13 +483,25 @@ export function BookingForm({
               min={1}
               max={context.maxOccurrences}
               step={1}
-              key={`count-${chosenDate}`}
+              // Keyed on its own echoed value, the way the date, time and
+              // length fields beside it are. Keyed on the date it was not
+              // remounted when the count changed, so React never refreshed its
+              // `value` attribute — and the form reset that follows every
+              // action restored the number to the one it was mounted with.
+              // React state said four sessions while the field said one, and
+              // the next refresh submitted the one.
+              key={`count-${value("occurrence_count", "1")}`}
               defaultValue={value("occurrence_count", "1")}
               disabled={!chosenDate}
               aria-describedby="count-hint count-repeat"
-              onChange={(event) =>
-                setCounted(Number.parseInt(event.target.value, 10) || 1)
-              }
+              onChange={(event) => {
+                setCounted(Number.parseInt(event.target.value, 10) || 1);
+                // Crossing one session changes which availability table is
+                // useful — the run's weekdays, or the one chosen date — and
+                // that is drawn from the returned context, so the server has
+                // to be asked again rather than only the panel appearing.
+                refresh();
+              }}
             />
             <Hint id="count-hint">
               Total sessions, including the first. More than one repeats weekly on the
@@ -563,11 +589,12 @@ export function BookingForm({
                       className="repeat-remove"
                       aria-label={`Remove ${named} from the repeat`}
                       disabled={repeatDays.length === 1}
-                      onClick={() =>
+                      onClick={() => {
                         setRepeatDays((rows) =>
                           rows.filter((_, position) => position !== index),
-                        )
-                      }
+                        );
+                        refresh();
+                      }}
                     >
                       <TrashIcon />
                     </Button>
@@ -582,7 +609,7 @@ export function BookingForm({
                 variant="primary"
                 size="small"
                 className="repeat-add"
-                onClick={() =>
+                onClick={() => {
                   setRepeatDays((rows) => [
                     ...rows,
                     {
@@ -591,8 +618,9 @@ export function BookingForm({
                       length: String(context.chosenDuration),
                       time: chosenTime,
                     },
-                  ])
-                }
+                  ]);
+                  refresh();
+                }}
               >
                 Add Day
               </Button>
@@ -666,7 +694,16 @@ export function BookingForm({
               </p>
             )}
             <div>
-              <AvailabilityBlock block={context} onLoadMoreDays={(days) => refresh(days)} />
+              <AvailabilityBlock
+                block={context}
+                onLoadMoreDays={(days) => refresh(days)}
+                onPickRepeatTime={(weekday, time) => {
+                  setRepeatDays((rows) =>
+                    rows.map((row) => (row.weekday === weekday ? { ...row, time } : row)),
+                  );
+                  refresh();
+                }}
+              />
             </div>
           </div>
 

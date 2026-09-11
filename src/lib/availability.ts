@@ -483,3 +483,110 @@ export async function dayGrid(
 
   return { day, columns: slots, rows };
 }
+
+// --- The repeat grid ---------------------------------------------------------
+//
+// A fourth view, for the case the other three cannot answer. Once a run repeats
+// on several weekdays with one instructor, "when is this person free" is a
+// question per *weekday*, not per date: the useful table has Monday, Wednesday
+// and Friday down the side rather than one chosen day. It is still `resolveDay`
+// underneath, so it cannot disagree with the grid that led here.
+
+/** The first date on or after `from` that falls on this weekday. */
+export function onOrAfter(from: CivilDate, weekday: string): CivilDate {
+  for (let ahead = 0; ahead < 7; ahead += 1) {
+    const day = addDays(from, ahead);
+    if (WEEKDAY_BY_ISO[isoWeekday(day)] === weekday) return day;
+  }
+  return from;
+}
+
+/** One weekday of a repeating run, and what the instructor has free on it. */
+export interface WeekdayRow {
+  weekday: string;
+  /** The concrete date this weekday resolved to — never one in the past. */
+  day: CivilDate;
+  /**
+   * The length this row was tested against, which is this weekday's own. A
+   * thirty-minute Wednesday genuinely has more openings than a ninety-minute
+   * Friday, and a table that tested them all against one length would be
+   * telling the Friday row the Wednesday's answer.
+   */
+  durationMinutes: number;
+  free: boolean[];
+  closedReason: string | null;
+}
+
+export interface WeekdayGrid {
+  columns: GridColumn[];
+  rows: WeekdayRow[];
+}
+
+/**
+ * One instructor, several weekdays: which start times each of them can hold.
+ *
+ * The columns are computed once, from the earliest row's date, and every other
+ * row is asked about *the same clock times* on its own date rather than about
+ * the same instants. That is the difference between a table whose header means
+ * one thing and one whose Wednesday column silently means an hour earlier than
+ * its Monday column across a daylight-saving change.
+ *
+ * Rows come back in date order, so the table reads as the run does. A weekday
+ * earlier in the week than the start date resolves into the following week,
+ * because that is when it will actually first be taught.
+ */
+export async function weekdayGrid(
+  db: Db,
+  organization: OrganizationRef,
+  instructorId: bigint,
+  wanted: readonly { weekday: string; durationMinutes: number }[],
+  options: {
+    from: CivilDate;
+    fromTime: CivilTime;
+    timezone: string;
+    columns?: number;
+    stepMinutes?: number;
+  },
+): Promise<WeekdayGrid> {
+  const { from, fromTime, timezone } = options;
+  const wantedColumns = options.columns ?? 16;
+  const stepMs = (options.stepMinutes ?? 30) * 60_000;
+
+  const days = wanted
+    .map((row) => ({ ...row, day: onOrAfter(from, row.weekday) }))
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+
+  const anchor = days[0]?.day ?? from;
+  const dayEnd = resolveCivil(addDays(anchor, 1), "00:00", timezone).instant;
+  let cursor = resolveCivil(anchor, fromTime, timezone).instant;
+
+  const columns: GridColumn[] = [];
+  while (columns.length < wantedColumns && cursor < dayEnd) {
+    columns.push({
+      start: cursor,
+      label: clockLabel(cursor, timezone),
+      value: toZone(cursor, timezone).toFormat("HH:mm"),
+    });
+    cursor = new Date(cursor.getTime() + stepMs);
+  }
+
+  const rows: WeekdayRow[] = [];
+  for (const entry of days) {
+    const availability = await resolveDay(db, organization, instructorId, entry.day);
+    const needed = entry.durationMinutes * 60_000;
+    rows.push({
+      weekday: entry.weekday,
+      day: entry.day,
+      durationMinutes: entry.durationMinutes,
+      free: columns.map((column) => {
+        const start = resolveCivil(entry.day, column.value, timezone).instant;
+        return availability.windows.some((window) =>
+          windowContains(window, start, new Date(start.getTime() + needed)),
+        );
+      }),
+      closedReason: availability.closedReason,
+    });
+  }
+
+  return { columns, rows };
+}

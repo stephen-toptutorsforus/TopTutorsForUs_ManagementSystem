@@ -17,8 +17,10 @@ import {
   type Candidate,
   type DayGrid,
   type DayOpenings,
+  type WeekdayGrid,
   dayGrid,
   openings,
+  weekdayGrid,
 } from "@/lib/availability";
 import type { Db } from "@/lib/db";
 import {
@@ -50,6 +52,13 @@ export const MAX_GRID_INSTRUCTORS = 25;
 /** The "when, with this person" grid — finer, because the choice is narrower. */
 export const SUGGESTION_COLUMNS = 16;
 export const SUGGESTION_STEP_MINUTES = 30;
+
+/** One weekday of a repeating run, as the form submits it. */
+export interface RepeatDayInput {
+  weekday: string;
+  startTime: CivilTime;
+  durationMinutes: number;
+}
 
 export interface Choice {
   ref: string;
@@ -95,6 +104,28 @@ export interface AvailabilityBlock {
   grid: SerialisedGrid | null;
   /** State 3: both are chosen, so the question is when. */
   suggestions: SerialisedGrid | null;
+  /**
+   * State 4: a run on several weekdays with one instructor, so the question is
+   * when *on each of those weekdays*. It replaces state 3 rather than joining
+   * it — a single chosen date is not the useful unit once the run repeats.
+   */
+  weekPlan: SerialisedWeekPlan | null;
+}
+
+/** The repeat grid: weekdays down the side, start times across the top. */
+export interface SerialisedWeekPlan {
+  columns: { label: string; value: CivilTime }[];
+  rows: {
+    weekday: string;
+    /** `Monday` — the row's own heading. */
+    name: string;
+    /** `Monday, Sep 14` — the date it resolved to, so the row is checkable. */
+    dayLabel: string;
+    durationMinutes: number;
+    free: boolean[];
+    closedReason: string | null;
+  }[];
+  anyOpen: boolean;
 }
 
 export interface SerialisedOpenings {
@@ -195,6 +226,21 @@ function serialiseGrid(grid: DayGrid): SerialisedGrid {
   };
 }
 
+function serialiseWeekPlan(grid: WeekdayGrid): SerialisedWeekPlan {
+  return {
+    columns: grid.columns.map((column) => ({ label: column.label, value: column.value })),
+    rows: grid.rows.map((row) => ({
+      weekday: row.weekday,
+      name: weekdayName(row.day),
+      dayLabel: dayLabel(row.day),
+      durationMinutes: row.durationMinutes,
+      free: [...row.free],
+      closedReason: row.closedReason,
+    })),
+    anyOpen: grid.rows.some((row) => row.free.some(Boolean)),
+  };
+}
+
 function serialiseOpenings(days: DayOpenings[]): SerialisedOpenings[] {
   return days.map((opening) => ({
     day: opening.day,
@@ -229,6 +275,11 @@ export async function availabilityContext(
     studentRefs: readonly string[];
     /** The chosen group, by public ref, expanded to its current members. */
     groupRef: string;
+    /**
+     * The weekdays a repeating run falls on, with each one's own length. Empty
+     * for a single session, which is what keeps the older three states intact.
+     */
+    repeatDays: readonly RepeatDayInput[];
   },
 ): Promise<AvailabilityBlock> {
   const {
@@ -240,6 +291,7 @@ export async function availabilityContext(
     matrixDays,
     studentRefs,
     groupRef,
+    repeatDays,
   } = options;
 
   const studentIds = await resolveRosterFromRefs(db, principal, { studentRefs, groupRef });
@@ -259,8 +311,19 @@ export async function availabilityContext(
 
   let grid: DayGrid | null = null;
   let suggestions: DayGrid | null = null;
+  let weekPlan: WeekdayGrid | null = null;
 
-  if (day !== null && selected !== null) {
+  if (day !== null && selected !== null && repeatDays.length > 0) {
+    // One row per weekday the run falls on, resolved forward from the session
+    // date so no row is a date that has already passed.
+    weekPlan = await weekdayGrid(db, organization, selected.id, repeatDays, {
+      from: day,
+      fromTime,
+      timezone: zone,
+      columns: SUGGESTION_COLUMNS,
+      stepMinutes: SUGGESTION_STEP_MINUTES,
+    });
+  } else if (day !== null && selected !== null) {
     suggestions = await dayGrid(db, organization, [selected], {
       day,
       fromTime,
@@ -311,6 +374,7 @@ export async function availabilityContext(
         : [],
     grid: grid ? serialiseGrid(grid) : null,
     suggestions: suggestions ? serialiseGrid(suggestions) : null,
+    weekPlan: weekPlan ? serialiseWeekPlan(weekPlan) : null,
   };
 }
 
@@ -327,6 +391,7 @@ export async function bookingContext(
     matrixDays: number;
     studentRefs?: readonly string[];
     groupRef?: string;
+    repeatDays?: readonly RepeatDayInput[];
   },
 ): Promise<BookingContext> {
   const zone = principal.timezone;
@@ -349,6 +414,7 @@ export async function bookingContext(
     matrixDays: chosen.matrixDays,
     studentRefs: chosen.studentRefs ?? [],
     groupRef: chosen.groupRef ?? "",
+    repeatDays: chosen.repeatDays ?? [],
   });
 
   // One value for the field's max attribute, the help text, and the service
