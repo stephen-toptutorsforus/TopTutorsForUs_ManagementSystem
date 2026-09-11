@@ -53,6 +53,26 @@ export const MAX_GRID_INSTRUCTORS = 25;
 export const SUGGESTION_COLUMNS = 16;
 export const SUGGESTION_STEP_MINUTES = 30;
 
+/**
+ * The repeat table's axis: the whole day, an hour at a time.
+ *
+ * Fixed, and deliberately not `SUGGESTION_*`. That grid's columns begin at the
+ * time already in the form, which is right when the question is "one session,
+ * one date" — but wrong here, because pressing a cell in this table *sets* a
+ * start time, and an axis anchored to it would slide out from under the person
+ * on every press. A run of weekdays is also a wider question than one date: an
+ * evening class and an early one can be in the same run, and eight columns
+ * from the current time cannot hold both.
+ *
+ * The whole day is the only honest fixed answer, so it scrolls sideways
+ * instead. An hour a column keeps that scroll to twenty-four cells; a row whose
+ * start time is off the hour keeps it — the row's own Start time select is
+ * finer-grained and this table never overwrites it except when pressed.
+ */
+export const WEEKPLAN_START: CivilTime = "00:00";
+export const WEEKPLAN_STEP_MINUTES = 60;
+export const WEEKPLAN_COLUMNS = 24;
+
 /** One weekday of a repeating run, as the form submits it. */
 export interface RepeatDayInput {
   weekday: string;
@@ -122,6 +142,12 @@ export interface SerialisedWeekPlan {
     /** `Monday, Sep 14` — the date it resolved to, so the row is checkable. */
     dayLabel: string;
     durationMinutes: number;
+    /**
+     * This weekday's start time as the form currently holds it, so the cell
+     * that matches can be drawn as the chosen one. Off-step times have no cell
+     * and light none, which is the truth: the select below still shows 9:15.
+     */
+    startTime: CivilTime;
     free: boolean[];
     closedReason: string | null;
   }[];
@@ -226,7 +252,10 @@ function serialiseGrid(grid: DayGrid): SerialisedGrid {
   };
 }
 
-function serialiseWeekPlan(grid: WeekdayGrid): SerialisedWeekPlan {
+function serialiseWeekPlan(
+  grid: WeekdayGrid,
+  chosen: readonly RepeatDayInput[],
+): SerialisedWeekPlan {
   return {
     columns: grid.columns.map((column) => ({ label: column.label, value: column.value })),
     rows: grid.rows.map((row) => ({
@@ -234,6 +263,7 @@ function serialiseWeekPlan(grid: WeekdayGrid): SerialisedWeekPlan {
       name: weekdayName(row.day),
       dayLabel: dayLabel(row.day),
       durationMinutes: row.durationMinutes,
+      startTime: chosen.find((day) => day.weekday === row.weekday)?.startTime ?? "",
       free: [...row.free],
       closedReason: row.closedReason,
     })),
@@ -318,10 +348,10 @@ export async function availabilityContext(
     // date so no row is a date that has already passed.
     weekPlan = await weekdayGrid(db, organization, selected.id, repeatDays, {
       from: day,
-      fromTime,
+      fromTime: WEEKPLAN_START,
       timezone: zone,
-      columns: SUGGESTION_COLUMNS,
-      stepMinutes: SUGGESTION_STEP_MINUTES,
+      columns: WEEKPLAN_COLUMNS,
+      stepMinutes: WEEKPLAN_STEP_MINUTES,
     });
   } else if (day !== null && selected !== null) {
     suggestions = await dayGrid(db, organization, [selected], {
@@ -374,7 +404,7 @@ export async function availabilityContext(
         : [],
     grid: grid ? serialiseGrid(grid) : null,
     suggestions: suggestions ? serialiseGrid(suggestions) : null,
-    weekPlan: weekPlan ? serialiseWeekPlan(weekPlan) : null,
+    weekPlan: weekPlan ? serialiseWeekPlan(weekPlan, repeatDays) : null,
   };
 }
 

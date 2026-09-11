@@ -172,6 +172,19 @@ export function BookingForm({
   const [state, submit, pending] = useActionState(bookingStep, initial);
   const form = useRef<HTMLFormElement>(null);
 
+  /**
+   * What the last background refresh submitted as the session count.
+   *
+   * The reply echoes the count back, and the count is re-seeded from that echo
+   * because the server clamps it. But a reply is an answer to the question that
+   * was asked, not to the field as it now stands: nudge the number down while
+   * one is in flight and the echo of the old number would put it straight back
+   * up. Comparing the echo with what was sent tells the two apart — a number
+   * the server changed is a clamp and is taken; a number it merely repeated has
+   * nothing to say about an edit made since.
+   */
+  const sentCount = useRef<string | null>(null);
+
   const context = state.context;
   const values = state.values;
   const [students, setStudents] = useState<string[]>(state.selectedStudents);
@@ -186,16 +199,19 @@ export function BookingForm({
   const [counted, setCounted] = useState(
     () => Number.parseInt(values.occurrence_count ?? "1", 10) || 1,
   );
-  // The day count is re-seeded from whatever the action handed back, because
-  // the server clamps it. The chip list deliberately is not: the server only
-  // ever echoes the roster it was sent, so re-seeding could only ever overwrite
-  // a newer selection with an older reply. Adjusted during render rather than
-  // in an effect, which would paint the stale value first and then correct it.
+  // The day count is re-seeded from whatever the action handed back, but only
+  // where the server changed it — see `sentCount`. The chip list deliberately
+  // is not re-seeded at all: the server only ever echoes the roster it was
+  // sent, so re-seeding could only ever overwrite a newer selection with an
+  // older reply. Adjusted during render rather than in an effect, which would
+  // paint the stale value first and then correct it.
   const [seen, setSeen] = useState(state);
   if (seen !== state) {
     setSeen(state);
     setMatrixDays(state.context.matrixDays);
-    setCounted(Number.parseInt(state.values.occurrence_count ?? "1", 10) || 1);
+    const echoed = state.values.occurrence_count ?? "1";
+    if (echoed !== sentCount.current) setCounted(Number.parseInt(echoed, 10) || 1);
+    sentCount.current = null;
   }
 
   const repeating = counted > 1;
@@ -262,12 +278,21 @@ export function BookingForm({
    * means holding every scheduling field in client state behind a `key` that
    * changes with its value: that would remount the date input on each segment
    * typed, which is a worse fault than the one it fixes.
+   *
+   * The session count is the exception, because it is already held in client
+   * state — the repeat panel is drawn from it — so a stale reply there took
+   * the panel away as well as the number. `sentCount` closes it for that one
+   * field.
    */
   const refresh = useCallback((days?: number) => {
     if (days !== undefined) setMatrixDays(days);
     if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => {
       refreshTimer.current = null;
+      // Read off the control rather than off state, because the control is
+      // what is about to be serialised into the request.
+      sentCount.current =
+        form.current?.querySelector<HTMLInputElement>("#occurrence_count")?.value ?? null;
       form.current?.requestSubmit(refreshButton.current);
     }, REFRESH_DELAY_MS);
   }, []);
@@ -483,15 +508,19 @@ export function BookingForm({
               min={1}
               max={context.maxOccurrences}
               step={1}
-              // Keyed on its own echoed value, the way the date, time and
-              // length fields beside it are. Keyed on the date it was not
-              // remounted when the count changed, so React never refreshed its
-              // `value` attribute — and the form reset that follows every
-              // action restored the number to the one it was mounted with.
-              // React state said four sessions while the field said one, and
-              // the next refresh submitted the one.
-              key={`count-${value("occurrence_count", "1")}`}
-              defaultValue={value("occurrence_count", "1")}
+              // Keyed on its own value, the way the date, time and length
+              // fields beside it are. Keyed on the date it was not remounted
+              // when the count changed, so React never refreshed its `value`
+              // attribute — and the form reset that follows every action
+              // restored the number to the one it was mounted with. React
+              // state said four sessions while the field said one, and the
+              // next refresh submitted the one.
+              //
+              // The value is `counted` rather than the echo, so that the field
+              // and the panel are restored to the same number: the echo can be
+              // an answer to a question asked before the last keystroke.
+              key={`count-${counted}`}
+              defaultValue={String(counted)}
               disabled={!chosenDate}
               aria-describedby="count-hint count-repeat"
               onChange={(event) => {

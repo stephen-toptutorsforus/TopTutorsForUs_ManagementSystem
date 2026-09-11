@@ -207,6 +207,17 @@ weekday, resolved forward from the session date so no row is a date already
 past, and each row tested against its own weekday's length. All four read
 `resolveDay`, so none of them can disagree with the one that led there.
 
+The first three anchor their columns to the time already in the form, because
+there the person is picking one time on one date and eight columns of 3 a.m.
+would bury the answer. The fourth cannot: pressing one of its cells *sets* a
+start time, so an axis anchored to that would slide out from under the person
+on every press. Its columns are the whole day, an hour each, fixed — and built
+by clock arithmetic rather than by adding an hour to an instant, so the day the
+clocks go forward does not quietly drop a heading and leave the axis depending
+on which weekday happened to sort first. The cell a row is set to is drawn as
+pressed, including where the instructor is not free at it: that is where the
+row stands, and hiding it is worst exactly when it matters.
+
 **On a form submitted by React, an uncontrolled field must be keyed on its own
 value.**
 `useActionState` resets the form after every action, and a reset restores each
@@ -229,6 +240,14 @@ One thing it does not fix, stated in the component: an edit made between a
 refresh being sent and its reply landing is still discarded by the reset. The
 debounce keeps each action to one request, which keeps that window to about a
 round trip.
+
+Where a field is *also* held in client state, the reply reopens the same hole
+from the other side — it is re-seeded from the echo, and an echo answers the
+question that was asked rather than the field as it now stands. "Number of
+sessions" is that case: it draws the repeat panel, so a stale echo took the
+panel away as well as the number. The rule there is to re-seed only from an
+echo the server actually *changed* — a clamp — and to ignore one it merely
+repeated.
 
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal
@@ -280,7 +299,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-516 tests — 266 pure, 250 database-backed — plus 336 browser tests and
+517 tests — 266 pure, 251 database-backed — plus 342 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

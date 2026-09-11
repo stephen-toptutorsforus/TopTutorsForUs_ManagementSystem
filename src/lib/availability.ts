@@ -412,11 +412,28 @@ export function anyOpen(grid: DayGrid): boolean {
  */
 function clockLabel(instant: Date, timezone: string): string {
   const local = toZone(instant, timezone);
-  const hour = local.hour % 12 || 12;
-  const suffix = local.hour < 12 ? "AM" : "PM";
-  return local.minute
-    ? `${hour}:${String(local.minute).padStart(2, "0")} ${suffix}`
-    : `${hour} ${suffix}`;
+  return clockLabelOf(local.hour * 60 + local.minute);
+}
+
+/** The same label, from a clock reading rather than from an instant. */
+function clockLabelOf(minutes: number): string {
+  const hour24 = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const hour = hour24 % 12 || 12;
+  const suffix = hour24 < 12 ? "AM" : "PM";
+  return minute ? `${hour}:${String(minute).padStart(2, "0")} ${suffix}` : `${hour} ${suffix}`;
+}
+
+const MINUTES_IN_DAY = 24 * 60;
+
+function minutesOfClock(time: CivilTime): number {
+  const [hour = "0", minute = "0"] = time.split(":");
+  const total = Number.parseInt(hour, 10) * 60 + Number.parseInt(minute, 10);
+  return Number.isFinite(total) ? total : 0;
+}
+
+function clockOfMinutes(minutes: number): CivilTime {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 /**
@@ -525,11 +542,21 @@ export interface WeekdayGrid {
 /**
  * One instructor, several weekdays: which start times each of them can hold.
  *
- * The columns are computed once, from the earliest row's date, and every other
- * row is asked about *the same clock times* on its own date rather than about
- * the same instants. That is the difference between a table whose header means
- * one thing and one whose Wednesday column silently means an hour earlier than
- * its Monday column across a daylight-saving change.
+ * The columns are a fixed run of clock readings, and every row is asked about
+ * *the same clock times* on its own date rather than about the same instants.
+ * That is the difference between a table whose header means one thing and one
+ * whose Wednesday column silently means an hour earlier than its Monday column
+ * across a daylight-saving change. They are built by clock arithmetic rather
+ * than by adding an hour to an instant for the same reason: on the day the
+ * clocks go forward the second walk yields 23 readings and drops one of the
+ * headings, so the axis would depend on which weekday happened to sort first.
+ *
+ * `fromTime` is where the axis begins, not where the chosen time is. The
+ * caller that draws the repeat table passes midnight and asks for the whole
+ * day, because an axis that moved to wherever the last cell was pressed would
+ * redraw itself under the person using it. `dayGrid`'s axis does start at the
+ * chosen time, and that stays true: there the person is picking one time on one
+ * date and eight columns of 3 a.m. would bury the answer.
  *
  * Rows come back in date order, so the table reads as the run does. A weekday
  * earlier in the week than the start date resolves into the following week,
@@ -550,24 +577,26 @@ export async function weekdayGrid(
 ): Promise<WeekdayGrid> {
   const { from, fromTime, timezone } = options;
   const wantedColumns = options.columns ?? 16;
-  const stepMs = (options.stepMinutes ?? 30) * 60_000;
+  const step = options.stepMinutes ?? 30;
 
   const days = wanted
     .map((row) => ({ ...row, day: onOrAfter(from, row.weekday) }))
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 
   const anchor = days[0]?.day ?? from;
-  const dayEnd = resolveCivil(addDays(anchor, 1), "00:00", timezone).instant;
-  let cursor = resolveCivil(anchor, fromTime, timezone).instant;
 
   const columns: GridColumn[] = [];
-  while (columns.length < wantedColumns && cursor < dayEnd) {
+  for (
+    let minutes = minutesOfClock(fromTime);
+    minutes < MINUTES_IN_DAY && columns.length < wantedColumns;
+    minutes += step
+  ) {
+    const value = clockOfMinutes(minutes);
     columns.push({
-      start: cursor,
-      label: clockLabel(cursor, timezone),
-      value: toZone(cursor, timezone).toFormat("HH:mm"),
+      start: resolveCivil(anchor, value, timezone).instant,
+      label: clockLabelOf(minutes),
+      value,
     });
-    cursor = new Date(cursor.getTime() + stepMs);
   }
 
   const rows: WeekdayRow[] = [];

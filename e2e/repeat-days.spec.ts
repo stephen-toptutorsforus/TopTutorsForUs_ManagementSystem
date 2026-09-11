@@ -68,6 +68,21 @@ test.describe("the repeat panel", () => {
     await expect(page.locator(PANEL)).toBeHidden();
   });
 
+  test("keeps a count typed while the last one is still in flight", async ({ page }) => {
+    // Waiting out the debounce first, so the request for three is genuinely on
+    // the wire when the one is typed. Its reply echoes three, and taking that
+    // echo would put both the number and the panel back.
+    await openBooking(page);
+    await sessions(page, 3);
+    await page.waitForTimeout(REFRESH_DELAY_MS + 20);
+
+    await sessions(page, 1);
+    await settled(page);
+
+    await expect(page.locator("#occurrence_count")).toHaveValue("1");
+    await expect(page.locator(PANEL)).toBeHidden();
+  });
+
   test("starts on the session date's own weekday, length and time", async ({ page }) => {
     // The first row is those three fields said again in the shape the rest of
     // the run is said in, so it must not open on a different day from the one
@@ -260,25 +275,20 @@ test.describe("the chosen tutor's availability, a row per day", () => {
 
     // Whichever row is open, rather than a named weekday: the seed closes one
     // date a fortnight out, so which of these days has free cells depends on
-    // when the database was seeded. Not the first free cell either — the
-    // columns open at the top-level start time, which every row was seeded
-    // with, so picking that would prove nothing about which row changed.
+    // when the database was seeded. Not one already chosen either — pressing
+    // the cell a row is already set to would prove nothing about which row
+    // changed.
     const cell = page
-      .locator('table[aria-labelledby="weekplan-heading"] button.timecell')
-      .nth(2);
-    // The time the cell stands for, from where it sits: the columns are
-    // half-hours from the top-level start time. Read from the position rather
-    // than the label, because the grid's header drops a ":00" that the select
-    // keeps — one says "5 PM" where the other says "5:00 PM".
+      .locator('table[aria-labelledby="weekplan-heading"] button.timecell:not(.is-chosen)')
+      .first();
+    // The time the cell stands for, from where it sits: the columns are the
+    // twenty-four hours of the day, from midnight. Read from the position
+    // rather than the label, because the grid's header drops a ":00" that the
+    // select keeps — one says "5 PM" where the other says "5:00 PM".
     const column = await cell.evaluate(
       (node) => (node.closest("td") as HTMLTableCellElement).cellIndex - 1,
     );
-    const opened = await page.locator("#start_time").inputValue();
-    const minutes =
-      Number(opened.slice(0, 2)) * 60 + Number(opened.slice(3)) + column * 30;
-    const expected = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(
-      minutes % 60,
-    ).padStart(2, "0")}`;
+    const expected = `${String(column).padStart(2, "0")}:00`;
 
     await cell.click();
     await settled(page);
@@ -287,6 +297,57 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     expect(after).toHaveLength(before.length);
     const changed = after.filter((value, index) => value !== before[index]);
     expect(changed, "exactly one day's time should have changed").toEqual([expected]);
+  });
+
+  test("spans the whole day, an hour a column, wherever the session starts", async ({
+    page,
+  }) => {
+    // The axis is the day, not a window around the current start time. That is
+    // what lets a run hold an early class and an evening one, and it is what
+    // keeps the table still while somebody works down it.
+    await twoDayRun(page);
+    const headings = page.locator(
+      'table[aria-labelledby="weekplan-heading"] thead th:not(.daygrid-who)',
+    );
+    await expect(headings).toHaveCount(24);
+    await expect(headings.first()).toHaveText("12 AM");
+    await expect(headings.nth(13)).toHaveText("1 PM");
+    await expect(headings.last()).toHaveText("11 PM");
+  });
+
+  test("marks the cell a day is set to, and does not move the columns to it", async ({
+    page,
+  }) => {
+    await twoDayRun(page);
+    const table = page.locator('table[aria-labelledby="weekplan-heading"]');
+    const firstHeading = table.locator("thead th:not(.daygrid-who)").first();
+    await expect(firstHeading).toHaveText("12 AM");
+
+    // Both indexes read before the click, because the locators are re-resolved
+    // against the refreshed table and "the first row with a free unchosen
+    // cell" will not be the same row once one of them has been pressed.
+    const cell = table.locator("button.timecell:not(.is-chosen)").first();
+    const [rowIndex, column] = await cell.evaluate((node) => {
+      const td = node.closest("td") as HTMLTableCellElement;
+      return [(td.parentElement as HTMLTableRowElement).rowIndex, td.cellIndex];
+    });
+    await cell.click();
+    await settled(page);
+
+    // The pressed cell is now the chosen one, and the axis has not moved under
+    // it — the earlier grid restarted its columns at whatever was picked.
+    await expect(firstHeading).toHaveText("12 AM");
+    const row = table.locator("tbody tr").nth(rowIndex - 1);
+    await expect(row.locator(".timecell.is-chosen")).toHaveCount(1);
+    await expect(row.locator("button.timecell.is-chosen")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      await row
+        .locator(".timecell.is-chosen")
+        .evaluate((node) => (node.closest("td") as HTMLTableCellElement).cellIndex),
+    ).toBe(column);
   });
 
   test("goes back to the single-day view when the run stops repeating", async ({

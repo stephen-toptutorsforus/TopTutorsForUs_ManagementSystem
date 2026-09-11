@@ -1311,6 +1311,13 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 .daygrid-suggest .daygrid-who { min-width: 180px; max-width: 180px; }
 .daygrid-suggest tbody td { padding: 0.25rem; }
 
+/* The repeat table is the whole day, an hour a column, so it is always wider
+   than the card and always scrolls. `width: auto` is what lets it: at 100% the
+   twenty-four columns would be squeezed to whatever was left over and the
+   sticky name column would eat most of it. */
+.daygrid-week { width: auto; min-width: 100%; }
+.daygrid-week thead th { min-width: 78px; }
+
 .timecell {
   display: block; width: 100%;
   padding: 0.35rem 0.2rem;
@@ -1324,6 +1331,18 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 /* Unavailable is a span, never a button: nothing to tab to, nothing to press,
    no dead control that looks like it should do something. */
 .timecell.is-out { color: var(--ink-400); font-weight: 500; }
+/* The cell a row is currently set to. A fill and a border rather than a fill
+   alone, so it is still the chosen one on the unavailable cells — which have no
+   green behind them to darken — and so the state survives greyscale. */
+.timecell.is-chosen {
+  background: var(--brand-600); border-color: var(--brand-700);
+  color: var(--on-brand); font-weight: 700;
+}
+button.timecell.is-chosen:hover { background: var(--brand-700); }
+/* Set here, but the instructor is not free at it. Dashed rather than a second
+   fill, so the "this is where the row stands" reading survives while the cell
+   still looks unlike the ones that can be pressed. */
+.timecell.is-out.is-chosen { border-style: dashed; border-color: var(--on-brand); }
 
 
 /* --- Week and day: the time grid -----------------------------------------

@@ -21,7 +21,7 @@
  */
 
 import { Button, Hint, VisuallyHidden } from "@/components/ui";
-import { durationWords } from "@/lib/presentation";
+import { clockTime, durationWords } from "@/lib/presentation";
 import {
   ELIGIBLE_BUT_UNAVAILABLE,
   noEligibleInstructors,
@@ -154,11 +154,12 @@ export function AvailabilityBlock({
             </span>
           </h3>
           <div className="daygrid-scroll">
-            <table className="daygrid daygrid-suggest" aria-labelledby="weekplan-heading">
+            <table className="daygrid daygrid-suggest daygrid-week" aria-labelledby="weekplan-heading">
               <caption className="visually-hidden">
-                One row per weekday the run repeats on, start times across the top.
-                Each row is checked against that day&rsquo;s own session length, and
-                against the next date that weekday falls on. Conflicts with existing
+                One row per weekday the run repeats on, every hour of the day across
+                the top. Each row is checked against that day&rsquo;s own session
+                length, and against the next date that weekday falls on. The pressed
+                cell in a row is that day&rsquo;s start time. Conflicts with existing
                 bookings are checked by Preview.
               </caption>
               <thead>
@@ -181,17 +182,23 @@ export function AvailabilityBlock({
                         <span className="daygrid-name">{row.name}</span>
                         <Hint>
                           {row.dayLabel} &middot; {durationWords(row.durationMinutes)}
+                          {row.startTime ? ` · ${clockTime(row.startTime)}` : ""}
                         </Hint>
                       </span>
                     </th>
                     {row.free.map((open, index) => {
                       const column = weekPlan.columns[index]!;
+                      const chosen = column.value === row.startTime;
                       return (
-                        <td className={open ? "is-free" : ""} key={column.value}>
+                        <td
+                          className={`${open ? "is-free" : ""}${chosen ? " is-chosen" : ""}`}
+                          key={column.value}
+                        >
                           {open ? (
                             <button
-                              className="timecell"
+                              className={`timecell${chosen ? " is-chosen" : ""}`}
                               type="button"
+                              aria-pressed={chosen}
                               onClick={() => onPickRepeatTime?.(row.weekday, column.value)}
                             >
                               <span aria-hidden="true">{column.label}</span>
@@ -200,10 +207,20 @@ export function AvailabilityBlock({
                               </VisuallyHidden>
                             </button>
                           ) : (
-                            <span className="timecell is-out">
-                              <span aria-hidden="true">&mdash;</span>
+                            /* A time the instructor cannot hold is still marked
+                               when the row is set to it — the alternative is the
+                               row showing no chosen cell at all, exactly when
+                               knowing where it stands matters most. Still a
+                               span: pressing it would only set what is already
+                               set, and `timecell` is a button only where there
+                               is something to press. */
+                            <span className={`timecell is-out${chosen ? " is-chosen" : ""}`}>
+                              <span aria-hidden="true">
+                                {chosen ? column.label : <>&mdash;</>}
+                              </span>
                               <VisuallyHidden>
                                 {column.label} unavailable on {row.name}.
+                                {chosen ? " This day is currently set to it." : ""}
                               </VisuallyHidden>
                             </span>
                           )}

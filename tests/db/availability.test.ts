@@ -538,6 +538,29 @@ describeDb("availability", () => {
       expect(grid.rows[1]!.closedReason).not.toBeNull();
     });
 
+    it("keeps the whole day's axis on the date the clocks go forward", async () => {
+      // The axis the booking form asks for: midnight, an hour a column, all
+      // day. Built by adding an hour to an instant it would come back one
+      // heading short on 8 March, so which headings the table had would depend
+      // on which weekday happened to sort first.
+      await declare("sun", "09:00", "17:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [{ weekday: "sun", durationMinutes: 60 }],
+        { from: "2026-03-08", fromTime: "00:00", timezone: NY, columns: 24, stepMinutes: 60 },
+      );
+
+      expect(grid.columns).toHaveLength(24);
+      expect(grid.columns[0]!.value).toBe("00:00");
+      expect(grid.columns[2]!.label).toBe("2 AM");
+      expect(grid.columns[23]!.value).toBe("23:00");
+      // And it is still the declared window that decides, not the axis.
+      expect(grid.rows[0]!.free.filter(Boolean)).toHaveLength(8);
+    });
+
     it("asks every row about the same clock time, not the same instant", async () => {
       // Across a daylight-saving change the two are different questions, and
       // the header can only mean one of them. 8 March 2026 is the spring
