@@ -363,6 +363,29 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     );
   });
 
+  test("keeps Preview and Book on screen above it", async ({ page }) => {
+    // The grid is the whole day, and on a narrow screen an hour a row, so a run
+    // of three weekdays is taller than the rest of the form together. The
+    // actions used to sit below all of it — measured at 3,751px down an 844px
+    // viewport — and Book only exists once Preview has been pressed, so the
+    // button that mattered was the one further out of reach.
+    await twoDayRun(page);
+    // Title is required, and without it the preview comes back as a refusal
+    // rather than a plan — so Book would never appear and this would be
+    // testing the wrong absence.
+    await page.locator("#title").fill("Algebra practice");
+    const onScreen = async () =>
+      page.locator(".booking-actions").evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return box.top >= 0 && box.bottom <= window.innerHeight + 1;
+      });
+
+    expect(await onScreen()).toBe(true);
+    await page.getByRole("button", { name: /Preview session/ }).click();
+    await expect(page.getByRole("button", { name: /Book Session/ })).toBeVisible();
+    expect(await onScreen()).toBe(true);
+  });
+
   test("keeps the table inside the card it is drawn in", async ({ page }) => {
     // The grid is wider than any screen by design and scrolls sideways inside
     // its own box. It only does that while every ancestor is allowed to be
