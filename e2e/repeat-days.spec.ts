@@ -279,16 +279,24 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     // the cell a row is already set to would prove nothing about which row
     // changed.
     const cell = page
-      .locator('table[aria-labelledby="weekplan-heading"] button.timecell:not(.is-chosen)')
+      .locator('table[aria-labelledby="weekplan-heading"] button.quartercell:not(.is-chosen)')
       .first();
     // The time the cell stands for, from where it sits: the columns are the
-    // twenty-four hours of the day, from midnight. Read from the position
-    // rather than the label, because the grid's header drops a ":00" that the
-    // select keeps — one says "5 PM" where the other says "5:00 PM".
-    const column = await cell.evaluate(
-      (node) => (node.closest("td") as HTMLTableCellElement).cellIndex - 1,
-    );
-    const expected = `${String(column).padStart(2, "0")}:00`;
+    // twenty-four hours of the day from midnight, each divided into quarters.
+    // Read from the position rather than the label, because the grid's header
+    // drops a ":00" that the select keeps — one says "5 PM" where the other
+    // says "5:00 PM".
+    const [column, quarter] = await cell.evaluate((node) => {
+      const td = node.closest("td") as HTMLTableCellElement;
+      return [
+        td.cellIndex - 1,
+        [...td.querySelectorAll(".quartercell")].indexOf(node),
+      ];
+    });
+    const expected = `${String(column).padStart(2, "0")}:${String(quarter * 15).padStart(
+      2,
+      "0",
+    )}`;
 
     await cell.click();
     await settled(page);
@@ -315,6 +323,43 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     await expect(headings.last()).toHaveText("11 PM");
   });
 
+  test("divides each hour into the quarters a session can start at", async ({ page }) => {
+    // An hour a column is what makes a whole day readable; a quarter is what
+    // the length and time controls above actually offer. Both, or the table
+    // can only ever set a time on the hour.
+    await twoDayRun(page);
+    const first = page
+      .locator('table[aria-labelledby="weekplan-heading"] tbody tr')
+      .first();
+    const midnight = first.locator("td").first().locator(".quartercell");
+    await expect(midnight).toHaveCount(4);
+    await expect(first.locator(".quartercell")).toHaveCount(24 * 4);
+
+    for (const [index, label] of [":00", ":15", ":30", ":45"].entries()) {
+      await expect(midnight.nth(index)).toContainText(label);
+    }
+    // Spoken as the whole time, spelled the way the Start time field spells it
+    // — the column heading's "12 AM" is not a name for a quarter past.
+    await expect(midnight.nth(2)).toContainText("12:30 AM");
+  });
+
+  test("keeps the table inside the card it is drawn in", async ({ page }) => {
+    // The grid is wider than any screen by design and scrolls sideways inside
+    // its own box. It only does that while every ancestor is allowed to be
+    // narrower than it — a `fieldset` is not, by default, and the card grew to
+    // the width of the table instead.
+    await twoDayRun(page);
+    const overflow = await page.evaluate(() => {
+      const of = (selector: string) => {
+        const node = document.querySelector(selector) as HTMLElement;
+        return node.scrollWidth - node.clientWidth;
+      };
+      return { card: of(".booking-card"), main: of(".main") };
+    });
+    expect(overflow.card).toBeLessThanOrEqual(1);
+    expect(overflow.main).toBeLessThanOrEqual(1);
+  });
+
   test("marks the cell a day is set to, and does not move the columns to it", async ({
     page,
   }) => {
@@ -326,28 +371,33 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     // Both indexes read before the click, because the locators are re-resolved
     // against the refreshed table and "the first row with a free unchosen
     // cell" will not be the same row once one of them has been pressed.
-    const cell = table.locator("button.timecell:not(.is-chosen)").first();
-    const [rowIndex, column] = await cell.evaluate((node) => {
+    const cell = table.locator("button.quartercell:not(.is-chosen)").first();
+    const [rowIndex, column, quarter] = await cell.evaluate((node) => {
       const td = node.closest("td") as HTMLTableCellElement;
-      return [(td.parentElement as HTMLTableRowElement).rowIndex, td.cellIndex];
+      return [
+        (td.parentElement as HTMLTableRowElement).rowIndex,
+        td.cellIndex,
+        [...td.querySelectorAll(".quartercell")].indexOf(node),
+      ];
     });
     await cell.click();
     await settled(page);
 
-    // The pressed cell is now the chosen one, and the axis has not moved under
-    // it — the earlier grid restarted its columns at whatever was picked.
+    // The pressed quarter is now the chosen one, and the axis has not moved
+    // under it — the earlier grid restarted its columns at whatever was picked.
     await expect(firstHeading).toHaveText("12 AM");
     const row = table.locator("tbody tr").nth(rowIndex - 1);
-    await expect(row.locator(".timecell.is-chosen")).toHaveCount(1);
-    await expect(row.locator("button.timecell.is-chosen")).toHaveAttribute(
+    await expect(row.locator(".quartercell.is-chosen")).toHaveCount(1);
+    await expect(row.locator("button.quartercell.is-chosen")).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     expect(
-      await row
-        .locator(".timecell.is-chosen")
-        .evaluate((node) => (node.closest("td") as HTMLTableCellElement).cellIndex),
-    ).toBe(column);
+      await row.locator(".quartercell.is-chosen").evaluate((node) => {
+        const td = node.closest("td") as HTMLTableCellElement;
+        return [td.cellIndex, [...td.querySelectorAll(".quartercell")].indexOf(node)];
+      }),
+    ).toEqual([column, quarter]);
   });
 
   test("goes back to the single-day view when the run stops repeating", async ({

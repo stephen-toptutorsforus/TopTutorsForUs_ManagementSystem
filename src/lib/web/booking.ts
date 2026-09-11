@@ -54,7 +54,8 @@ export const SUGGESTION_COLUMNS = 16;
 export const SUGGESTION_STEP_MINUTES = 30;
 
 /**
- * The repeat table's axis: the whole day, an hour at a time.
+ * The repeat table's axis: the whole day, a quarter of an hour at a time,
+ * grouped into hours.
  *
  * Fixed, and deliberately not `SUGGESTION_*`. That grid's columns begin at the
  * time already in the form, which is right when the question is "one session,
@@ -65,13 +66,17 @@ export const SUGGESTION_STEP_MINUTES = 30;
  * from the current time cannot hold both.
  *
  * The whole day is the only honest fixed answer, so it scrolls sideways
- * instead. An hour a column keeps that scroll to twenty-four cells; a row whose
- * start time is off the hour keeps it — the row's own Start time select is
- * finer-grained and this table never overwrites it except when pressed.
+ * instead. Ninety-six columns is not a table anybody can read, and twenty-four
+ * cannot offer the quarter past that every other time control on the form can
+ * — so the resolution and the layout are separated: the axis is the hour, and
+ * the four quarters live inside the hour they belong to. The step matches the
+ * form's clock exactly, so a time this table offers is always a time the row's
+ * own Start time select can hold.
  */
 export const WEEKPLAN_START: CivilTime = "00:00";
-export const WEEKPLAN_STEP_MINUTES = 60;
-export const WEEKPLAN_COLUMNS = 24;
+export const WEEKPLAN_STEP_MINUTES = 15;
+export const WEEKPLAN_SLOTS_PER_HOUR = 60 / WEEKPLAN_STEP_MINUTES;
+export const WEEKPLAN_COLUMNS = 24 * WEEKPLAN_SLOTS_PER_HOUR;
 
 /** One weekday of a repeating run, as the form submits it. */
 export interface RepeatDayInput {
@@ -132,9 +137,21 @@ export interface AvailabilityBlock {
   weekPlan: SerialisedWeekPlan | null;
 }
 
-/** The repeat grid: weekdays down the side, start times across the top. */
+/** One start time inside an hour: `:15`, and the `16:15` it sets. */
+export interface WeekPlanSlot {
+  value: CivilTime;
+  label: string;
+}
+
+/** One column: an hour, and the quarters it is divided into. */
+export interface WeekPlanHour {
+  label: string;
+  slots: WeekPlanSlot[];
+}
+
+/** The repeat grid: weekdays down the side, hours across the top. */
 export interface SerialisedWeekPlan {
-  columns: { label: string; value: CivilTime }[];
+  columns: WeekPlanHour[];
   rows: {
     weekday: string;
     /** `Monday` — the row's own heading. */
@@ -148,7 +165,8 @@ export interface SerialisedWeekPlan {
      * and light none, which is the truth: the select below still shows 9:15.
      */
     startTime: CivilTime;
-    free: boolean[];
+    /** One array of quarters per hour column, in the columns' own order. */
+    free: boolean[][];
     closedReason: string | null;
   }[];
   anyOpen: boolean;
@@ -256,15 +274,37 @@ function serialiseWeekPlan(
   grid: WeekdayGrid,
   chosen: readonly RepeatDayInput[],
 ): SerialisedWeekPlan {
+  // The quarter-hour columns, gathered into the hour each falls in. Grouped by
+  // the hour the column *says* rather than by counting off four at a time, so
+  // this cannot quietly mis-group if the axis ever starts somewhere other than
+  // midnight or the step stops dividing an hour. The hour takes its heading
+  // from its first column, which is the one on the hour.
+  const columns: WeekPlanHour[] = [];
+  const grouping: number[][] = [];
+  let currentHour: string | null = null;
+  for (const [position, column] of grid.columns.entries()) {
+    const hour = column.value.slice(0, 2);
+    if (hour !== currentHour) {
+      currentHour = hour;
+      columns.push({ label: column.label, slots: [] });
+      grouping.push([]);
+    }
+    columns[columns.length - 1]!.slots.push({
+      value: column.value,
+      label: `:${column.value.slice(3)}`,
+    });
+    grouping[grouping.length - 1]!.push(position);
+  }
+
   return {
-    columns: grid.columns.map((column) => ({ label: column.label, value: column.value })),
+    columns,
     rows: grid.rows.map((row) => ({
       weekday: row.weekday,
       name: weekdayName(row.day),
       dayLabel: dayLabel(row.day),
       durationMinutes: row.durationMinutes,
       startTime: chosen.find((day) => day.weekday === row.weekday)?.startTime ?? "",
-      free: [...row.free],
+      free: grouping.map((positions) => positions.map((position) => row.free[position]!)),
       closedReason: row.closedReason,
     })),
     anyOpen: grid.rows.some((row) => row.free.some(Boolean)),

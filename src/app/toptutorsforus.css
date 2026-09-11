@@ -1195,7 +1195,13 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
  * already one boundary and a second around each group inside it is exactly the
  * noise being removed elsewhere. A heading, space, and a rule between
  * neighbours is enough to group nineteen fields into four readable parts. */
-.booking-section { border: 0; padding: 0; margin: 0; }
+/* `min-width: 0` against the UA's `min-width: min-content` for `fieldset`,
+   which is the reason a wide table inside one does not scroll. The scroller is
+   `overflow-x: auto` and should have absorbed it, but the fieldset around it
+   refuses to be narrower than its contents, so the card grew instead and the
+   grid ran out past its right-hand edge. Any wide thing put in one of these
+   groups would have done the same. */
+.booking-section { border: 0; padding: 0; margin: 0; min-width: 0; }
 .booking-section > legend { padding: 0; margin-top: 0; }
 .booking-section + .booking-section {
   border-top: 1px solid var(--ink-100);
@@ -1316,7 +1322,103 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
    twenty-four columns would be squeezed to whatever was left over and the
    sticky name column would eat most of it. */
 .daygrid-week { width: auto; min-width: 100%; }
-.daygrid-week thead th { min-width: 78px; }
+.daygrid-week thead th { min-width: 108px; }
+.daygrid-week tbody td { padding: 0.2rem 0.25rem; }
+
+/* One hour, divided into the quarters it can actually be started at.
+ *
+ * The four are always in the markup — they are what is pressed, and a control
+ * that only exists under a pointer cannot be reached by a keyboard or a
+ * finger. What the hover changes is only which label is legible: the hour sits
+ * over its quarters until the cell is pointed at or tabbed into, because
+ * ninety-six readings across a table is none of them read. The fills stay
+ * visible throughout, so which parts of the hour are free is answered before
+ * anything is pointed at. */
+.hourcell {
+  position: relative;
+  display: flex; gap: 1px;
+  border-radius: var(--radius); overflow: hidden;
+  min-width: 0;
+}
+.hourcell-label {
+  z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-700);
+  transition: opacity 0.12s ease;
+}
+.quartercell {
+  flex: 1 1 0; min-width: 0;
+  padding: 0.45rem 0;
+  border: 0; background: var(--ink-050);
+  font: inherit; font-size: 0.68rem; font-weight: 650;
+  font-variant-numeric: tabular-nums; color: var(--good-text);
+  white-space: nowrap;
+  opacity: 1;
+}
+button.quartercell { cursor: pointer; background: var(--good-surface); }
+button.quartercell:hover { background: var(--brand-100); color: var(--brand-700); }
+/* Unavailable is a span, never a button: nothing to tab to, nothing to press,
+   no dead control that looks like it should do something. */
+.quartercell.is-out { color: var(--ink-400); font-weight: 500; }
+.quartercell.is-chosen {
+  background: var(--brand-600); color: var(--on-brand); font-weight: 700;
+}
+button.quartercell.is-chosen:hover { background: var(--brand-700); color: var(--on-brand); }
+/* Set here, but the instructor is not free at it. Struck through rather than a
+   second fill, so "this is where the row stands" survives while the quarter
+   still looks unlike the ones that can be pressed. */
+.quartercell.is-out.is-chosen { text-decoration: line-through; }
+
+/* Wide enough to be a table: the hour label sits over its own quarters, and
+   the quarters are labelled only once the hour is pointed at or tabbed into.
+   `visibility` rather than `display` for the swap, so the quarters keep their
+   widths and nothing moves when the pointer arrives. */
+@media (min-width: 721px) {
+  .hourcell-label { position: absolute; inset: 0; }
+  .quartercell > [aria-hidden] { visibility: hidden; }
+  .hourcell:hover .quartercell > [aria-hidden],
+  .hourcell:focus-within .quartercell > [aria-hidden],
+  .hourcell.has-chosen .quartercell > [aria-hidden] { visibility: visible; }
+  .hourcell:hover .hourcell-label,
+  .hourcell:focus-within .hourcell-label,
+  .hourcell.has-chosen .hourcell-label { opacity: 0; }
+
+  /* No pointer, no hover: the quarters are labelled from the start, and the
+     columns are wide enough that each one is a real target rather than a
+     twenty-seven pixel sliver. */
+  @media (hover: none) {
+    .daygrid-week thead th { min-width: 184px; }
+    .quartercell > [aria-hidden] { visibility: visible; }
+    .hourcell-label { display: none; }
+  }
+}
+
+/* Below that the table is already cards, an hour to a row — see the card-mode
+   rules near the top of the file. A row is the one shape with room to label
+   everything at once, so nothing is hidden and nothing waits for a pointer
+   that a phone does not have. `display: contents` lifts the hour and its four
+   quarters into the row's own grid, which is what puts the hour beside them
+   rather than on top of them. */
+@media (max-width: 720px) {
+  .daygrid-week tbody td {
+    display: grid; grid-template-columns: 4.75rem repeat(4, 1fr);
+    gap: 0.3rem; align-items: stretch;
+    padding: 0.2rem 0.25rem;
+  }
+  /* The label the card mode draws from `data-label`, which a grid of times has
+     nothing to put in — an empty one would still take the first column. */
+  .daygrid-week tbody td::before { content: none; }
+  .daygrid-week .hourcell { display: contents; }
+  .daygrid-week .hourcell-label {
+    justify-content: flex-start;
+    font-size: 0.85rem;
+  }
+  .daygrid-week .quartercell {
+    border-radius: var(--radius);
+    padding: 0.7rem 0; font-size: 0.75rem;
+  }
+}
 
 .timecell {
   display: block; width: 100%;
@@ -1331,18 +1433,6 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 /* Unavailable is a span, never a button: nothing to tab to, nothing to press,
    no dead control that looks like it should do something. */
 .timecell.is-out { color: var(--ink-400); font-weight: 500; }
-/* The cell a row is currently set to. A fill and a border rather than a fill
-   alone, so it is still the chosen one on the unavailable cells — which have no
-   green behind them to darken — and so the state survives greyscale. */
-.timecell.is-chosen {
-  background: var(--brand-600); border-color: var(--brand-700);
-  color: var(--on-brand); font-weight: 700;
-}
-button.timecell.is-chosen:hover { background: var(--brand-700); }
-/* Set here, but the instructor is not free at it. Dashed rather than a second
-   fill, so the "this is where the row stands" reading survives while the cell
-   still looks unlike the ones that can be pressed. */
-.timecell.is-out.is-chosen { border-style: dashed; border-color: var(--on-brand); }
 
 
 /* --- Week and day: the time grid -----------------------------------------

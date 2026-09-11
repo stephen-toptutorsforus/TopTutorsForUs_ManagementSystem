@@ -168,7 +168,7 @@ export function AvailabilityBlock({
                     Day
                   </th>
                   {weekPlan.columns.map((column) => (
-                    <th scope="col" key={column.value}>
+                    <th scope="col" key={column.slots[0]!.value}>
                       {column.label}
                     </th>
                   ))}
@@ -186,44 +186,76 @@ export function AvailabilityBlock({
                         </Hint>
                       </span>
                     </th>
-                    {row.free.map((open, index) => {
+                    {row.free.map((quarters, index) => {
                       const column = weekPlan.columns[index]!;
-                      const chosen = column.value === row.startTime;
+                      const holdsChosen = column.slots.some(
+                        (slot) => slot.value === row.startTime,
+                      );
                       return (
-                        <td
-                          className={`${open ? "is-free" : ""}${chosen ? " is-chosen" : ""}`}
-                          key={column.value}
-                        >
-                          {open ? (
-                            <button
-                              className={`timecell${chosen ? " is-chosen" : ""}`}
-                              type="button"
-                              aria-pressed={chosen}
-                              onClick={() => onPickRepeatTime?.(row.weekday, column.value)}
-                            >
-                              <span aria-hidden="true">{column.label}</span>
-                              <VisuallyHidden>
-                                Start {row.name} sessions at {column.label}.
-                              </VisuallyHidden>
-                            </button>
-                          ) : (
-                            /* A time the instructor cannot hold is still marked
-                               when the row is set to it — the alternative is the
-                               row showing no chosen cell at all, exactly when
-                               knowing where it stands matters most. Still a
-                               span: pressing it would only set what is already
-                               set, and `timecell` is a button only where there
-                               is something to press. */
-                            <span className={`timecell is-out${chosen ? " is-chosen" : ""}`}>
-                              <span aria-hidden="true">
-                                {chosen ? column.label : <>&mdash;</>}
-                              </span>
-                              <VisuallyHidden>
-                                {column.label} unavailable on {row.name}.
-                                {chosen ? " This day is currently set to it." : ""}
-                              </VisuallyHidden>
+                        <td key={column.slots[0]!.value}>
+                          {/* An hour, divided. The heading sits over the four
+                              quarters until the hour is pointed at or tabbed
+                              into, because four labels an hour is 96 readings
+                              across the table and none of them legible. The
+                              hour this row is set to shows its quarters
+                              always: that is the one place the exact time is
+                              worth reading without asking for it. */}
+                          <span
+                            className={`hourcell${holdsChosen ? " has-chosen" : ""}`}
+                          >
+                            <span className="hourcell-label" aria-hidden="true">
+                              {column.label}
                             </span>
-                          )}
+                            {column.slots.map((slot, quarter) => {
+                              const open = quarters[quarter] === true;
+                              const chosen = slot.value === row.startTime;
+                              // The column heading drops a ":00" that the
+                              // Start time select keeps, so the spoken name is
+                              // built from the value rather than from the
+                              // heading: one says "9 AM" where the other says
+                              // "9:00 AM", and the name should match the field
+                              // it sets.
+                              const label = clockTime(slot.value);
+                              if (!open) {
+                                /* A time the instructor cannot hold is still
+                                   marked when the row is set to it — the
+                                   alternative is the row showing no chosen
+                                   quarter at all, exactly when knowing where it
+                                   stands matters most. Still a span: pressing
+                                   it would only set what is already set, and a
+                                   cell is a button only where there is
+                                   something to press. */
+                                return (
+                                  <span
+                                    className={`quartercell is-out${
+                                      chosen ? " is-chosen" : ""
+                                    }`}
+                                    key={slot.value}
+                                  >
+                                    <span aria-hidden="true">{slot.label}</span>
+                                    <VisuallyHidden>
+                                      {label} unavailable on {row.name}.
+                                      {chosen ? " This day is currently set to it." : ""}
+                                    </VisuallyHidden>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  className={`quartercell${chosen ? " is-chosen" : ""}`}
+                                  type="button"
+                                  aria-pressed={chosen}
+                                  key={slot.value}
+                                  onClick={() => onPickRepeatTime?.(row.weekday, slot.value)}
+                                >
+                                  <span aria-hidden="true">{slot.label}</span>
+                                  <VisuallyHidden>
+                                    Start {row.name} sessions at {label}.
+                                  </VisuallyHidden>
+                                </button>
+                              );
+                            })}
+                          </span>
                         </td>
                       );
                     })}

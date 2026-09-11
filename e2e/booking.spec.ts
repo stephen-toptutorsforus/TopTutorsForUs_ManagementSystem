@@ -236,7 +236,14 @@ test.describe("the backend is the one that refuses", () => {
     // The dropdown no longer offers them, so this drives the field directly —
     // which is the point: hiding a name is a courtesy, and the refusal has to
     // come from the server whether or not the screen cooperated.
-    const today = await page.locator("#start_date").getAttribute("min");
+    // Tomorrow, not the earliest bookable date. This is the only test here
+    // that previews, so it is the only one the tenant's booking lead time
+    // applies to — and on today's date the form's default 4 PM stops being an
+    // hour away at 3 PM, which made this fail for one hour in every day.
+    const earliest = await page.locator("#start_date").getAttribute("min");
+    const day = new Date(`${earliest}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + 1);
+    const tomorrow = day.toISOString().slice(0, 10);
     await addStudent(page, STUDENT);
     await expectOffered(page, 1);
     const eligible = await offered(page);
@@ -248,7 +255,7 @@ test.describe("the backend is the one that refuses", () => {
     await page.locator("#instructor_ref").selectOption({ label: ineligible });
 
     await page.locator("#title").fill("Algebra practice");
-    await page.locator("#start_date").fill(today!);
+    await page.locator("#start_date").fill(tomorrow);
     await settled(page);
     await expect(page.locator(".cal-suggest, .daygrid")).toBeVisible();
 

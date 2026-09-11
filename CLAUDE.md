@@ -211,12 +211,27 @@ The first three anchor their columns to the time already in the form, because
 there the person is picking one time on one date and eight columns of 3 a.m.
 would bury the answer. The fourth cannot: pressing one of its cells *sets* a
 start time, so an axis anchored to that would slide out from under the person
-on every press. Its columns are the whole day, an hour each, fixed — and built
-by clock arithmetic rather than by adding an hour to an instant, so the day the
-clocks go forward does not quietly drop a heading and leave the axis depending
-on which weekday happened to sort first. The cell a row is set to is drawn as
+on every press. Its columns are the whole day, fixed — and built by clock
+arithmetic rather than by adding an hour to an instant, so the day the clocks
+go forward does not quietly drop a heading and leave the axis depending on
+which weekday happened to sort first. The quarter a row is set to is drawn as
 pressed, including where the instructor is not free at it: that is where the
 row stands, and hiding it is worst exactly when it matters.
+
+Its resolution and its layout are deliberately different numbers. Every other
+time control on the form offers quarter hours, so a table that could only set a
+time on the hour would be the one place a run could not be given the time it
+wants — but ninety-six columns is not a table anybody reads. So availability is
+resolved every fifteen minutes and *laid out* an hour to a column, with the
+four quarters inside the hour they belong to: the heading sits over them until
+the hour is pointed at or tabbed into. Below the table's card breakpoint there
+are no columns to be short of and no pointer to wait for, so each hour is its
+own row with all five labels showing.
+
+A wide table inside a `fieldset` does not scroll, whatever its wrapper says:
+the UA gives `fieldset` `min-width: min-content`, so the group refuses to be
+narrower than the grid and the card grows instead. `.booking-section` sets
+`min-width: 0` for that reason.
 
 **On a form submitted by React, an uncontrolled field must be keyed on its own
 value.**
@@ -299,7 +314,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-517 tests — 266 pure, 251 database-backed — plus 342 browser tests and
+517 tests — 266 pure, 251 database-backed — plus 346 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

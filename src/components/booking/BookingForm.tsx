@@ -182,8 +182,11 @@ export function BookingForm({
    * up. Comparing the echo with what was sent tells the two apart — a number
    * the server changed is a clamp and is taken; a number it merely repeated has
    * nothing to say about an edit made since.
+   *
+   * State rather than a ref because it is read while rendering, and a ref read
+   * during render is a value React does not promise anything about.
    */
-  const sentCount = useRef<string | null>(null);
+  const [sentCount, setSentCount] = useState<string | null>(null);
 
   const context = state.context;
   const values = state.values;
@@ -210,8 +213,8 @@ export function BookingForm({
     setSeen(state);
     setMatrixDays(state.context.matrixDays);
     const echoed = state.values.occurrence_count ?? "1";
-    if (echoed !== sentCount.current) setCounted(Number.parseInt(echoed, 10) || 1);
-    sentCount.current = null;
+    if (echoed !== sentCount) setCounted(Number.parseInt(echoed, 10) || 1);
+    setSentCount(null);
   }
 
   const repeating = counted > 1;
@@ -291,8 +294,9 @@ export function BookingForm({
       refreshTimer.current = null;
       // Read off the control rather than off state, because the control is
       // what is about to be serialised into the request.
-      sentCount.current =
-        form.current?.querySelector<HTMLInputElement>("#occurrence_count")?.value ?? null;
+      setSentCount(
+        form.current?.querySelector<HTMLInputElement>("#occurrence_count")?.value ?? null,
+      );
       form.current?.requestSubmit(refreshButton.current);
     }, REFRESH_DELAY_MS);
   }, []);
