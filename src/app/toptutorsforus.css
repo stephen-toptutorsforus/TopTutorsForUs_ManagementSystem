@@ -1358,9 +1358,13 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 }
 button.quartercell { cursor: pointer; background: var(--good-surface); }
 button.quartercell:hover { background: var(--brand-100); color: var(--brand-700); }
-/* Unavailable is a span, never a button: nothing to tab to, nothing to press,
-   no dead control that looks like it should do something. */
-.quartercell.is-out { color: var(--ink-400); font-weight: 500; }
+/* Outside the instructor's declared hours, and still pressable: the service
+   treats that as an overridable conflict rather than a refusal, so this is a
+   quieter cell and not a disabled one. Quiet by weight and colour, because the
+   fill is what says which times are inside the window and the two must not be
+   the same signal. */
+.quartercell.is-out { background: var(--ink-050); color: var(--ink-400); font-weight: 500; }
+button.quartercell.is-out:hover { background: var(--brand-100); color: var(--brand-700); }
 /* A start time is an instant, not a span, so it is drawn as a line at the edge
    the session begins on rather than as a filled quarter. The same inset rule
    the selected navigation row uses. Filling the quarter said "these fifteen

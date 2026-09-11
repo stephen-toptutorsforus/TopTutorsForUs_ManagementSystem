@@ -218,6 +218,15 @@ which weekday happened to sort first. The quarter a row is set to is drawn as
 pressed, including where the instructor is not free at it: that is where the
 row stands, and hiding it is worst exactly when it matters.
 
+Every quarter of it is pressable, inside the instructor's declared hours or
+not. `outside_availability` is an *overridable* conflict rather than a refusal
+— the service lets a run be booked outside declared hours by somebody permitted
+to override — and the Start time select has always offered the whole day, so a
+table that refused would have been the one control on the form forbidding what
+the service allows. The shading says which times are inside the window and the
+preview reports the ones that are not, which is the same division of labour as
+the rest of the block: the table narrows the search, the preview decides.
+
 Its resolution and its layout are deliberately different numbers. Every other
 time control on the form offers quarter hours, so a table that could only set a
 time on the hour would be the one place a run could not be given the time it
@@ -314,7 +323,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-517 tests — 266 pure, 251 database-backed — plus 346 browser tests and
+517 tests — 266 pure, 251 database-backed — plus 348 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

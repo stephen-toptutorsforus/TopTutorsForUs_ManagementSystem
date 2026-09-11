@@ -157,10 +157,12 @@ export function AvailabilityBlock({
             <table className="daygrid daygrid-suggest daygrid-week" aria-labelledby="weekplan-heading">
               <caption className="visually-hidden">
                 One row per weekday the run repeats on, every hour of the day across
-                the top. Each row is checked against that day&rsquo;s own session
-                length, and against the next date that weekday falls on. The pressed
-                cell in a row is that day&rsquo;s start time. Conflicts with existing
-                bookings are checked by Preview.
+                the top, each divided into quarters. Any quarter can be chosen; a
+                shaded one is inside the instructor&rsquo;s declared hours for that
+                day&rsquo;s own session length, on the next date that weekday falls
+                on. The pressed quarter in a row is that day&rsquo;s start time.
+                Clashes with existing bookings, and times outside declared hours, are
+                reported by Preview.
               </caption>
               <thead>
                 <tr>
@@ -216,33 +218,23 @@ export function AvailabilityBlock({
                               // "9:00 AM", and the name should match the field
                               // it sets.
                               const label = clockTime(slot.value);
-                              if (!open) {
-                                /* A time the instructor cannot hold is still
-                                   marked when the row is set to it — the
-                                   alternative is the row showing no chosen
-                                   quarter at all, exactly when knowing where it
-                                   stands matters most. Still a span: pressing
-                                   it would only set what is already set, and a
-                                   cell is a button only where there is
-                                   something to press. */
-                                return (
-                                  <span
-                                    className={`quartercell is-out${
-                                      chosen ? " is-chosen" : ""
-                                    }`}
-                                    key={slot.value}
-                                  >
-                                    <span aria-hidden="true">{slot.label}</span>
-                                    <VisuallyHidden>
-                                      {label} unavailable on {row.name}.
-                                      {chosen ? " This day is currently set to it." : ""}
-                                    </VisuallyHidden>
-                                  </span>
-                                );
-                              }
+                              /* Every quarter is pressable, inside the
+                                 instructor's declared hours or not.
+                                 `outside_availability` is an *overridable*
+                                 conflict — the service lets a run be booked
+                                 outside declared hours by somebody permitted to
+                                 override, and the Start time select above has
+                                 always offered the whole day — so a table that
+                                 refused would have been the one control on the
+                                 form forbidding what the service allows. The
+                                 fill still says which times are inside the
+                                 declared window, and the preview still reports
+                                 the ones that are not. */
                               return (
                                 <button
-                                  className={`quartercell${chosen ? " is-chosen" : ""}`}
+                                  className={`quartercell${open ? "" : " is-out"}${
+                                    chosen ? " is-chosen" : ""
+                                  }`}
                                   type="button"
                                   aria-pressed={chosen}
                                   key={slot.value}
@@ -251,6 +243,7 @@ export function AvailabilityBlock({
                                   <span aria-hidden="true">{slot.label}</span>
                                   <VisuallyHidden>
                                     Start {row.name} sessions at {label}.
+                                    {open ? "" : " Outside declared availability."}
                                   </VisuallyHidden>
                                 </button>
                               );
@@ -275,8 +268,8 @@ export function AvailabilityBlock({
           {!weekPlan.anyOpen && (
             <p className="hint">
               {selectedInstructor?.displayName} has no declared window long enough on
-              any of these days at these times. Try a different day, an earlier start,
-              or a shorter length.
+              any of these days. A time can still be chosen — Preview will report it
+              as outside their availability.
             </p>
           )}
         </>

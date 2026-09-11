@@ -273,11 +273,10 @@ test.describe("the chosen tutor's availability, a row per day", () => {
       );
     const before = await times();
 
-    // Whichever row is open, rather than a named weekday: the seed closes one
-    // date a fortnight out, so which of these days has free cells depends on
-    // when the database was seeded. Not one already chosen either — pressing
-    // the cell a row is already set to would prove nothing about which row
-    // changed.
+    // Any quarter but one already chosen — pressing the cell a row is already
+    // set to would prove nothing about which row changed. Which of these days
+    // has cells inside the tutor's declared hours depends on when the database
+    // was seeded, and no longer matters: every quarter is pressable.
     const cell = page
       .locator('table[aria-labelledby="weekplan-heading"] button.quartercell:not(.is-chosen)')
       .first();
@@ -341,6 +340,37 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     // Spoken as the whole time, spelled the way the Start time field spells it
     // — the column heading's "12 AM" is not a name for a quarter past.
     await expect(midnight.nth(2)).toContainText("12:30 AM");
+  });
+
+  test("offers every time of day, inside the declared hours or not", async ({
+    page,
+  }) => {
+    // `outside_availability` is an overridable conflict rather than a refusal,
+    // and the Start time select above offers the whole day — so the table must
+    // not be the one control on the form that forbids what the service allows.
+    // The shading still says which times are inside the declared window.
+    await twoDayRun(page);
+    const first = page
+      .locator('table[aria-labelledby="weekplan-heading"] tbody tr')
+      .first();
+    await expect(first.locator(".quartercell")).toHaveCount(24 * 4);
+    await expect(first.locator("button.quartercell")).toHaveCount(24 * 4);
+
+    // Both kinds are present in a day, so the shading still carries meaning.
+    expect(await first.locator("button.quartercell.is-out").count()).toBeGreaterThan(0);
+    expect(
+      await first.locator("button.quartercell:not(.is-out)").count(),
+    ).toBeGreaterThan(0);
+
+    // And one outside the window really does set the time. 3 AM: nothing the
+    // seed declares reaches it, on any weekday.
+    const small = first.locator("td").nth(3).locator(".quartercell").first();
+    await expect(small).toHaveClass(/is-out/);
+    await small.click();
+    await settled(page);
+    await expect(page.locator('.repeat-row select[name="repeat_time"]').first()).toHaveValue(
+      "03:00",
+    );
   });
 
   test("keeps the table inside the card it is drawn in", async ({ page }) => {
