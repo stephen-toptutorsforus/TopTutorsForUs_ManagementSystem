@@ -122,6 +122,14 @@ whose days differ is already expressible. The series row keeps the pattern's
 first day as its default — it is a template, not a second copy of the
 schedule.
 
+**A room is a record, not a sentence.** The booking screen sends `locationId`
+for an in-person session, and the free text beside it is directions — a floor, an
+entrance — rather than a substitute. Only the id can feed the room exclusion
+constraint, so a screen that sent nothing but the words could book a session
+into a room already in use, which is a rule the database was ready to enforce
+and was for a while never given the chance to. The record's page shows the two
+as two facts for the same reason.
+
 **Eligibility is asked before availability, and again before the write.**
 Whether an instructor *may* teach a student is a relationship question, and
 `src/lib/services/instructorEligibility.ts` is the only place it is answered —

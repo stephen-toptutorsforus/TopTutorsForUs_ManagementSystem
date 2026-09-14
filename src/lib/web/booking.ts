@@ -233,6 +233,12 @@ export interface BookingContext extends AvailabilityBlock {
   students: PersonChoice[];
   programs: Choice[];
   groups: Choice[];
+  /**
+   * The tenant's managed rooms. Offered for an in-person session because a room
+   * is the only thing the location exclusion constraint can key on; the free
+   * text beside it is directions to it, not a substitute for it.
+   */
+  locations: Choice[];
   durations: number[];
   deliveryTypes: { value: string; label: string }[];
   canOverride: boolean;
@@ -565,7 +571,7 @@ export async function bookingContext(
   // No instructor query here: the eligible list came back from
   // `availabilityContext` and is spread in below. Asking a second time is how
   // the dropdown and the grid start offering different people.
-  const [students, programs, groups] = await Promise.all([
+  const [students, programs, groups, locations] = await Promise.all([
     db.user.findMany({
       where: { ...scoped(principal), archivedAt: null, roles: { some: { role: "STUDENT" } } },
       select: { ref: true, firstName: true, lastName: true, email: true },
@@ -577,6 +583,11 @@ export async function bookingContext(
       orderBy: { name: "asc" },
     }),
     db.group.findMany({
+      where: { ...scoped(principal), archivedAt: null },
+      select: { ref: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    db.location.findMany({
       where: { ...scoped(principal), archivedAt: null },
       select: { ref: true, name: true },
       orderBy: { name: "asc" },
@@ -596,6 +607,7 @@ export async function bookingContext(
     students: students.map(personChoice),
     programs: programs.map((program) => ({ ref: program.ref, label: program.name })),
     groups: groups.map((group) => ({ ref: group.ref, label: group.name })),
+    locations: locations.map((location) => ({ ref: location.ref, label: location.name })),
     durations,
     deliveryTypes: deliveryTypes.length > 0 ? deliveryTypes : [
       { value: "external_link", label: deliveryMeta(DeliveryType.EXTERNAL_LINK).choice },

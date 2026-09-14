@@ -250,6 +250,14 @@ async function bookingFromForm(
   // not delivered over.
   const link = delivery === DeliveryType.EXTERNAL_LINK ? one(form, "meeting_url") : "";
   const detail = delivery === DeliveryType.IN_PERSON ? one(form, "location_detail") : "";
+  // The managed room, which is the only thing the exclusion constraint can key
+  // on. `locationDetail` beside it is directions to it, never a substitute for
+  // it — the schema says so too, and a booking that carried only the free text
+  // could be double-booked into a room the database was ready to protect.
+  const room =
+    delivery === DeliveryType.IN_PERSON
+      ? await resolve(prisma.location, one(form, "location_ref"))
+      : null;
 
   const timezone = one(form, "timezone") || principal.timezone;
   if (!isValidZone(timezone)) throw new ValidationError("unknown timezone");
@@ -259,6 +267,7 @@ async function bookingFromForm(
     description: one(form, "description") || null,
     deliveryType: delivery,
     meetingUrl: link || null,
+    locationId: room,
     locationDetail: detail || null,
     startDate,
     startTime: patternStart?.startTime ?? startTime,

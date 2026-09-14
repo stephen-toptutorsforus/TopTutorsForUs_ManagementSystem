@@ -199,9 +199,14 @@ export default async function SessionDetailPage({
           </div>
 
           {session.deliveryType === DeliveryType.IN_PERSON ? (
-            <Fact label="Location Details">
-              {location?.name ?? session.locationDetail}
-            </Fact>
+            /* Two facts, because they are two things now that the booking form
+               can set both: the managed room is what the exclusion constraint
+               protects, and the free text is how to find it. Showing one or the
+               other hid whichever was not chosen. */
+            <div className="form-row">
+              <Fact label="Location">{location?.name ?? null}</Fact>
+              <Fact label="Directions">{session.locationDetail}</Fact>
+            </div>
           ) : (
             <Fact label="Online Classroom link">
               {/* Shown only to people already authorised to see this session,

@@ -392,9 +392,10 @@ export function BookingForm({
             <input type="hidden" name="billable" value="on" />
           </div>
 
-          {/* Only one of these belongs to the chosen type. Both stay in the form;
-              the action reads only the one that matches the type, so a stale
-              value from a browser that filled both cannot reach the session. */}
+          {/* Only some of these belong to the chosen type. All of them stay in
+              the form; the action reads only the ones that match the type, so a
+              stale value from a browser that filled several cannot reach the
+              session. */}
           <Field id="meeting_url" label="Online Classroom link" data-when-delivery="external_link">
             <input
               id="meeting_url"
@@ -405,14 +406,35 @@ export function BookingForm({
             />
           </Field>
 
-          <Field id="location_detail" label="Location Details" data-when-delivery="in_person">
+          {/* The room, and then how to find it. Two fields rather than one
+              because only the first can be double-booked: the location
+              exclusion constraint keys on a managed room, so a session that
+              carried nothing but the free text below could be booked into a
+              room already in use — a rule the database was ready to enforce and
+              was never given the chance to. */}
+          <Field id="location_ref" label="Location" data-when-delivery="in_person">
+            <OptionSelect
+              id="location_ref"
+              name="location_ref"
+              defaultValue={value("location_ref")}
+              key={`loc-${value("location_ref")}`}
+              placeholder="No specific room"
+              options={context.locations.map(({ ref, label }) => ({ value: ref, label }))}
+            />
+            <Hint>
+              Choosing a room checks it for clashes. Leave it unset for somewhere
+              that is not one of yours.
+            </Hint>
+          </Field>
+
+          <Field id="location_detail" label="Directions" data-when-delivery="in_person">
             <input
               id="location_detail"
               name="location_detail"
               type="text"
               maxLength={500}
               defaultValue={value("location_detail")}
-              placeholder="Address or other description"
+              placeholder="Floor, entrance, or an address"
             />
           </Field>
 
