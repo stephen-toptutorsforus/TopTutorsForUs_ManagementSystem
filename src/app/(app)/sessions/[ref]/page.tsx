@@ -19,7 +19,7 @@ import {
   Badge,
   Card,
   CardSection,
-  DeliveryBadge,
+  Fact,
   LinkButton,
   PageHeader,
   StatusBadge,
@@ -27,12 +27,12 @@ import {
   When,
   WhenTime,
 } from "@/components/ui";
-import { SessionStatus } from "@/generated/prisma/enums";
+import { DeliveryType, ParticipantRole, SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
-import { deliveryMeta, durationLabel } from "@/lib/presentation";
+import { deliveryMeta, durationWords } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { settingStrings, settingsReader } from "@/lib/organization";
 import {
@@ -67,36 +67,62 @@ export default async function SessionDetailPage({
 
   const zone = session.timezone;
 
-  const [participantRows, series, seriesTotal, location, events] = await Promise.all([
-    prisma.sessionParticipant.findMany({
-      where: { sessionId: session.id },
-      orderBy: [{ role: "asc" }, { id: "asc" }],
-      include: { user: { select: { firstName: true, lastName: true, ref: true } } },
-    }),
-    session.seriesId
-      ? prisma.sessionSeries.findUnique({ where: { id: session.seriesId } })
-      : null,
-    session.seriesId
-      ? prisma.sessionOccurrence.count({
-          where: { seriesId: session.seriesId, archivedAt: null },
-        })
-      : null,
-    session.locationId
-      ? prisma.location.findUnique({ where: { id: session.locationId } })
-      : null,
-    principal.has(Permission.AUDIT_VIEW)
-      ? prisma.auditEvent.findMany({
-          where: { ...scoped(principal), entityRef: session.ref },
-          orderBy: { occurredAt: "desc" },
-          take: 50,
-        })
-      : [],
-  ]);
+  const [participantRows, series, seriesTotal, location, instructor, group, program, events] =
+    await Promise.all([
+      prisma.sessionParticipant.findMany({
+        where: { sessionId: session.id },
+        orderBy: [{ role: "asc" }, { id: "asc" }],
+        include: { user: { select: { firstName: true, lastName: true, ref: true } } },
+      }),
+      session.seriesId
+        ? prisma.sessionSeries.findUnique({ where: { id: session.seriesId } })
+        : null,
+      session.seriesId
+        ? prisma.sessionOccurrence.count({
+            where: { seriesId: session.seriesId, archivedAt: null },
+          })
+        : null,
+      session.locationId
+        ? prisma.location.findUnique({ where: { id: session.locationId } })
+        : null,
+      // The instructor, the group and the program: all three are columns on the
+      // session, and none of them was drawn anywhere on this page. The
+      // instructor appeared only as a row of the attendance table, which is a
+      // register rather than an answer to "who is teaching this".
+      session.instructorId
+        ? prisma.user.findUnique({
+            where: { id: session.instructorId },
+            select: { firstName: true, lastName: true, ref: true },
+          })
+        : null,
+      session.groupId
+        ? prisma.group.findUnique({ where: { id: session.groupId }, select: { name: true } })
+        : null,
+      session.programId
+        ? prisma.program.findUnique({ where: { id: session.programId }, select: { name: true } })
+        : null,
+      principal.has(Permission.AUDIT_VIEW)
+        ? prisma.auditEvent.findMany({
+            where: { ...scoped(principal), entityRef: session.ref },
+            orderBy: { occurredAt: "desc" },
+            take: 50,
+          })
+        : [],
+    ]);
 
   const actions = availableActions(principal, session, organization);
   const scheduled = scheduledDurationMinutes(session);
   const actual = actualDurationMinutes(session);
   const delta = actual === null ? null : actual - scheduled;
+
+  // Names only, and students only: the attendance register below answers who
+  // turned up, this answers who the session is for.
+  const students = participantRows
+    .filter((participant) => participant.role === ParticipantRole.STUDENT)
+    .map((participant) =>
+      `${participant.user.firstName} ${participant.user.lastName}`.trim(),
+    )
+    .filter((name) => name !== "");
 
   const participants: ParticipantView[] = participantRows.map((participant) => ({
     id: String(participant.id),
@@ -131,124 +157,168 @@ export default async function SessionDetailPage({
           markup rather than a header slot: `PageHeader` deliberately has no
           subtitle, and this belongs to the record rather than to the shape of
           every screen's header. */}
-      <p className="record-status">
-        <StatusBadge status={session.status} />
-        <DeliveryBadge delivery={session.deliveryType} />
-        {series && session.seriesIndex && seriesTotal && (
-          <Link className="tag" href={`/series/${series.ref}`}>
-            Session {session.seriesIndex} of {seriesTotal} in this series
-          </Link>
-        )}
-        {session.detachedFromSeries && (
-          <Tag>Edited on its own — series edits skip it</Tag>
-        )}
-        {session.conflictOverridden && (
-          <Badge tone="warn" glyph="!">Booked over a conflict</Badge>
-        )}
-      </p>
+      {/* Only what is *not* also a field below. Status, type and the series
+          position each have their own box now, and saying them twice on one
+          screen is how somebody starts wondering whether the two disagree.
+          What is left is the pair of warnings, which have no field of their
+          own because they are not things anybody set. */}
+      {(session.detachedFromSeries || session.conflictOverridden) && (
+        <p className="record-status">
+          {session.detachedFromSeries && (
+            <Tag>Edited on its own — series edits skip it</Tag>
+          )}
+          {session.conflictOverridden && (
+            <Badge tone="warn" glyph="!">Booked over a conflict</Badge>
+          )}
+        </p>
+      )}
 
+      {/* The same groups the booking screen collects these in, in the same
+          order and the same layout, so reading a session back is the form it
+          was entered on rather than a second arrangement of the same facts.
+          `Fact` is `Field` without a control — see its own file for why it is
+          not simply a disabled input. */}
       <Card as="section" className="card-padded">
-        <CardSection title="Schedule">
-          <dl className="definition">
-            <dt>Scheduled</dt>
-            <dd>
-              <When instant={session.scheduledStart} zone={zone} /> →{" "}
+        <CardSection title="Session details">
+          <div className="form-row">
+            <Fact label="Type">{deliveryMeta(session.deliveryType).label}</Fact>
+            <Fact label="Status">
+              <StatusBadge status={session.status} />
+            </Fact>
+          </div>
+
+          {session.deliveryType === DeliveryType.IN_PERSON ? (
+            <Fact label="Location Details">
+              {location?.name ?? session.locationDetail}
+            </Fact>
+          ) : (
+            <Fact label="Online Classroom link">
+              {/* Shown only to people already authorised to see this session,
+                  and never written to logs or the audit trail. */}
+              {session.meetingUrl ? (
+                <a href={session.meetingUrl} rel="noopener noreferrer">
+                  Join the meeting
+                </a>
+              ) : null}
+            </Fact>
+          )}
+
+          <Fact label="Title">{session.title}</Fact>
+          {/* Rendered as text. The reference sanitises author-supplied HTML
+              with an allowlist; here there is no unescaped path at all, which
+              is the same guarantee with nothing to get wrong. */}
+          <Fact label="Description" wide>
+            {session.description}
+          </Fact>
+        </CardSection>
+
+        <CardSection title="Date and repeat">
+          <div className="form-row">
+            <Fact label="Session date">
+              <time dateTime={start.isoDate}>{start.date}</time>
+            </Fact>
+            <Fact label="Session length">{durationWords(scheduled)}</Fact>
+            <Fact label="Start time">
+              <WhenTime instant={session.scheduledStart} zone={zone} />
+            </Fact>
+          </div>
+
+          <div className="form-row">
+            <Fact label="Ends">
               <WhenTime instant={session.scheduledEnd} zone={zone} />
-            </dd>
-            <dt>Scheduled length</dt>
-            <dd>{durationLabel(scheduled)}</dd>
-            <dt>Actually ran</dt>
-            <dd>
+            </Fact>
+            <Fact label="Timezone">{zone}</Fact>
+            <Fact label="Repeats">
+              {series && session.seriesIndex && seriesTotal ? (
+                <Link href={`/series/${series.ref}`}>
+                  Session {session.seriesIndex} of {seriesTotal}
+                </Link>
+              ) : (
+                "One session"
+              )}
+            </Fact>
+          </div>
+
+          {/* What the schedule said, against what happened — the half of this
+              page the booking screen has no counterpart for, kept beside the
+              times it is about rather than in a group of its own. */}
+          <div className="form-row">
+            <Fact label="Actually ran">
               {session.actualStart ? (
                 <>
-                  <When instant={session.actualStart} zone={zone} /> →{" "}
+                  <When instant={session.actualStart} zone={zone} />
+                  {" → "}
                   <WhenTime instant={session.actualEnd} zone={zone} />
                 </>
               ) : (
                 <Tag>Not recorded</Tag>
               )}
-            </dd>
-            <dt>Actual length</dt>
-            <dd>
-              {durationLabel(actual)}{" "}
-              {delta !== null && delta > 0 && (
-                <Badge tone="warn" glyph="▲">{delta} min over</Badge>
-              )}
-              {delta !== null && delta < 0 && (
-                <Badge tone="warn" glyph="▼">{-delta} min short</Badge>
-              )}
-              {delta === 0 && (
-                <Badge tone="good" glyph="✓">As scheduled</Badge>
-              )}
-            </dd>
-            <dt>Timezone</dt>
-            <dd>{zone}</dd>
-          </dl>
-        </CardSection>
-
-        <CardSection title="Delivery">
-          <dl className="definition">
-            <dt>Type</dt>
-            <dd>{deliveryMeta(session.deliveryType).label}</dd>
-            {session.deliveryType === "IN_PERSON" ? (
-              <>
-                <dt>Location</dt>
-                <dd>{location?.name ?? session.locationDetail ?? "—"}</dd>
-              </>
-            ) : (
-              session.meetingUrl && (
+            </Fact>
+            <Fact label="Actual length">
+              {actual === null ? null : (
                 <>
-                  <dt>Meeting link</dt>
-                  <dd>
-                    {/* Shown only to people already authorised to see this
-                        session, and never written to logs or the audit trail. */}
-                    <a href={session.meetingUrl} rel="noopener noreferrer">
-                      Join the meeting
-                    </a>
-                  </dd>
+                  {durationWords(actual)}{" "}
+                  {delta !== null && delta > 0 && (
+                    <Badge tone="warn" glyph="▲">{delta} min over</Badge>
+                  )}
+                  {delta !== null && delta < 0 && (
+                    <Badge tone="warn" glyph="▼">{-delta} min short</Badge>
+                  )}
+                  {delta === 0 && (
+                    <Badge tone="good" glyph="✓">As scheduled</Badge>
+                  )}
                 </>
-              )
-            )}
-            <dt>Billable</dt>
-            <dd>{session.billable ? "Yes" : "No"}</dd>
-            <dt>Reference</dt>
-            <dd>
-              <code>{session.ref}</code>
-            </dd>
-          </dl>
-
+              )}
+            </Fact>
+          </div>
         </CardSection>
 
-        {session.description && (
-          <CardSection title="Notes">
-            {/* Rendered as text. The reference sanitises author-supplied HTML
-                with an allowlist; here there is no unescaped path at all,
-                which is the same guarantee with nothing to get wrong. */}
-            <p className="prose">{session.description}</p>
-          </CardSection>
-        )}
+        <CardSection title="Instructor">
+          <div className="form-row">
+            <Fact label="Program">{program?.name}</Fact>
+            <Fact label="Instructor">
+              {instructor ? `${instructor.firstName} ${instructor.lastName}`.trim() : null}
+            </Fact>
+          </div>
+        </CardSection>
+
+        <CardSection title="Students and groups">
+          <Fact label="Students" wide>
+            {/* The names only. Who attended, and for how long, is the
+                attendance register below — this answers who the session is
+                for. */}
+            {students.length > 0 ? students.join(", ") : null}
+          </Fact>
+          <div className="form-row">
+            <Fact label="Group">{group?.name}</Fact>
+            <Fact label="Billable">{session.billable ? "Yes" : "No"}</Fact>
+            <Fact label="Reference">
+              <code>{session.ref}</code>
+            </Fact>
+          </div>
+        </CardSection>
 
         {session.status === SessionStatus.CANCELLED && (
-            <p className="notice notice-warn">
-              <span aria-hidden="true">✕</span>
-              <span>
-                Cancelled
-                {session.cancelledAt && (
-                  <>
-                    {" "}
-                    on <When instant={session.cancelledAt} zone={zone} />
-                  </>
-                )}
-                . Reason: {(session.cancellationReason ?? "").replace(/_/g, " ")}.
-                {session.cancellationNote && (
-                  <>
-                    <br />
-                    {session.cancellationNote}
-                  </>
-                )}
-              </span>
-            </p>
-          )}
+          <p className="notice notice-warn">
+            <span aria-hidden="true">✕</span>
+            <span>
+              Cancelled
+              {session.cancelledAt && (
+                <>
+                  {" "}
+                  on <When instant={session.cancelledAt} zone={zone} />
+                </>
+              )}
+              . Reason: {(session.cancellationReason ?? "").replace(/_/g, " ")}.
+              {session.cancellationNote && (
+                <>
+                  <br />
+                  {session.cancellationNote}
+                </>
+              )}
+            </span>
+          </p>
+        )}
       </Card>
 
       <AttendanceCard

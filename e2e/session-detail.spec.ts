@@ -85,22 +85,60 @@ test.describe("getting back", () => {
 });
 
 test.describe("what the page says", () => {
-  test("says what the session is before what is known about it", async ({ page }) => {
-    await openSessionFrom(page, "/calendar");
-    const status = page.locator(".record-status");
-    await expect(status).toBeVisible();
-    // A word, not only a colour — the badge rule the whole palette follows.
-    await expect(status).toContainText(/Scheduled|Completed|Cancelled|Missed|In progress/i);
-  });
-
-  test("is one card in labelled sections, like the booking screen", async ({ page }) => {
+  test("groups the same fields the booking screen collects", async ({ page }) => {
     await openSessionFrom(page, "/calendar");
     const heads = page.locator(".card-subhead");
-    await expect(heads.nth(0)).toHaveText("Schedule");
-    await expect(heads.nth(1)).toHaveText("Delivery");
-    // The same class the booking form's own groups use, which is the point:
-    // one rhythm rather than two that nearly match.
-    expect(await page.locator(".card-section").count()).toBeGreaterThan(1);
+    await expect(heads.nth(0)).toHaveText("Session details");
+    await expect(heads.nth(1)).toHaveText("Date and repeat");
+    await expect(heads.nth(2)).toHaveText("Instructor");
+    await expect(heads.nth(3)).toHaveText("Students and groups");
+
+    // Every field the booking form asks for, read back under the same label.
+    // Named rather than counted, because the point is that the two screens say
+    // the same words for the same things.
+    const labels = await page.locator(".fact-label").allInnerTexts();
+    for (const wanted of [
+      "Type",
+      "Status",
+      "Title",
+      "Description",
+      "Session date",
+      "Session length",
+      "Start time",
+      "Instructor",
+      "Students",
+      "Group",
+    ]) {
+      expect(labels, `missing the ${wanted} field`).toContain(wanted);
+    }
+  });
+
+  test("says a value in a box that is not an editable one", async ({ page }) => {
+    // A read-only field drawn as an input is a control people click into and
+    // cannot type in. Nothing in this card is a form control.
+    await openSessionFrom(page, "/calendar");
+    const card = page.locator(".card-padded").first();
+    await expect(card.locator("input, select, textarea")).toHaveCount(0);
+    await expect(card.locator(".fact-value").first()).toBeVisible();
+  });
+
+  test("does not say status, type or the series twice", async ({ page }) => {
+    // Each has its own field now. Saying one of them again beside the title is
+    // how somebody starts wondering whether the two disagree.
+    await openSessionFrom(page, "/calendar");
+    await expect(page.locator(".record-status .badge")).toHaveCount(0);
+  });
+
+  test("names the instructor, which the attendance table alone did not", async ({
+    page,
+  }) => {
+    await openSessionFrom(page, "/calendar");
+    const instructor = page
+      .locator(".fact")
+      .filter({ has: page.locator(".fact-label", { hasText: /^Instructor$/ }) })
+      .locator(".fact-value");
+    await expect(instructor).toBeVisible();
+    await expect(instructor).not.toHaveText("—");
   });
 
   test("keeps exactly one h1, and it is the session", async ({ page }) => {

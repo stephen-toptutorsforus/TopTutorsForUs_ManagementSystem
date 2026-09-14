@@ -767,6 +767,31 @@ legend { padding: 0 0.35rem; font-weight: 600; font-size: 0.88rem; color: var(--
 
 .form-row { display: grid; gap: 0 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
+/* A value where a control would be — see `components/ui/Fact.tsx`.
+ *
+ * The label is the field label exactly, so a page echoing a form lines up with
+ * it. The value borrows the control's padding, radius and height for the same
+ * reason, and then differs on purpose: filled rather than paper, and a quieter
+ * border, because a read-only field drawn as an editable one is a box people
+ * click into and cannot type in. */
+.fact-label {
+  display: block; margin-bottom: 0.3rem;
+  font-weight: 600; font-size: 0.88rem; color: var(--ink-700);
+}
+.fact-value {
+  margin: 0; min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ink-200); border-radius: var(--radius);
+  background: var(--ink-050); color: var(--ink-900);
+  /* Long values wrap rather than stretching the grid track they sit in. */
+  overflow-wrap: anywhere;
+}
+/* A description or a list of names: as tall as it needs, not one line. */
+.fact-value.is-wide { min-height: 0; }
+.fact-empty { color: var(--ink-400); }
+/* Badges and chips read as content inside the box rather than beside it. */
+.fact-value .badge, .fact-value .tag { vertical-align: middle; }
+
 /* One track of a three-column `.form-row`, for a field that stands on its own
    row but should still line up with the ones above it. The arithmetic is the
    grid's: three columns share the width left after two 1rem gaps.

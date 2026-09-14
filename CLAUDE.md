@@ -275,13 +275,24 @@ panel away as well as the number. The rule there is to re-seed only from an
 echo the server actually *changed* — a clamp — and to ignore one it merely
 repeated.
 
-**A record's page is the booking screen's rhythm, not a second one.** One
-card divided into labelled groups — `CardSection` draws them, `.card-section`
-spaces them, and the booking form's four `fieldset` groups carry the same
-classes. A `fieldset` on a form and a `section` elsewhere, because a fieldset
-exists to group *controls* and a session's scheduled length is a fact. They
-were `.booking-section` and `.booking-subhead` while only one screen used the
-rhythm; two do now, so the page-specific half of the name has gone.
+**A record's page is the booking screen's form, read back.** Same four groups
+in the same order, same labels, same `.form-row` grids: Session details, Date
+and repeat, Instructor, Students and groups. `CardSection` draws the groups and
+`Fact` draws `Field` without a control, so a value sits exactly where the
+control that set it sat. A `fieldset` on a form and a `section` elsewhere,
+because a fieldset exists to group *controls* and a session's scheduled length
+is a fact; `.booking-section` and `.booking-subhead` lost the page-specific
+half of their names when the second screen wanted the rhythm.
+
+`Fact` borrows an input's padding, radius and height so the columns line up,
+then deliberately differs — a filled ground, a quieter border — because a
+read-only field drawn as an editable one is a box people click into and cannot
+type in. It is a `span`, never a `label`: `htmlFor` pointing at something that
+is not a control is a promise to a screen reader that nothing keeps.
+
+Nothing is said twice. Status, type and the series position each have a field,
+so they left the badge row under the title, which now carries only the two
+warnings that are not things anybody set.
 
 **Back, from a record, is read from the referrer.** A session is reached from
 six screens, so a fixed link is wrong five times out of six, and `router.back()`
@@ -342,7 +353,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-527 tests — 276 pure, 251 database-backed — plus 362 browser tests and
+527 tests — 276 pure, 251 database-backed — plus 368 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
