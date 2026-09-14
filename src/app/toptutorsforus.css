@@ -406,6 +406,23 @@ body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
 .subtitle { color: var(--ink-500); margin: 0; }
 .page-header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex: none; }
 
+/* A header that is only a way out.
+ *
+ * On a record's own page the title is said again as the first field below it,
+ * so drawing it twice is a heading competing with its own value. The `h1`
+ * stays and stops being visible: it is the page's only one, it is what a
+ * screen reader's heading list and the "skip to content" landmark are built
+ * from, and deleting it would cost both to save a line of pixels. The way back
+ * moves to the front of the row, where somebody looks for it. */
+.page-header-back .page-header-title {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+.page-header-back .page-header-actions { order: -1; margin-right: auto; }
+
 /* A bar on the page, not a card. It is chrome for the list below it, and the
    card's shadow made two floating surfaces stacked on one another — see the
    note on `.card` for what `--shadow` is reserved for. */

@@ -292,7 +292,10 @@ is not a control is a promise to a screen reader that nothing keeps.
 
 Nothing is said twice. Status, type and the series position each have a field,
 so they left the badge row under the title, which now carries only the two
-warnings that are not things anybody set.
+warnings that are not things anybody set. The title went the same way: it is
+the first field of the card, so the header draws only the way out, at the front
+of the row. The `h1` stays and stops being visible — it is the page's only one,
+and a screen reader's heading list and the skip link are built from it.
 
 **Back, from a record, is read from the referrer.** A session is reached from
 six screens, so a fixed link is wrong five times out of six, and `router.back()`
@@ -353,7 +356,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-527 tests — 276 pure, 251 database-backed — plus 368 browser tests and
+527 tests — 276 pure, 251 database-backed — plus 370 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

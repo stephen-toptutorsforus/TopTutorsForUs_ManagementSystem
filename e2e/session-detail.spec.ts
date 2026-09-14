@@ -141,8 +141,24 @@ test.describe("what the page says", () => {
     await expect(instructor).not.toHaveText("—");
   });
 
-  test("keeps exactly one h1, and it is the session", async ({ page }) => {
+  test("keeps its h1 without drawing it", async ({ page }) => {
+    // The title is the first field of the card below, so the heading is not
+    // painted — but it is still the page's only `h1`, which is what a screen
+    // reader's heading list is built from. Deleting it to save a line of
+    // pixels would cost that.
     await openSessionFrom(page, "/calendar");
-    await expect(page.locator("h1")).toHaveCount(1);
+    const heading = page.locator("h1");
+    await expect(heading).toHaveCount(1);
+    await expect(heading).not.toBeInViewport();
+    await expect(heading).not.toBeEmpty();
+  });
+
+  test("puts the way out at the front of the header", async ({ page }) => {
+    await openSessionFrom(page, "/calendar");
+    const header = await page.locator(".page-header-main").boundingBox();
+    const link = await backLink(page).boundingBox();
+    // Within a few pixels of the header's own left edge, rather than pushed to
+    // the far side by a title that is no longer drawn.
+    expect(link!.x - header!.x).toBeLessThan(8);
   });
 });

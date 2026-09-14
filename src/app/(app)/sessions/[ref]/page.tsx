@@ -148,7 +148,11 @@ export default async function SessionDetailPage({
 
   return (
     <>
+      {/* The title is the first field of the card below, so the heading is
+          kept and not drawn — see `.page-header-back`. What is left in the
+          header is the way out, at the front of the row. */}
       <PageHeader
+        className="page-header-back"
         title={session.title}
         actions={<LinkButton href={back.href}>{back.label}</LinkButton>}
       />
