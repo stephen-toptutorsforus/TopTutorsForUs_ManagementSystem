@@ -784,6 +784,28 @@ legend { padding: 0 0.35rem; font-weight: 600; font-size: 0.88rem; color: var(--
 
 .form-row { display: grid; gap: 0 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
+/* The calendar's session modal.
+ *
+ * Close on the left, because it is the way out rather than one of the things
+ * to do, and the three that act together on the right. `space-between` and not
+ * a row of four: a destructive action next to the way out is how somebody
+ * cancels a session while reaching for Close. */
+.peek-details { margin-bottom: 1.25rem; }
+.peek-details dd { min-width: 0; overflow-wrap: anywhere; }
+.peek-actions {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  align-items: center; justify-content: space-between;
+  padding-top: 1rem; border-top: 1px solid var(--ink-100);
+}
+.peek-actions-doing { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+/* On a phone the row stacks, and stacking it in source order would put the
+   destructive one under the thumb first. The way out goes last instead. */
+@media (max-width: 560px) {
+  .peek-actions { flex-direction: column-reverse; align-items: stretch; }
+  .peek-actions-doing { flex-direction: column; }
+  .peek-actions .btn { width: 100%; justify-content: center; }
+}
+
 /* A value where a control would be — see `components/ui/Fact.tsx`.
  *
  * The label is the field label exactly, so a page echoing a form lines up with

@@ -16,10 +16,18 @@ export function ScopeChoice({
   name = "scope",
   series = false,
   legend = "Apply this change to",
+  defaultValue = "this",
 }: {
   name?: string;
   series?: boolean;
   legend?: string;
+  /**
+   * Which one starts chosen. "Edit Series" and "Edit Session" are the same
+   * screen asked two ways, so the button that was pressed decides this — and
+   * the choice is still shown and still changeable, because guessing wrongly
+   * here silently rewrites work somebody has already done.
+   */
+  defaultValue?: string;
 }) {
   return (
     <ChoiceGroup
@@ -33,16 +41,29 @@ export function ScopeChoice({
         )
       }
     >
-      <Choice type="radio" name={name} value="this" defaultChecked label="Only this session" />
+      <Choice
+        type="radio"
+        name={name}
+        value="this"
+        defaultChecked={!series || defaultValue === "this"}
+        label="Only this session"
+      />
       {series && (
         <>
           <Choice
             type="radio"
             name={name}
             value="this_and_future"
+            defaultChecked={defaultValue === "this_and_future"}
             label="This and all later sessions"
           />
-          <Choice type="radio" name={name} value="all" label="The whole series" />
+          <Choice
+            type="radio"
+            name={name}
+            value="all"
+            defaultChecked={defaultValue === "all"}
+            label="The whole series"
+          />
         </>
       )}
     </ChoiceGroup>

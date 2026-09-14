@@ -275,6 +275,28 @@ panel away as well as the number. The rule there is to re-seed only from an
 echo the server actually *changed* — a clamp — and to ignore one it merely
 repeated.
 
+**The calendar answers "what is this" without leaving the month.** Pressing a
+session opens a dialog over it: the facts, and the four things somebody wants
+next — close, cancel, edit this session, edit the series. The chips stay real
+anchors to the session's own page and `SessionPeek` intercepts the click, so
+with no script the calendar navigates exactly as it did; a button that only
+exists after hydration would have taken that away. One delegated listener, not
+a handler per chip, because a month is a hundred of them and they are
+server-rendered markup the component does not own. It costs no second query:
+`calendarRange` already returns the instructor, the students, the location and
+the series position, so the dialog cannot show anything the page was not
+already allowed to show.
+
+**Reading and writing are two screens.** `/sessions/[ref]` reads;
+`/sessions/[ref]/edit` writes. That is what lets the modal offer "Session
+Details" and "Edit Session" as different things rather than one page that is
+quietly both, and it keeps a page opened to check a time from being one a time
+can be changed on by accident. Cancel and Edit Series arrive at the same
+editing screen: the query says which panel opens and which scope starts chosen,
+and neither narrows what is on it, because a button that said "series" is a
+good reason to preselect the scope and a bad reason to decide it. `sessionOps`
+re-checks the scope against `canEditSeries` on every write regardless.
+
 **A record's page is the booking screen's form, read back.** Same four groups
 in the same order, same labels, same `.form-row` grids: Session details, Date
 and repeat, Instructor, Students and groups. `CardSection` draws the groups and
@@ -361,7 +383,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-525 tests — 274 pure, 251 database-backed — plus 370 browser tests and
+525 tests — 274 pure, 251 database-backed — plus 386 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

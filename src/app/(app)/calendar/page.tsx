@@ -13,6 +13,7 @@
 import Link from "next/link";
 
 import { FilterMenu } from "@/components/FilterMenu";
+import { SessionPeek } from "@/components/calendar/SessionPeek";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
 import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import {
@@ -29,12 +30,13 @@ import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters"
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
 import { StateFields } from "@/components/ui/StateFields";
 import { readScreenState } from "@/lib/web/filterState";
-import { statusFilterOptions, statusMeta } from "@/lib/presentation";
+import { deliveryMeta, statusFilterOptions, statusMeta } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import { Moment } from "@/lib/rendering";
 import { calendarRange, parseFilters, type SessionRow } from "@/lib/services/sessionQuery";
 import { build } from "@/lib/timegrid";
 import { type CivilDate, civilDate, isoWeekday } from "@/lib/time";
+import { type PeekSession, peekOf } from "@/lib/web/sessionPeek";
 import { requireContext } from "@/lib/web/session";
 
 
@@ -88,6 +90,9 @@ function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boo
     <Link
       className={`cal-event is-${session.status.toLowerCase()}`}
       href={`/sessions/${session.ref}`}
+      // What `SessionPeek` listens for. The anchor stays real, so with no
+      // script this still goes to the session's own page.
+      data-session-ref={session.ref}
     >
       <span className="cal-time">{moment.time}</span>
       <span className="cal-label">
@@ -163,8 +168,22 @@ export default async function CalendarPage() {
   const isGrid = view === CalendarView.WEEK || view === CalendarView.DAY;
   const grid = isGrid ? build(buckets, window.days, zone) : null;
 
+  // Everything already drawn on this page, said again in the shape the modal
+  // reads. No second query: the rows are the ones the grid is built from, so
+  // the dialog cannot show anything the calendar was not allowed to show.
+  const peeks: Record<string, PeekSession> = {};
+  for (const rows of buckets.values()) {
+    for (const row of rows) {
+      peeks[row.session.ref] = peekOf(row, deliveryMeta(row.session.deliveryType).label);
+    }
+  }
+  const canEdit =
+    principal.has(Permission.SESSION_EDIT_OWN) || principal.has(Permission.SESSION_EDIT_ANY);
+  const canCancel =
+    principal.has(Permission.SESSION_CANCEL_OWN) || principal.has(Permission.SESSION_CANCEL_ANY);
+
   return (
-    <>
+    <SessionPeek sessions={peeks} canEdit={canEdit} canCancel={canCancel}>
       {/* The one form every control on this screen submits into: the arrows,
           the view switcher, Today, each day number and each "+N more". It
           carries the state they are changing *from*; a button adds the one
@@ -444,7 +463,10 @@ export default async function CalendarPage() {
                             />
                           </td>
                           <td data-label="Session">
-                            <Link href={`/sessions/${row.session.ref}`}>
+                            <Link
+                              href={`/sessions/${row.session.ref}`}
+                              data-session-ref={row.session.ref}
+                            >
                               {row.session.title}
                             </Link>
                           </td>
@@ -471,6 +493,6 @@ export default async function CalendarPage() {
           )}
         </Card>
       )}
-    </>
+    </SessionPeek>
   );
 }

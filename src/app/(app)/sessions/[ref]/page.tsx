@@ -13,7 +13,6 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
 import {
   Badge,
@@ -34,7 +33,6 @@ import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
 import { deliveryMeta, durationWords } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
-import { settingStrings, settingsReader } from "@/lib/organization";
 import {
   actualDurationMinutes,
   attendanceRate,
@@ -134,7 +132,6 @@ export default async function SessionDetailPage({
     attendance: participant.attendance,
   }));
 
-  const reader = settingsReader(organization);
   const token = await csrfToken();
 
   // Six screens link here, so the way back is read from the referrer rather
@@ -142,9 +139,6 @@ export default async function SessionDetailPage({
   const sent = await headers();
   const back = backTarget(sent.get("referer"), sent.get("host"), `/sessions/${session.ref}`);
   const start = new Moment(session.scheduledStart, zone);
-
-  const localInput = (instant: Date | null) =>
-    instant === null ? "" : new Moment(instant, zone).local.toFormat("yyyy-MM-dd'T'HH:mm");
 
   return (
     <>
@@ -154,7 +148,20 @@ export default async function SessionDetailPage({
       <PageHeader
         className="page-header-back"
         title={session.title}
-        actions={<LinkButton href={back}>Back</LinkButton>}
+        actions={
+          <>
+            <LinkButton href={back}>Back</LinkButton>
+            {/* The calendar's modal is not the only way in — the session list
+                and the audit trail both link straight here — so the way to
+                change this session has to exist on it. One link, which does
+                not make a reading page an editing one. */}
+            {actions.length > 0 && (
+              <LinkButton variant="primary" href={`/sessions/${session.ref}/edit`}>
+                Edit session
+              </LinkButton>
+            )}
+          </>
+        }
       />
 
       {/* What this session *is*, before what is known about it. Page-owned
@@ -325,30 +332,17 @@ export default async function SessionDetailPage({
         )}
       </Card>
 
+      {/* Read-only, deliberately. Everything that writes is on
+          `/sessions/[ref]/edit`, which is what lets the calendar offer
+          "Session Details" and "Edit Session" as two different things instead
+          of one page that is quietly both. */}
       <AttendanceCard
         sessionRef={session.ref}
         csrfToken={token}
         timezone={zone}
         participants={participants}
         attendanceRate={attendanceRate(participantRows)}
-        editable={actions.includes("attendance")}
-      />
-
-      <ActionsPanel
-        sessionRef={session.ref}
-        csrfToken={token}
-        actions={actions}
-        timezone={zone}
-        title={session.title}
-        description={session.description}
-        billable={session.billable}
-        startDate={start.isoDate}
-        startTime={start.time}
-        durationMinutes={scheduled}
-        actualStartLocal={localInput(session.actualStart)}
-        actualEndLocal={localInput(session.actualEnd)}
-        cancellationReasons={settingStrings(reader, ["reason_codes", "cancellation"]) ?? []}
-        missedReasons={settingStrings(reader, ["reason_codes", "missed"]) ?? []}
+        editable={false}
       />
 
       {events.length > 0 && (

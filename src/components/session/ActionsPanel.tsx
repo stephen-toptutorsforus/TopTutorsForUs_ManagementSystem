@@ -41,6 +41,14 @@ export interface ActionsPanelProps {
   actualEndLocal: string;
   cancellationReasons: string[];
   missedReasons: string[];
+  /**
+   * Which scope starts chosen, and which panel starts open. Both come from the
+   * button that was pressed — "Edit Series", "Edit Session", "Cancel session"
+   * are one screen asked three ways — and neither narrows what is on it: every
+   * panel is still here and the scope is still a choice.
+   */
+  defaultScope?: string;
+  openPanel?: "edit" | "move" | "cancel" | null;
 }
 
 function sentenceCase(value: string): string {
@@ -68,7 +76,7 @@ function Result({ state }: { state: FormResult }) {
 }
 
 export function ActionsPanel(props: ActionsPanelProps) {
-  const { sessionRef, csrfToken, actions } = props;
+  const { sessionRef, csrfToken, actions, defaultScope = "this", openPanel = null } = props;
   const has = (action: string) => actions.includes(action);
   const series = has("edit_series");
 
@@ -122,7 +130,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
       )}
 
       {has("edit") && (
-        <details>
+        <details open={openPanel === "edit"}>
           <summary>Edit details</summary>
           <Result state={editState} />
           <form action={edit}>
@@ -149,7 +157,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
               defaultChecked={props.billable}
               label="Billable"
             />
-            <ScopeChoice series={series} />
+            <ScopeChoice series={series} defaultValue={defaultScope} />
             <Button variant="primary" type="submit">
               Save changes
             </Button>
@@ -158,7 +166,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
       )}
 
       {has("reschedule") && (
-        <details>
+        <details open={openPanel === "move"}>
           <summary>Reschedule</summary>
           <Result state={moveState} />
           <form action={move}>
@@ -197,7 +205,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
             <Field id="reschedule-reason" label="Reason (optional)">
               <input id="reschedule-reason" name="reason" type="text" />
                         </Field>
-            <ScopeChoice series={series} />
+            <ScopeChoice series={series} defaultValue={defaultScope} />
             <p className="hint">
               A series-wide move keeps each session on its own date and moves it to the new
               wall-clock time, so a series spanning a daylight-saving change stays at the
@@ -243,7 +251,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
       )}
 
       {has("cancel") && (
-        <details>
+        <details open={openPanel === "cancel"}>
           <summary>Cancel</summary>
           <Result state={cancelState} />
           <form action={cancel}>
@@ -265,7 +273,7 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 The audit trail records that a note was given, not what it says.
               </Hint>
                         </Field>
-            <ScopeChoice series={series} legend="Cancel" />
+            <ScopeChoice series={series} legend="Cancel" defaultValue={defaultScope} />
             {/* A destructive action always confirms, and the confirmation names
                 what will happen rather than asking "are you sure?". */}
             <Button variant="danger"

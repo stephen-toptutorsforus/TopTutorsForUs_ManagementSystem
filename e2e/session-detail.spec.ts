@@ -21,7 +21,14 @@ test.use({ storageState: statePath("admin") });
 
 const backLink = (page: Page) => page.locator(".page-header-actions a").first();
 
-/** Open the first session linked from a screen, the way somebody would. */
+/**
+ * Open the first session linked from a screen, the way somebody would.
+ *
+ * On the calendar that is now two steps: a chip opens the modal, and "Session
+ * Details" is the way from there to the page. Everywhere else the link still
+ * goes straight there. Following whichever appears keeps this helper honest
+ * about the journey rather than shortcutting to the address.
+ */
 async function openSessionFrom(page: Page, path: string): Promise<void> {
   await page.goto(path);
   // `^=` on the ref prefix: `/sessions/export.csv` is also under `/sessions/`
@@ -29,6 +36,11 @@ async function openSessionFrom(page: Page, path: string): Promise<void> {
   const link = page.locator('a[href^="/sessions/ses"]').first();
   await expect(link).toBeAttached();
   await link.click();
+
+  const dialog = page.getByRole("dialog");
+  if (await dialog.isVisible().catch(() => false)) {
+    await dialog.getByRole("link", { name: "Session Details" }).click();
+  }
   await expect(page).toHaveURL(/\/sessions\/ses/);
   await expect(page.locator("h1")).toBeVisible();
 }

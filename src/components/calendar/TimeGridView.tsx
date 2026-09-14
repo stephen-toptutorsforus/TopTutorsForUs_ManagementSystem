@@ -109,6 +109,7 @@ export function TimeGridView({
                   key={String(session.id)}
                   className={`tg-event is-${session.status.toLowerCase()} c${columnIndex + 1} ${positionClass(item)}`}
                   href={`/sessions/${session.ref}`}
+                  data-session-ref={session.ref}
                 >
                   <span className="tg-event-time">{start.time}</span>
                   <span className="tg-event-title">{session.title}</span>
