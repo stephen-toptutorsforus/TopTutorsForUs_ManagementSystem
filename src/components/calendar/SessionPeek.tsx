@@ -19,6 +19,12 @@
  * configured, and editing is a screen of its own; both are reached from here
  * rather than performed here, so that the one function that writes a change is
  * still the one the audit trail records.
+ *
+ * **Nor does it decide what may be done.** Each session arrives with the
+ * `availableActions` answer for itself, computed on the server, and the buttons
+ * are drawn from that. Deciding once for the whole calendar from a broad
+ * permission is the bug this replaced: status gates action, so an
+ * administrator was being offered "Cancel session" on a completed one.
  */
 
 import Link from "next/link";
@@ -35,14 +41,10 @@ function isModified(event: MouseEvent): boolean {
 
 export function SessionPeek({
   sessions,
-  canCancel,
-  canEdit,
   children,
 }: {
   /** Every session drawn in `children`, by ref. */
   sessions: Record<string, PeekSession>;
-  canCancel: boolean;
-  canEdit: boolean;
   children: React.ReactNode;
 }) {
   const [openRef, setOpenRef] = useState<string | null>(null);
@@ -138,8 +140,17 @@ export function SessionPeek({
             </dl>
 
             {/* Close on the left, because it is the way out rather than one of
-                the things to do. The three that act sit together on the right,
-                widest scope last. */}
+                the things to do. The ones that act sit together on the right,
+                widest scope last.
+
+                Each is drawn from this session's own `actions`, so a completed
+                session offers no cancel however broad the viewer's permission
+                is. `edit_series` already answers both halves — `canEditSeries`
+                refuses a session with no series before it looks at the
+                permission — so it is the whole test. Not `seriesPosition`,
+                which is a *label* and is null for a session whose index was
+                never set: gating a control on a display field is the same
+                mistake in a smaller place. */}
             <div className="peek-actions">
               {/* `Modal` already focuses its own close control, so this one
                   needs no ref: it is the same way out said in words, where the
@@ -148,7 +159,7 @@ export function SessionPeek({
                 Close
               </Button>
               <div className="peek-actions-doing">
-                {canCancel && (
+                {session.actions.includes("cancel") && (
                   <LinkButton
                     variant="danger"
                     href={`/sessions/${session.ref}/edit?do=cancel`}
@@ -156,7 +167,7 @@ export function SessionPeek({
                     Cancel session
                   </LinkButton>
                 )}
-                {canEdit && session.seriesPosition !== null && (
+                {session.actions.includes("edit_series") && (
                   <LinkButton
                     variant="primary"
                     href={`/sessions/${session.ref}/edit?scope=all`}
@@ -164,7 +175,7 @@ export function SessionPeek({
                     Edit Series
                   </LinkButton>
                 )}
-                {canEdit && (
+                {session.actions.includes("edit") && (
                   <LinkButton variant="primary" href={`/sessions/${session.ref}/edit`}>
                     Edit Session
                   </LinkButton>

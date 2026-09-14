@@ -26,6 +26,7 @@ import {
 } from "@/lib/calendar";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { availableActions } from "@/lib/policies/sessions";
 import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters";
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
 import { StateFields } from "@/components/ui/StateFields";
@@ -125,7 +126,7 @@ function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boo
  * the same state, and the two would disagree the moment anybody typed one.
  */
 export default async function CalendarPage() {
-  const { principal } = await requireContext();
+  const { principal, organization } = await requireContext();
   const zone = principal.timezone;
   const today = civilDate(new Date(), zone);
 
@@ -171,19 +172,26 @@ export default async function CalendarPage() {
   // Everything already drawn on this page, said again in the shape the modal
   // reads. No second query: the rows are the ones the grid is built from, so
   // the dialog cannot show anything the calendar was not allowed to show.
+  //
+  // The actions are asked per session rather than once for the page. A
+  // permission answers "may this person cancel sessions"; only
+  // `availableActions` answers "may they cancel *this* one", which additionally
+  // depends on its status — and the modal must not offer what the write will
+  // refuse. It is the same function the detail page and the JSON API render,
+  // and it needs no query: the occurrence is already in hand.
   const peeks: Record<string, PeekSession> = {};
   for (const rows of buckets.values()) {
     for (const row of rows) {
-      peeks[row.session.ref] = peekOf(row, deliveryMeta(row.session.deliveryType).label);
+      peeks[row.session.ref] = peekOf(
+        row,
+        deliveryMeta(row.session.deliveryType).label,
+        availableActions(principal, row.session, organization),
+      );
     }
   }
-  const canEdit =
-    principal.has(Permission.SESSION_EDIT_OWN) || principal.has(Permission.SESSION_EDIT_ANY);
-  const canCancel =
-    principal.has(Permission.SESSION_CANCEL_OWN) || principal.has(Permission.SESSION_CANCEL_ANY);
 
   return (
-    <SessionPeek sessions={peeks} canEdit={canEdit} canCancel={canCancel}>
+    <SessionPeek sessions={peeks}>
       {/* The one form every control on this screen submits into: the arrows,
           the view switcher, Today, each day number and each "+N more". It
           carries the state they are changing *from*; a button adds the one

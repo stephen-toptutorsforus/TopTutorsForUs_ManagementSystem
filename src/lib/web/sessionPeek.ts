@@ -39,9 +39,24 @@ export interface PeekSession {
   studentNames: string[];
   /** `6 of 15`, or null for a session that stands alone. */
   seriesPosition: string | null;
+  /**
+   * What this person may do to *this* session, in this state — the answer
+   * `availableActions` gives, carried per session rather than decided once for
+   * the page.
+   *
+   * A broad permission is not an answer: status gates action, so somebody who
+   * may cancel sessions in general still may not cancel a completed one. The
+   * modal offering it anyway would be a promise the write then refuses, and
+   * this list is what stops that.
+   */
+  actions: string[];
 }
 
-export function peekOf(row: SessionRow, deliveryLabel: string): PeekSession {
+export function peekOf(
+  row: SessionRow,
+  deliveryLabel: string,
+  actions: readonly string[],
+): PeekSession {
   const session = row.session;
   const start = new Moment(session.scheduledStart, session.timezone);
   const minutes = Math.round(
@@ -65,5 +80,6 @@ export function peekOf(row: SessionRow, deliveryLabel: string): PeekSession {
     instructorName: row.instructorName,
     studentNames: row.studentNames,
     seriesPosition: row.seriesPosition,
+    actions: [...actions],
   };
 }

@@ -27,10 +27,36 @@ async function peek(page: Page): Promise<void> {
   await expect(dialog(page)).toBeVisible();
 }
 
+/**
+ * Open the modal for the first session whose status matches, if there is one.
+ *
+ * Find-or-skip rather than fixture-or-fail: the seed has no completed or
+ * cancelled session and the suite runs against a shared database it must not
+ * re-seed. The rule itself is pinned exhaustively in `tests/sessionPeek.test.ts`,
+ * which needs no data at all; this is the browser's corroboration when the
+ * database happens to hold a case.
+ */
+async function peekWithStatus(page: Page, status: string): Promise<boolean> {
+  await page.goto("/calendar");
+  // Visible ones only. A month cell renders every session it holds and hides
+  // the ones past its limit behind "+N more", so an unfiltered list contains
+  // chips no pointer can reach — and at mobile width there are more of them.
+  const chips = page.locator("[data-session-ref]:visible");
+  const count = await chips.count();
+  for (let index = 0; index < Math.min(count, 30); index += 1) {
+    await chips.nth(index).click();
+    await expect(dialog(page)).toBeVisible();
+    if ((await dialog(page).innerText()).includes(status)) return true;
+    await page.locator(".peek-actions").getByRole("button", { name: "Close" }).click();
+    await expect(dialog(page)).toBeHidden();
+  }
+  return false;
+}
+
 /** Open the modal for a session that belongs to a series, if the seed has one. */
 async function peekSeries(page: Page): Promise<boolean> {
   await page.goto("/calendar");
-  const chips = page.locator("[data-session-ref]");
+  const chips = page.locator("[data-session-ref]:visible");
   const count = await chips.count();
   for (let index = 0; index < Math.min(count, 12); index += 1) {
     await chips.nth(index).click();
@@ -105,6 +131,28 @@ test.describe("the session modal", () => {
     // Open already, rather than a panel somebody has to find again.
     const cancel = page.locator("details", { has: page.getByText("Cancel", { exact: true }) });
     await expect(cancel.first()).toHaveAttribute("open", "");
+  });
+
+  test("offers no cancel on a completed session", async ({ page }) => {
+    const found = await peekWithStatus(page, "Completed");
+    test.skip(!found, "no completed session on the calendar to check");
+
+    // The regression this replaced: an administrator holds every cancel
+    // permission there is, and the status is what refuses. Deciding once for
+    // the page could not hear that.
+    await expect(
+      dialog(page).getByRole("link", { name: "Cancel session" }),
+    ).toHaveCount(0);
+  });
+
+  test("offers nothing to change on a cancelled session", async ({ page }) => {
+    const found = await peekWithStatus(page, "Cancelled");
+    test.skip(!found, "no cancelled session on the calendar to check");
+
+    await expect(dialog(page).getByRole("link", { name: "Cancel session" })).toHaveCount(0);
+    await expect(dialog(page).getByRole("link", { name: "Edit Session" })).toHaveCount(0);
+    // Still readable, though: a cancelled session is a record, not a hole.
+    await expect(dialog(page).getByRole("link", { name: "Session Details" })).toBeVisible();
   });
 
   test("offers the series only where there is one, and preselects it", async ({ page }) => {
