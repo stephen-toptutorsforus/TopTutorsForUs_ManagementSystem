@@ -9,12 +9,24 @@
  * `audit.view`.
  */
 
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
-import { Badge, Card, CardGrid, DeliveryBadge, LinkButton, PageHeader, StatusBadge, Tag, When, WhenTime } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  CardSection,
+  DeliveryBadge,
+  LinkButton,
+  PageHeader,
+  StatusBadge,
+  Tag,
+  When,
+  WhenTime,
+} from "@/components/ui";
 import { SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -28,6 +40,7 @@ import {
   attendanceRate,
   scheduledDurationMinutes,
 } from "@/lib/services/sessionOps";
+import { backTarget } from "@/lib/web/backLink";
 import { csrfToken, requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +110,11 @@ export default async function SessionDetailPage({
 
   const reader = settingsReader(organization);
   const token = await csrfToken();
+
+  // Six screens link here, so the way back is read from the referrer rather
+  // than fixed — see `lib/web/backLink.ts` for what it refuses to trust.
+  const sent = await headers();
+  const back = backTarget(sent.get("referer"), sent.get("host"), `/sessions/${session.ref}`);
   const start = new Moment(session.scheduledStart, zone);
 
   const localInput = (instant: Date | null) =>
@@ -104,11 +122,33 @@ export default async function SessionDetailPage({
 
   return (
     <>
-      <PageHeader title={session.title}  />
+      <PageHeader
+        title={session.title}
+        actions={<LinkButton href={back.href}>{back.label}</LinkButton>}
+      />
 
-      <CardGrid>
-        <Card>
-          <h2>Schedule</h2>
+      {/* What this session *is*, before what is known about it. Page-owned
+          markup rather than a header slot: `PageHeader` deliberately has no
+          subtitle, and this belongs to the record rather than to the shape of
+          every screen's header. */}
+      <p className="record-status">
+        <StatusBadge status={session.status} />
+        <DeliveryBadge delivery={session.deliveryType} />
+        {series && session.seriesIndex && seriesTotal && (
+          <Link className="tag" href={`/series/${series.ref}`}>
+            Session {session.seriesIndex} of {seriesTotal} in this series
+          </Link>
+        )}
+        {session.detachedFromSeries && (
+          <Tag>Edited on its own — series edits skip it</Tag>
+        )}
+        {session.conflictOverridden && (
+          <Badge tone="warn" glyph="!">Booked over a conflict</Badge>
+        )}
+      </p>
+
+      <Card as="section" className="card-padded">
+        <CardSection title="Schedule">
           <dl className="definition">
             <dt>Scheduled</dt>
             <dd>
@@ -144,10 +184,9 @@ export default async function SessionDetailPage({
             <dt>Timezone</dt>
             <dd>{zone}</dd>
           </dl>
-        </Card>
+        </CardSection>
 
-        <Card>
-          <h2>Delivery</h2>
+        <CardSection title="Delivery">
           <dl className="definition">
             <dt>Type</dt>
             <dd>{deliveryMeta(session.deliveryType).label}</dd>
@@ -178,17 +217,18 @@ export default async function SessionDetailPage({
             </dd>
           </dl>
 
-          {session.description && (
-            <>
-              <h3>Notes</h3>
-              {/* Rendered as text. The reference sanitises author-supplied HTML
-                  with an allowlist; here there is no unescaped path at all,
-                  which is the same guarantee with nothing to get wrong. */}
-              <p className="prose">{session.description}</p>
-            </>
-          )}
+        </CardSection>
 
-          {session.status === SessionStatus.CANCELLED && (
+        {session.description && (
+          <CardSection title="Notes">
+            {/* Rendered as text. The reference sanitises author-supplied HTML
+                with an allowlist; here there is no unescaped path at all,
+                which is the same guarantee with nothing to get wrong. */}
+            <p className="prose">{session.description}</p>
+          </CardSection>
+        )}
+
+        {session.status === SessionStatus.CANCELLED && (
             <p className="notice notice-warn">
               <span aria-hidden="true">✕</span>
               <span>
@@ -209,8 +249,7 @@ export default async function SessionDetailPage({
               </span>
             </p>
           )}
-        </Card>
-      </CardGrid>
+      </Card>
 
       <AttendanceCard
         sessionRef={session.ref}
@@ -239,8 +278,8 @@ export default async function SessionDetailPage({
       />
 
       {events.length > 0 && (
-        <Card>
-          <h2>History</h2>
+        <Card as="section" className="card-padded">
+          <CardSection title="History">
           <ol className="timeline">
             {events.map((event) => (
               <li key={String(event.id)}>
@@ -273,6 +312,7 @@ export default async function SessionDetailPage({
               </li>
             ))}
           </ol>
+          </CardSection>
         </Card>
       )}
     </>

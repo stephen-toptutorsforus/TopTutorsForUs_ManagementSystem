@@ -1187,23 +1187,41 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
  * because that is where the question "who could actually take this?" arises.
  */
 
-.booking-card { padding: 1.25rem 1.4rem 1.5rem; }
+.card-padded { padding: 1.25rem 1.4rem 1.5rem; }
 
-/* Groups inside the booking card.
+/* What a record *is*, under its title: status, delivery, which of a series it
+   is, and any warning that it was edited alone or booked over a clash. A row
+   of badges rather than a sentence, because every one of them is also a word
+   and a glyph — see the badge rules above — and because they wrap sanely on a
+   phone where a sentence would not.
+
+   Page-owned, not a `PageHeader` slot. The header has no subtitle by design;
+   this belongs to the session rather than to the shape every screen's header
+   takes. */
+.record-status {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin: -0.35rem 0 1rem;
+}
+
+/* Groups inside a card.
  *
  * Borderless, against the stylesheet's default for `fieldset`: the card is
  * already one boundary and a second around each group inside it is exactly the
  * noise being removed elsewhere. A heading, space, and a rule between
- * neighbours is enough to group nineteen fields into four readable parts. */
+ * neighbours is enough to group nineteen fields into four readable parts.
+ *
+ * A `fieldset` on a form, a `section` anywhere else — `CardSection` draws the
+ * second — because the grouping is the same but the element is not: a fieldset
+ * exists to group *controls*, and a record's facts are not controls. */
 /* `min-width: 0` against the UA's `min-width: min-content` for `fieldset`,
    which is the reason a wide table inside one does not scroll. The scroller is
    `overflow-x: auto` and should have absorbed it, but the fieldset around it
    refuses to be narrower than its contents, so the card grew instead and the
    grid ran out past its right-hand edge. Any wide thing put in one of these
    groups would have done the same. */
-.booking-section { border: 0; padding: 0; margin: 0; min-width: 0; }
-.booking-section > legend { padding: 0; margin-top: 0; }
-.booking-section + .booking-section {
+.card-section { border: 0; padding: 0; margin: 0; min-width: 0; }
+.card-section > legend { padding: 0; margin-top: 0; }
+.card-section + .card-section {
   border-top: 1px solid var(--ink-100);
   margin-top: 1.5rem; padding-top: 1.25rem;
 }
@@ -1891,7 +1909,7 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
 }
 .chip-remove:hover { background: var(--paper); color: var(--ink-900); }
 
-.booking-subhead {
+.card-subhead {
   margin: 0 0 0.75rem;
   font-size: 0.78rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em;

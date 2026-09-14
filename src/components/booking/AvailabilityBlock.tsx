@@ -101,7 +101,7 @@ export function AvailabilityBlock({
     <>
       {selectedInstructor && (
         <>
-          <h3 className="booking-subhead" id="matrix-heading">
+          <h3 className="card-subhead" id="matrix-heading">
             Selected instructor
           </h3>
           <div className="chosen-instructor">
@@ -147,7 +147,7 @@ export function AvailabilityBlock({
 
       {weekPlan ? (
         <>
-          <h3 className="booking-subhead" id="weekplan-heading">
+          <h3 className="card-subhead" id="weekplan-heading">
             Availability by day{" "}
             <span className="subhead-note">
               {selectedInstructor?.displayName} &middot; {block.zone}
@@ -270,7 +270,7 @@ export function AvailabilityBlock({
         </>
       ) : suggestions ? (
         <>
-          <h3 className="booking-subhead" id="suggested-heading">
+          <h3 className="card-subhead" id="suggested-heading">
             Suggested start times <span className="subhead-note">{block.zone}</span>
           </h3>
           <div className="daygrid-scroll">
@@ -342,7 +342,7 @@ export function AvailabilityBlock({
         </>
       ) : grid ? (
         <>
-          <h3 className="booking-subhead" id="matrix-heading">
+          <h3 className="card-subhead" id="matrix-heading">
             Instructors available{" "}
             <span className="subhead-note">
               {grid.dayLabel} · {block.zone}
@@ -424,7 +424,7 @@ export function AvailabilityBlock({
         </>
       ) : (
         <>
-          <h3 className="booking-subhead" id="matrix-heading">
+          <h3 className="card-subhead" id="matrix-heading">
             Instructors available soon <span className="subhead-note">{block.zone}</span>
           </h3>
           <div className="matrix-list" role="group" aria-labelledby="matrix-heading">

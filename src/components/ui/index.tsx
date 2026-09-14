@@ -15,6 +15,7 @@ export type { ButtonVariant, ButtonSize } from "./Button";
 export { Card, CardGrid } from "./Card";
 export { EmptyState } from "./EmptyState";
 export { Choice, ChoiceGroup, Field, Hint, OptionSelect, VisuallyHidden } from "./Field";
+export { CardSection } from "./CardSection";
 export { FilterActions } from "./FilterActions";
 export { FilterControl } from "./FilterControl";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";

@@ -362,7 +362,7 @@ export function BookingForm({
         </div>
       )}
 
-      <Card as="section" className="booking-card">
+      <Card as="section" className="card-padded">
         <h2>New Session</h2>
 
         {/* Four groups rather than one run of nineteen fields. Still one form
@@ -372,7 +372,7 @@ export function BookingForm({
             Borderless fieldsets — the card already draws the boundary, and real
             fieldsets mean the grouping is in the markup, not only in the
             spacing. */}
-        <fieldset className="booking-section">
+        <fieldset className="card-section">
 
           <div className="booking-row booking-row-type">
             <Field id="delivery_type" label="Type">
@@ -439,8 +439,8 @@ export function BookingForm({
 
         </fieldset>
 
-        <fieldset className="booking-section">
-          <legend className="booking-subhead">Date and repeat</legend>
+        <fieldset className="card-section">
+          <legend className="card-subhead">Date and repeat</legend>
           <div className="form-row">
             <Field id="start_date" label="Session date">
               <input
@@ -669,8 +669,8 @@ export function BookingForm({
 
         </fieldset>
 
-        <fieldset className="booking-section">
-          <legend className="booking-subhead">Instructor</legend>
+        <fieldset className="card-section">
+          <legend className="card-subhead">Instructor</legend>
           <Field id="program_ref" label="Program">
             <OptionSelect
               id="program_ref"
@@ -742,8 +742,8 @@ export function BookingForm({
 
         </fieldset>
 
-        <fieldset className="booking-section">
-          <legend className="booking-subhead">Students and groups</legend>
+        <fieldset className="card-section">
+          <legend className="card-subhead">Students and groups</legend>
 
           <Field id="student_picker" label="Students">
             {/* An ordinary one-line dropdown, not a multi-select list box: a
