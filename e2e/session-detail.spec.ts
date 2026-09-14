@@ -34,19 +34,19 @@ async function openSessionFrom(page: Page, path: string): Promise<void> {
 }
 
 test.describe("getting back", () => {
-  test("names the screen you came from, and returns to it", async ({ page }) => {
+  test("returns to the screen you came from", async ({ page }) => {
     await openSessionFrom(page, "/calendar");
-    await expect(backLink(page)).toHaveText("Back to calendar");
+    await expect(backLink(page)).toHaveText("Back");
 
     await backLink(page).click();
     await expect(page).toHaveURL(/\/calendar$/);
   });
 
-  test("says sessions when that is where you came from", async ({ page }) => {
-    // The same page, a different way in — which is the whole reason the link
-    // is not a fixed one.
+  test("goes somewhere else when that is where you came from", async ({ page }) => {
+    // The same page and the same word, a different way in — which is the whole
+    // reason the destination is not a fixed one.
     await openSessionFrom(page, "/sessions");
-    await expect(backLink(page)).toHaveText("Back to sessions");
+    await expect(backLink(page)).toHaveText("Back");
 
     await backLink(page).click();
     await expect(page).toHaveURL(/\/sessions$/);
@@ -66,7 +66,7 @@ test.describe("getting back", () => {
       .getAttribute("href");
     await page.goto(href!);
 
-    await expect(backLink(page)).toHaveText("Back to sessions");
+    await expect(backLink(page)).toHaveText("Back");
     await expect(backLink(page)).toHaveAttribute("href", "/sessions");
   });
 

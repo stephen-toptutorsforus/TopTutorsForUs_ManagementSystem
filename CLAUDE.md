@@ -298,13 +298,18 @@ of the row. The `h1` stays and stops being visible — it is the page's only one
 and a screen reader's heading list and the skip link are built from it.
 
 **Back, from a record, is read from the referrer.** A session is reached from
-six screens, so a fixed link is wrong five times out of six, and `router.back()`
-would cost the page its script-free behaviour. `lib/web/backLink.ts` takes the
-*path* of a same-host referrer and nothing else — never the whole URL, so the
-link cannot become a redirect elsewhere — and falls back to the session list
-when the referrer is missing, foreign, unparseable, or the page itself. Only
-the path is needed because every screen's filter state is a cookie rather than
-an address, so a bare path returns somebody to the calendar they were reading.
+six screens, so a fixed destination is wrong five times out of six, and
+`router.back()` would cost the page its script-free behaviour.
+`lib/web/backLink.ts` takes the *path* of a same-host referrer and nothing
+else — never the whole URL, so the link cannot become a redirect elsewhere —
+and falls back to the session list when the referrer is missing, foreign,
+unparseable, or the page itself. Only the path is needed because every screen's
+filter state is a cookie rather than an address, so a bare path returns
+somebody to the calendar they were reading.
+
+The button says **Back**, wherever it goes. Naming the destination meant a map
+from paths to words that had to be kept in step with the routes, and got a
+screen wrong the moment somebody added one.
 
 **The interface has a vocabulary.** `src/components/ui/` holds what every
 screen is built from — Card, PageHeader, TableWrap, Button, Field, Badge, Modal
@@ -356,7 +361,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-527 tests — 276 pure, 251 database-backed — plus 370 browser tests and
+525 tests — 274 pure, 251 database-backed — plus 370 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

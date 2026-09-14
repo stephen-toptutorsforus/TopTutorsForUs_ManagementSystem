@@ -154,7 +154,7 @@ export default async function SessionDetailPage({
       <PageHeader
         className="page-header-back"
         title={session.title}
-        actions={<LinkButton href={back.href}>{back.label}</LinkButton>}
+        actions={<LinkButton href={back}>Back</LinkButton>}
       />
 
       {/* What this session *is*, before what is known about it. Page-owned
