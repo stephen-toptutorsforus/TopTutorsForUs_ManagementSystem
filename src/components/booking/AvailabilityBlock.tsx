@@ -93,6 +93,19 @@ export function AvailabilityBlock({
   }
 
   const { selectedInstructor, suggestions, grid, weekPlan } = block;
+
+  // Where each quarter sits in a row's flat `taken` list. The table draws the
+  // day as hours of four, and the row carries one boolean per quarter in
+  // column order; keying by the time itself rather than by counting keeps the
+  // two aligned even if the axis ever stops starting at midnight.
+  const quarterAt = new Map<string, number>();
+  if (weekPlan) {
+    let position = 0;
+    for (const column of weekPlan.columns) {
+      for (const slot of column.slots) quarterAt.set(slot.value, position++);
+    }
+  }
+
   const noneFreeMessage = block.eligibilityNarrowed
     ? ELIGIBLE_BUT_UNAVAILABLE
     : "No instructor has a window long enough for this session on that date.";
@@ -158,9 +171,11 @@ export function AvailabilityBlock({
               <caption className="visually-hidden">
                 One row per weekday the run repeats on, every hour of the day across
                 the top, each divided into quarters. Any quarter can be chosen, and
-                the pressed one in a row is that day&rsquo;s start time. Clashes with
-                existing bookings, and times outside the instructor&rsquo;s declared
-                hours, are reported by Preview.
+                the pressed one in a row is that day&rsquo;s start time. A quarter the
+                instructor is already teaching in on that date is marked and still
+                offered, because it costs one occurrence of the run rather than the
+                time itself. Times outside the instructor&rsquo;s declared hours are
+                reported by Preview.
               </caption>
               <thead>
                 <tr>
@@ -207,6 +222,8 @@ export function AvailabilityBlock({
                             </span>
                             {column.slots.map((slot) => {
                               const chosen = slot.value === row.startTime;
+                              const taken =
+                                row.taken[quarterAt.get(slot.value) ?? -1] === true;
                               // The column heading drops a ":00" that the
                               // Start time select keeps, so the spoken name is
                               // built from the value rather than from the
@@ -214,23 +231,31 @@ export function AvailabilityBlock({
                               // "9:00 AM", and the name should match the field
                               // it sets.
                               const label = clockTime(slot.value);
-                              /* Every quarter is offered, and every quarter is
-                                 drawn the same.
-                                 `outside_availability` is an *overridable*
-                                 conflict rather than a refusal — the service
-                                 lets a run be booked outside declared hours by
-                                 somebody permitted to override, and the Start
-                                 time select above has always offered the whole
-                                 day — so this table narrows nothing and says so
-                                 by shading nothing. What the declared hours are
-                                 is still reported: by the line under the table
-                                 for a day with none, and by Preview for a time
-                                 outside them. Deliberately not a screen-reader
-                                 aside either, which would tell one reader what
-                                 the fill no longer tells the other. */
+                              /* Every quarter is offered, and declared hours
+                                 shade nothing. `outside_availability` is an
+                                 *overridable* conflict rather than a refusal —
+                                 the service lets a run be booked outside
+                                 declared hours by somebody permitted to
+                                 override, and the Start time select above has
+                                 always offered the whole day — so this table
+                                 narrows nothing on that count. What the
+                                 declared hours are is still reported: by the
+                                 line under the table for a day with none, and
+                                 by Preview for a time outside them.
+
+                                 A quarter already booked is marked, and still
+                                 offered. The row stands for a weekday across a
+                                 whole run, so a clash on this one date costs
+                                 that occurrence rather than the time — but it
+                                 is a fact about a real booking, and the person
+                                 choosing should see it before Preview does.
+                                 Said in words as well as in the fill, because
+                                 a colour is not available to every reader. */
                               return (
                                 <button
-                                  className={`quartercell${chosen ? " is-chosen" : ""}`}
+                                  className={`quartercell${chosen ? " is-chosen" : ""}${
+                                    taken ? " is-taken" : ""
+                                  }`}
                                   type="button"
                                   aria-pressed={chosen}
                                   key={slot.value}
@@ -239,6 +264,9 @@ export function AvailabilityBlock({
                                   <span aria-hidden="true">{slot.label}</span>
                                   <VisuallyHidden>
                                     Start {row.name} sessions at {label}.
+                                    {taken
+                                      ? ` ${selectedInstructor?.displayName ?? "The instructor"} is already teaching at this time on ${row.dayLabel}.`
+                                      : ""}
                                   </VisuallyHidden>
                                 </button>
                               );
@@ -278,7 +306,9 @@ export function AvailabilityBlock({
               <caption className="visually-hidden">
                 Start times across the top for {selectedInstructor?.displayName}. A time
                 can be chosen when one declared availability window covers the whole
-                session. Conflicts with existing bookings are checked by Preview.
+                session and nothing is already booked in it. Clashes with the
+                students, the room, and the tenant&rsquo;s own rules are checked by
+                Preview.
               </caption>
               <thead>
                 <tr>
@@ -300,8 +330,15 @@ export function AvailabilityBlock({
                     </th>
                     {row.free.map((open, index) => {
                       const column = suggestions.columns[index]!;
+                      // Not free *because it is already booked*, which is worth
+                      // saying differently: another time fixes the first, and
+                      // another instructor the second.
+                      const taken = row.taken[index] === true;
                       return (
-                        <td className={open ? "is-free" : ""} key={column.value}>
+                        <td
+                          className={open ? "is-free" : taken ? "is-taken" : ""}
+                          key={column.value}
+                        >
                           {open ? (
                             // A real button, not a link with no href. It submits
                             // the chosen time.
@@ -317,10 +354,14 @@ export function AvailabilityBlock({
                               </VisuallyHidden>
                             </button>
                           ) : (
-                            <span className="timecell is-out">
-                              <span aria-hidden="true">—</span>
+                            <span className={`timecell ${taken ? "is-busy" : "is-out"}`}>
+                              <span aria-hidden="true">{taken ? "×" : "—"}</span>
                               <VisuallyHidden>
-                                {column.label} unavailable for {row.name}.
+                                {column.label}{" "}
+                                {taken
+                                  ? `already booked for ${row.name}`
+                                  : `unavailable for ${row.name}`}
+                                .
                               </VisuallyHidden>
                             </span>
                           )}
@@ -352,9 +393,10 @@ export function AvailabilityBlock({
             <table className="daygrid" aria-labelledby="matrix-heading">
               <caption className="visually-hidden">
                 Instructors down the side, start times across the top. A cell is marked
-                available when one declared window covers the whole session; a window
-                shorter than the session does not count. Whether the slot is free of
-                other bookings is checked by Preview.
+                available when one declared window covers the whole session and the
+                instructor has nothing booked in it; a window shorter than the session
+                does not count. Clashes with the students, the room, and the
+                tenant&rsquo;s own rules are checked by Preview.
               </caption>
               <thead>
                 <tr>
@@ -390,20 +432,31 @@ export function AvailabilityBlock({
                         </Button>
                       </span>
                     </th>
-                    {row.free.map((open, index) => (
-                      <td
-                        className={open ? "is-free" : ""}
-                        key={grid.columns[index]!.value}
-                      >
-                        {/* A glyph as well as the fill, so the answer does not
-                            depend on being able to tell the two colours apart. */}
-                        <span aria-hidden="true">{open ? "●" : "—"}</span>
-                        <VisuallyHidden>
-                          {grid.columns[index]!.label}:{" "}
-                          {open ? `${row.name} available` : `${row.name} not available`}
-                        </VisuallyHidden>
-                      </td>
-                    ))}
+                    {row.free.map((open, index) => {
+                      const taken = row.taken[index] === true;
+                      return (
+                        <td
+                          className={open ? "is-free" : taken ? "is-taken" : ""}
+                          key={grid.columns[index]!.value}
+                        >
+                          {/* A glyph as well as the fill, so the answer does not
+                              depend on being able to tell the colours apart —
+                              and three answers here, not two: free, not working,
+                              already teaching. */}
+                          <span aria-hidden="true">
+                            {open ? "●" : taken ? "×" : "—"}
+                          </span>
+                          <VisuallyHidden>
+                            {grid.columns[index]!.label}:{" "}
+                            {open
+                              ? `${row.name} available`
+                              : taken
+                                ? `${row.name} already booked`
+                                : `${row.name} not available`}
+                          </VisuallyHidden>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

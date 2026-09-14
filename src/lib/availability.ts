@@ -88,35 +88,90 @@ export async function organizationOffDays(
 
 type Span = readonly [CivilTime, CivilTime];
 
+// --- One rule, two ways to feed it ------------------------------------------
+//
+// The layers are rows; turning rows into windows is the rule. The rule lives in
+// exactly one place — `resolveFrom` — and everything that needs an answer feeds
+// it. `resolveDay` fetches one instructor's one day. `resolveRange` fetches
+// every instructor's whole range in the same five statements, which is what
+// makes a fifty-six day matrix across a hundred instructors cost five queries
+// rather than twenty-eight thousand.
+//
+// Keeping it one function rather than two implementations is the point. A grid
+// and a list that each carried their own copy of "narrowest layer last" would
+// eventually disagree, and the screen that showed a time would stop matching
+// the preview that refused it.
+//
+// The cost is that `resolveDay` no longer returns early on a closed day: it
+// asks for all five layers whichever way the answer goes. That is up to four
+// extra statements on a day the organization is shut, and none at all on a day
+// somebody is teaching — which is the case that runs in a loop.
+
+/** Just the columns the rule reads, so `resolveFrom` needs no Prisma types. */
+interface ExceptionLike {
+  isAvailable: boolean;
+  startTime: Date | null;
+  endTime: Date | null;
+  timezone: string | null;
+}
+
+interface RuleLike {
+  startTime: Date;
+  endTime: Date;
+  timezone: string | null;
+  effectiveFrom: Date | null;
+  effectiveUntil: Date | null;
+}
+
+interface BlockLike {
+  startsAt: Date;
+  endsAt: Date;
+}
+
 /**
- * The instructor's bookable windows on one date, with every layer applied.
+ * Every row the rule can need, indexed the way it asks for them.
+ *
+ * Keyed by strings rather than by nested maps because the two-part keys
+ * (instructor and day, instructor and weekday) are looked up and never
+ * enumerated.
  */
-export async function resolveDay(
-  db: Db,
+export interface AvailabilityLayers {
+  /** Civil date to the closure's label. */
+  offDays: Map<CivilDate, string>;
+  /** `mon` … `sun` to the organization's open spans on it. */
+  orgBounds: Map<string, Span[]>;
+  /** `instructorId|day`. */
+  exceptions: Map<string, ExceptionLike>;
+  /** `instructorId|weekday`. */
+  rules: Map<string, RuleLike[]>;
+  /** `instructorId`. Blocks are filtered by instant, so the whole range is held. */
+  blocks: Map<string, BlockLike[]>;
+}
+
+const dayKey = (instructorId: bigint, day: CivilDate) => `${instructorId}|${day}`;
+const weekdayKey = (instructorId: bigint, weekday: string) => `${instructorId}|${weekday}`;
+
+/**
+ * The rule: rows in, one instructor's windows on one date out.
+ *
+ * Pure, and the only implementation. Narrowest layer last — a closure beats
+ * everything, an exception replaces the weekly pattern, the organization's
+ * hours bound whatever survives, and time off is subtracted from the result.
+ */
+export function resolveFrom(
+  layers: AvailabilityLayers,
   organization: OrganizationRef,
   instructorId: bigint,
   day: CivilDate,
-): Promise<DayAvailability> {
+): DayAvailability {
   const weekday = WEEKDAY_BY_ISO[isoWeekday(day)]!;
   const closed = (reason: string): DayAvailability => ({ day, windows: [], closedReason: reason });
 
-  const offDay = await db.offDay.findFirst({
-    where: { organizationId: organization.id, day: dateToDb(day) },
-  });
-  if (offDay) return closed(offDay.label);
+  const offDay = layers.offDays.get(day);
+  if (offDay !== undefined) return closed(offDay);
 
-  const orgWindows = await db.organizationAvailability.findMany({
-    where: { organizationId: organization.id, weekday, isOpen: true },
-  });
-  const orgBounds: Span[] = orgWindows.map((w) => [timeFromDb(w.startTime), timeFromDb(w.endTime)]);
-
-  const exception = await db.availabilityException.findFirst({
-    where: {
-      organizationId: organization.id,
-      instructorId,
-      day: dateToDb(day),
-    },
-  });
+  const orgBounds = layers.orgBounds.get(weekday) ?? [];
+  const exception = layers.exceptions.get(dayKey(instructorId, day));
 
   let spans: Span[];
   let zoneName: string;
@@ -131,9 +186,7 @@ export async function resolveDay(
       zoneName = organization.timezone;
     }
   } else {
-    const rules = await db.availabilityRule.findMany({
-      where: { organizationId: organization.id, instructorId, weekday },
-    });
+    const rules = layers.rules.get(weekdayKey(instructorId, weekday)) ?? [];
     const applicable = rules.filter(
       (rule) =>
         (rule.effectiveFrom === null || dateFromDb(rule.effectiveFrom) <= day) &&
@@ -157,20 +210,161 @@ export async function resolveDay(
     end: resolveCivil(day, end, zoneName).instant,
   }));
 
-  const blocks = await db.timeOff.findMany({
-    where: {
-      organizationId: organization.id,
-      instructorId,
-      startsAt: { lt: windows[windows.length - 1]!.end },
-      endsAt: { gt: windows[0]!.start },
-    },
-  });
+  // Held for the whole range, so narrow to the ones that touch this day's
+  // windows — the same test the single-day query used to make in SQL.
+  const first = windows[0]!.start.getTime();
+  const last = windows[windows.length - 1]!.end.getTime();
+  const blocks = (layers.blocks.get(String(instructorId)) ?? []).filter(
+    (block) => block.startsAt.getTime() < last && block.endsAt.getTime() > first,
+  );
   if (blocks.length > 0) {
     windows = subtractBlocks(windows, blocks);
     if (windows.length === 0) return closed("time off");
   }
 
   return { day, windows, closedReason: null };
+}
+
+/**
+ * Every layer for a set of instructors over a date range, in five statements.
+ *
+ * The count does not depend on how many instructors or how many days are asked
+ * for. That is the whole point: the caller that used to loop now fetches once
+ * and decides in memory.
+ */
+export async function fetchLayers(
+  db: Db,
+  organization: OrganizationRef,
+  instructorIds: readonly bigint[],
+  from: CivilDate,
+  to: CivilDate,
+): Promise<AvailabilityLayers> {
+  const ids = [...new Set(instructorIds)];
+  const scope = { organizationId: organization.id };
+  // Generous by a day at each end: a window resolved in a zone behind or ahead
+  // of the organization's can begin before the range's first midnight or end
+  // after its last, and a block that straddles the boundary still bites.
+  const rangeStart = new Date(`${addDays(from, -1)}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${addDays(to, 2)}T00:00:00.000Z`);
+
+  const [offDays, orgWindows, exceptions, rules, blocks] = await Promise.all([
+    db.offDay.findMany({
+      where: { ...scope, day: { gte: dateToDb(from), lte: dateToDb(to) } },
+      select: { day: true, label: true },
+    }),
+    db.organizationAvailability.findMany({ where: { ...scope, isOpen: true } }),
+    ids.length === 0
+      ? []
+      : db.availabilityException.findMany({
+          where: {
+            ...scope,
+            instructorId: { in: ids },
+            day: { gte: dateToDb(from), lte: dateToDb(to) },
+          },
+        }),
+    ids.length === 0
+      ? []
+      : db.availabilityRule.findMany({ where: { ...scope, instructorId: { in: ids } } }),
+    ids.length === 0
+      ? []
+      : db.timeOff.findMany({
+          where: {
+            ...scope,
+            instructorId: { in: ids },
+            startsAt: { lt: rangeEnd },
+            endsAt: { gt: rangeStart },
+          },
+        }),
+  ]);
+
+  const layers: AvailabilityLayers = {
+    offDays: new Map(offDays.map((row) => [dateFromDb(row.day), row.label])),
+    orgBounds: new Map(),
+    exceptions: new Map(),
+    rules: new Map(),
+    blocks: new Map(),
+  };
+
+  for (const window of orgWindows) {
+    const spans = layers.orgBounds.get(window.weekday) ?? [];
+    spans.push([timeFromDb(window.startTime), timeFromDb(window.endTime)]);
+    layers.orgBounds.set(window.weekday, spans);
+  }
+  for (const exception of exceptions) {
+    layers.exceptions.set(dayKey(exception.instructorId, dateFromDb(exception.day)), exception);
+  }
+  for (const rule of rules) {
+    const key = weekdayKey(rule.instructorId, rule.weekday);
+    const list = layers.rules.get(key) ?? [];
+    list.push(rule);
+    layers.rules.set(key, list);
+  }
+  for (const block of blocks) {
+    const key = String(block.instructorId);
+    const list = layers.blocks.get(key) ?? [];
+    list.push(block);
+    layers.blocks.set(key, list);
+  }
+
+  return layers;
+}
+
+/**
+ * The instructor's bookable windows on one date, with every layer applied.
+ */
+export async function resolveDay(
+  db: Db,
+  organization: OrganizationRef,
+  instructorId: bigint,
+  day: CivilDate,
+): Promise<DayAvailability> {
+  const layers = await fetchLayers(db, organization, [instructorId], day, day);
+  return resolveFrom(layers, organization, instructorId, day);
+}
+
+/**
+ * Several instructors over a run of consecutive days, in five statements.
+ *
+ * Returned as a lookup keyed by instructor and date rather than as a nested
+ * shape, because every caller asks about one pair at a time.
+ */
+export async function resolveRange(
+  db: Db,
+  organization: OrganizationRef,
+  instructorIds: readonly bigint[],
+  start: CivilDate,
+  days: number,
+): Promise<Map<string, DayAvailability>> {
+  const last = addDays(start, Math.max(0, days - 1));
+  const layers = await fetchLayers(db, organization, instructorIds, start, last);
+
+  const out = new Map<string, DayAvailability>();
+  for (const instructorId of new Set(instructorIds)) {
+    for (let offset = 0; offset < days; offset += 1) {
+      const day = addDays(start, offset);
+      out.set(dayKey(instructorId, day), resolveFrom(layers, organization, instructorId, day));
+    }
+  }
+  return out;
+}
+
+/**
+ * When each instructor is already booked, keyed by instructor id.
+ *
+ * Declared hours say when somebody *works*; this says when they are already
+ * spoken for, and the grids need both. It is fetched by `busyIntervals` in
+ * `lib/conflicts.ts` and passed in rather than looked up here: the query needs
+ * `BLOCKING_STATUSES`, which lives with the conflict check that agrees with the
+ * database constraint, and that module already reads this one.
+ */
+export type BusyByInstructor = Map<string, Window[]>;
+
+/** Does a proposed interval overlap anything already booked? Half-open. */
+export function overlapsBusy(busy: readonly Window[] | undefined, start: Date, end: Date): boolean {
+  if (busy === undefined) return false;
+  return busy.some(
+    (taken) => taken.start.getTime() < end.getTime() && taken.end.getTime() > start.getTime(),
+  );
 }
 
 /** Clip each declared span to the organization's opening hours. */
@@ -263,9 +457,11 @@ export async function matrix(
   start: CivilDate,
   days: number,
 ): Promise<DayAvailability[]> {
+  const resolved = await resolveRange(db, organization, [instructorId], start, days);
   const out: DayAvailability[] = [];
   for (let i = 0; i < days; i += 1) {
-    out.push(await resolveDay(db, organization, instructorId, addDays(start, i)));
+    const day = addDays(start, i);
+    out.push(resolved.get(dayKey(instructorId, day))!);
   }
   return out;
 }
@@ -274,8 +470,9 @@ export async function matrix(
 //
 // The multi-day list answers "which day should I look at"; once a day is chosen
 // that question is settled and the useful one becomes "who, and when within
-// it". Both read `resolveDay`, so the grid can never disagree with the list
-// that led you to it.
+// it". Both resolve through `resolveFrom`, so the grid can never disagree with
+// the list that led you to it, and both fetch their layers in one go rather
+// than a query per person per day.
 
 /** Just enough of a person to draw them in either view. */
 export interface Candidate {
@@ -317,14 +514,27 @@ function displayNameOf(person: Candidate): string {
   return `${person.firstName} ${person.lastName}`.trim() || person.ref;
 }
 
+/** Declared windows with what is already booked cut out of them. */
+export function withoutBusy(windows: readonly Window[], busy: readonly Window[] | undefined): Window[] {
+  if (busy === undefined || busy.length === 0) return [...windows];
+  return subtractBlocks(
+    windows,
+    busy.map((taken) => ({ startsAt: taken.start, endsAt: taken.end })),
+  );
+}
+
 /**
  * For each of the next `days` days, which candidates have a free window.
  *
- * "Free" here means **declared availability long enough for the session**, not
- * "has no other booking" — the conflict check does the second, and does it per
- * proposed occurrence. Showing a day as open and then reporting a clash at
- * preview is the honest order: this list narrows the search, the preview
- * decides.
+ * "Free" is declared availability long enough for the session, with anything
+ * already booked cut out of it first. A day whose only long-enough window is
+ * taken is not a day to look at, and saying so here is what keeps this list
+ * agreeing with the grid it leads to.
+ *
+ * It remains a narrowing rather than a promise: this asks about the
+ * instructor, and the preview additionally asks about the students, the room
+ * and the tenant's own rules. What it must not do is offer a time the write
+ * will certainly refuse.
  */
 export async function openings(
   db: Db,
@@ -335,11 +545,23 @@ export async function openings(
     days: number;
     durationMinutes: number;
     showAtMost?: number;
+    /** Already-booked intervals by instructor id; see `busyIntervals`. */
+    busy?: BusyByInstructor;
   },
 ): Promise<DayOpenings[]> {
-  const { start, days, durationMinutes, showAtMost = 5 } = options;
+  const { start, days, durationMinutes, showAtMost = 5, busy } = options;
   const needed = durationMinutes * 60_000;
   const result: DayOpenings[] = [];
+
+  // Five statements for the whole matrix, however many people and days it
+  // covers. This used to be one query per person per day.
+  const resolved = await resolveRange(
+    db,
+    organization,
+    candidates.map((person) => person.id),
+    start,
+    days,
+  );
 
   for (let offset = 0; offset < days; offset += 1) {
     const day = addDays(start, offset);
@@ -348,8 +570,10 @@ export async function openings(
     let total = 0;
 
     for (const person of candidates) {
-      const availability = await resolveDay(db, organization, person.id, day);
-      const usable = availability.windows.filter(
+      const availability = resolved.get(dayKey(person.id, day));
+      if (availability === undefined) continue;
+      const open = withoutBusy(availability.windows, busy?.get(String(person.id)));
+      const usable = open.filter(
         (window) => window.end.getTime() - window.start.getTime() >= needed,
       );
       if (usable.length === 0) continue;
@@ -388,6 +612,17 @@ export interface GridRow {
   email: string;
   initials: string;
   free: boolean[];
+  /**
+   * Which of the not-free columns are not free *because something is already
+   * booked* there, rather than because nobody declared hours.
+   *
+   * Two different things to be told, and the table says which: "he does not
+   * work then" is fixed by choosing another time, "he is teaching then" by
+   * choosing another instructor. Parallel to `free` rather than folded into it
+   * so a cell can be drawn as taken without the code that reads `free` having
+   * to learn a third state.
+   */
+  taken: boolean[];
   closedReason: string | null;
 }
 
@@ -449,6 +684,12 @@ function clockOfMinutes(minutes: number): CivilTime {
  * whole session — not merely overlapping the column. A 30-minute gap cannot
  * hold a 60-minute session, and showing it as free would be a promise the
  * preview then has to break.
+ *
+ * A column already booked is not free either, and for a stronger reason. This
+ * grid is about **one specific date**, so a clash here is exactly the clash the
+ * preview will report, and `INSTRUCTOR_BUSY` is one of the kinds no override
+ * clears. Offering it would be offering a time the database itself refuses. It
+ * is reported separately in `taken` so the cell can say which of the two it is.
  */
 export async function dayGrid(
   db: Db,
@@ -461,9 +702,11 @@ export async function dayGrid(
     timezone: string;
     columns?: number;
     stepMinutes?: number;
+    /** Already-booked intervals by instructor id; see `busyIntervals`. */
+    busy?: BusyByInstructor;
   },
 ): Promise<DayGrid> {
-  const { day, fromTime, durationMinutes, timezone } = options;
+  const { day, fromTime, durationMinutes, timezone, busy } = options;
   const columns = options.columns ?? 12;
   const stepMs = (options.stepMinutes ?? 60) * 60_000;
   const needed = durationMinutes * 60_000;
@@ -481,19 +724,38 @@ export async function dayGrid(
     cursor = new Date(cursor.getTime() + stepMs);
   }
 
+  const resolved = await resolveRange(
+    db,
+    organization,
+    candidates.map((person) => person.id),
+    day,
+    1,
+  );
+
   const rows: GridRow[] = [];
   for (const person of candidates) {
-    const availability = await resolveDay(db, organization, person.id, day);
+    const availability = resolved.get(dayKey(person.id, day))!;
+    const booked = busy?.get(String(person.id));
+    const declared = slots.map((slot) =>
+      availability.windows.some((window) =>
+        windowContains(window, slot.start, new Date(slot.start.getTime() + needed)),
+      ),
+    );
+    const taken = slots.map(
+      (slot, index) =>
+        declared[index] === true &&
+        overlapsBusy(booked, slot.start, new Date(slot.start.getTime() + needed)),
+    );
     rows.push({
       ref: person.ref,
       name: displayNameOf(person),
       email: person.email ?? "",
       initials: initialsOf(person),
-      free: slots.map((slot) =>
-        availability.windows.some((window) =>
-          windowContains(window, slot.start, new Date(slot.start.getTime() + needed)),
-        ),
-      ),
+      // Declared *and* not already booked. `taken` marks only the cells the
+      // second test removed, so the table can distinguish "does not work then"
+      // from "is teaching then" without a third state to reason about.
+      free: declared.map((open, index) => open && taken[index] !== true),
+      taken,
       closedReason: availability.closedReason,
     });
   }
@@ -531,6 +793,16 @@ export interface WeekdayRow {
    */
   durationMinutes: number;
   free: boolean[];
+  /**
+   * Which columns are already booked **on this row's representative date**.
+   *
+   * Unlike `dayGrid`'s, this does not make the column unfree. The row stands
+   * for a weekday across a whole run, and a clash on the first Wednesday says
+   * nothing about the fifth: it costs that one occurrence, not the time. So the
+   * cell is marked and still offered, and Preview stays the authority on which
+   * occurrences actually clash.
+   */
+  taken: boolean[];
   closedReason: string | null;
 }
 
@@ -573,9 +845,11 @@ export async function weekdayGrid(
     timezone: string;
     columns?: number;
     stepMinutes?: number;
+    /** Already-booked intervals by instructor id; see `busyIntervals`. */
+    busy?: BusyByInstructor;
   },
 ): Promise<WeekdayGrid> {
-  const { from, fromTime, timezone } = options;
+  const { from, fromTime, timezone, busy } = options;
   const wantedColumns = options.columns ?? 16;
   const step = options.stepMinutes ?? 30;
 
@@ -599,20 +873,30 @@ export async function weekdayGrid(
     });
   }
 
+  // Every row falls inside one week of `from`, so one fetch covers them all
+  // even though the dates are not consecutive.
+  const layers = await fetchLayers(db, organization, [instructorId], from, addDays(from, 6));
+  const booked = busy?.get(String(instructorId));
+
   const rows: WeekdayRow[] = [];
   for (const entry of days) {
-    const availability = await resolveDay(db, organization, instructorId, entry.day);
+    const availability = resolveFrom(layers, organization, instructorId, entry.day);
     const needed = entry.durationMinutes * 60_000;
+    const starts = columns.map(
+      (column) => resolveCivil(entry.day, column.value, timezone).instant,
+    );
     rows.push({
       weekday: entry.weekday,
       day: entry.day,
       durationMinutes: entry.durationMinutes,
-      free: columns.map((column) => {
-        const start = resolveCivil(entry.day, column.value, timezone).instant;
-        return availability.windows.some((window) =>
+      free: starts.map((start) =>
+        availability.windows.some((window) =>
           windowContains(window, start, new Date(start.getTime() + needed)),
-        );
-      }),
+        ),
+      ),
+      taken: starts.map((start) =>
+        overlapsBusy(booked, start, new Date(start.getTime() + needed)),
+      ),
       closedReason: availability.closedReason,
     });
   }

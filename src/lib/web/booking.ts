@@ -14,6 +14,7 @@
 
 import { DeliveryType } from "@/generated/prisma/enums";
 import {
+  type BusyByInstructor,
   type Candidate,
   type DayGrid,
   type DayOpenings,
@@ -22,6 +23,7 @@ import {
   openings,
   weekdayGrid,
 } from "@/lib/availability";
+import { busyIntervals } from "@/lib/conflicts";
 import type { Db } from "@/lib/db";
 import {
   MAX_OCCURRENCES_PER_SERIES,
@@ -37,7 +39,7 @@ import { Permission } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
 import { deliveryMeta } from "@/lib/presentation";
-import { type CivilDate, type CivilTime, civilDate } from "@/lib/time";
+import { type CivilDate, type CivilTime, addDays, civilDate, resolveCivil } from "@/lib/time";
 import type { OrganizationRecord } from "@/lib/web/session";
 
 /** How many days the "which day" list shows, and how far it will extend. */
@@ -165,6 +167,19 @@ export interface SerialisedWeekPlan {
      * and light none, which is the truth: the select below still shows 9:15.
      */
     startTime: CivilTime;
+    /**
+     * Which quarters of this weekday are already booked, on the date the row
+     * resolved to, flattened in column order.
+     *
+     * Unlike the day grid's, this does not take the quarter away. The row
+     * stands for a weekday across a whole run, and a clash on the first
+     * Wednesday costs that one occurrence rather than the time itself — so it
+     * is marked and still offered, and Preview stays the authority on which
+     * occurrences actually clash. Carried per row where `free` is not,
+     * because "already teaching" is a fact about a real date this table can
+     * state, and "outside declared hours" is an overridable conflict it cannot.
+     */
+    taken: boolean[];
     closedReason: string | null;
   }[];
   /**
@@ -198,6 +213,12 @@ export interface SerialisedGrid {
     email: string;
     initials: string;
     free: boolean[];
+    /**
+     * Which columns this person is not free for *because they are already
+     * booked*, rather than because they do not work then. Two different things
+     * to be told, and two different fixes — another time, or another person.
+     */
+    taken: boolean[];
     closedReason: string | null;
   }[];
   anyOpen: boolean;
@@ -289,8 +310,11 @@ function serialiseWeekPlan(
   // from its first column, which is the one on the hour.
   //
   // `grid.rows[].free` is deliberately not carried across. Every quarter is
-  // drawn the same, so a hundred booleans a row would be a hundred booleans
-  // nothing reads — `anyOpen` below is all the table has left to say.
+  // offered whatever the declared hours say, so a hundred booleans a row would
+  // be a hundred booleans nothing reads — `anyOpen` below is all that survives
+  // of it. `taken` *is* carried, because that one is not about declared hours:
+  // it says the instructor is already teaching then, which is a fact about a
+  // real date rather than a rule this table could enforce.
   const columns: WeekPlanHour[] = [];
   let currentHour: string | null = null;
   for (const column of grid.columns) {
@@ -313,6 +337,7 @@ function serialiseWeekPlan(
       dayLabel: dayLabel(row.day),
       durationMinutes: row.durationMinutes,
       startTime: chosen.find((day) => day.weekday === row.weekday)?.startTime ?? "",
+      taken: row.taken,
       closedReason: row.closedReason,
     })),
     anyOpen: grid.rows.some((row) => row.free.some(Boolean)),
@@ -391,15 +416,39 @@ export async function availabilityContext(
   let suggestions: DayGrid | null = null;
   let weekPlan: WeekdayGrid | null = null;
 
+  /**
+   * What each candidate already has booked over the span this state draws.
+   *
+   * Fetched here and handed down rather than looked up inside the grid, so the
+   * whole block costs one statement for it however many rows and columns are
+   * drawn. Declared hours say when somebody works; this says when they are
+   * already spoken for, and a table that knew only the first would offer times
+   * the write refuses outright.
+   */
+  const bookedOver = async (
+    people: readonly Candidate[],
+    from: CivilDate,
+    days: number,
+  ): Promise<BusyByInstructor> =>
+    busyIntervals(
+      db,
+      organization,
+      people.map((person) => person.id),
+      resolveCivil(from, "00:00", zone).instant,
+      resolveCivil(addDays(from, days), "00:00", zone).instant,
+    );
+
   if (day !== null && selected !== null && repeatDays.length > 0) {
     // One row per weekday the run falls on, resolved forward from the session
-    // date so no row is a date that has already passed.
+    // date so no row is a date that has already passed. Seven days covers every
+    // row, whichever weekdays the run names.
     weekPlan = await weekdayGrid(db, organization, selected.id, repeatDays, {
       from: day,
       fromTime: WEEKPLAN_START,
       timezone: zone,
       columns: WEEKPLAN_COLUMNS,
       stepMinutes: WEEKPLAN_STEP_MINUTES,
+      busy: await bookedOver([selected], day, 7),
     });
   } else if (day !== null && selected !== null) {
     suggestions = await dayGrid(db, organization, [selected], {
@@ -409,15 +458,18 @@ export async function availabilityContext(
       timezone: zone,
       columns: SUGGESTION_COLUMNS,
       stepMinutes: SUGGESTION_STEP_MINUTES,
+      busy: await bookedOver([selected], day, 1),
     });
   } else if (day !== null) {
-    grid = await dayGrid(db, organization, instructors.slice(0, MAX_GRID_INSTRUCTORS), {
+    const shown = instructors.slice(0, MAX_GRID_INSTRUCTORS);
+    grid = await dayGrid(db, organization, shown, {
       day,
       fromTime,
       durationMinutes,
       timezone: zone,
       columns: GRID_COLUMNS,
       stepMinutes: GRID_STEP_MINUTES,
+      busy: await bookedOver(shown, day, 1),
     });
   }
 
@@ -447,6 +499,7 @@ export async function availabilityContext(
               start: civilDate(new Date(), zone),
               days: matrixDays,
               durationMinutes,
+              busy: await bookedOver(shortlist, civilDate(new Date(), zone), matrixDays),
             }),
           )
         : [],

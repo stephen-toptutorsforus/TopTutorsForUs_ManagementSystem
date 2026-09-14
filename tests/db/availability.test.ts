@@ -10,14 +10,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "@/generated/prisma/client";
+import { DeliveryType } from "@/generated/prisma/enums";
 import {
+  dayGrid,
   isAvailable,
   matrix,
+  openings,
   organizationOffDays,
   resolveDay,
+  resolveRange,
   weekdayGrid,
 } from "@/lib/availability";
-import { dateToDb, resolveCivil, timeToDb, toZone } from "@/lib/time";
+import { busyIntervals } from "@/lib/conflicts";
+import { addDays, dateToDb, resolveCivil, timeToDb, toZone } from "@/lib/time";
 
 import {
   makeOrganization,
@@ -82,6 +87,40 @@ describeDb("availability", () => {
   /** 2026-06-01 is a Monday, well away from either DST change. */
   const MONDAY = "2026-06-01";
   const at = (day: string, time: string) => resolveCivil(day, time, NY).instant;
+
+  /** A booking that holds its slot, for the cases about what is already taken. */
+  async function book(
+    day: string,
+    from: string,
+    to: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return db.sessionOccurrence.create({
+      data: {
+        ref: newRef("ses"),
+        organizationId: org.id,
+        title: "Fractions review",
+        deliveryType: DeliveryType.EXTERNAL_LINK,
+        scheduledStart: at(day, from),
+        scheduledEnd: at(day, to),
+        timezone: NY,
+        status: "SCHEDULED",
+        instructorId: instructor.id,
+        ...overrides,
+      },
+    });
+  }
+
+  /** Every booking the given span could contain, as the grids ask for it. */
+  const bookedOver = (from: string, days: number) =>
+    busyIntervals(db, org, [instructor.id], at(from, "00:00"), at(addDays(from, days), "00:00"));
+
+  const candidate = () => ({
+    id: instructor.id,
+    ref: "usr_grid",
+    firstName: "Imani",
+    lastName: "Okafor",
+  });
 
   describe("the weekly rule", () => {
     it("produces a window in the instructor's own zone", async () => {
@@ -583,6 +622,214 @@ describeDb("availability", () => {
       // Both days are open at the clock times the header names, which is what
       // an instant-based comparison would have got wrong for one of them.
       for (const row of grid.rows) expect(row.free).toEqual([true, true]);
+    });
+  });
+  // --- One rule, fed two ways ------------------------------------------------
+  //
+  // `resolveDay` and `resolveRange` exist so that a grid drawn for many people
+  // over many days costs five statements instead of five per person per day.
+  // They must not become two answers. These are the tripwire for that: the same
+  // question, asked both ways, across every layer this module has.
+
+  describe("the bulk resolver", () => {
+    it("agrees with the single-day resolver across every layer", async () => {
+      await openWeekdays("08:00", "20:00");
+      await declare("mon", "09:00", "17:00");
+      await declare("tue", "10:00", "12:00");
+      await declare("wed", "09:00", "17:00");
+      await declare("thu", "09:00", "17:00");
+      // A dated exception on the Tuesday, time off across the Wednesday
+      // afternoon, and a closure on the Thursday: one of each, so a
+      // disagreement anywhere in the chain shows up here.
+      await db.availabilityException.create({
+        data: {
+          ref: newRef("ave"),
+          organizationId: org.id,
+          instructorId: instructor.id,
+          day: dateToDb("2026-06-02"),
+          isAvailable: true,
+          startTime: timeToDb("13:00"),
+          endTime: timeToDb("15:00"),
+          timezone: NY,
+        },
+      });
+      await db.timeOff.create({
+        data: {
+          ref: newRef("tof"),
+          organizationId: org.id,
+          instructorId: instructor.id,
+          startsAt: at("2026-06-03", "13:00"),
+          endsAt: at("2026-06-03", "23:00"),
+          reason: "away",
+        },
+      });
+      await db.offDay.create({
+        data: { organizationId: org.id, day: dateToDb("2026-06-04"), label: "Founders Day" },
+      });
+
+      const bulk = await resolveRange(db, org, [instructor.id], MONDAY, 7);
+
+      for (let offset = 0; offset < 7; offset += 1) {
+        const day = addDays(MONDAY, offset);
+        const one = await resolveDay(db, org, instructor.id, day);
+        const many = bulk.get(`${instructor.id}|${day}`)!;
+
+        expect(many.closedReason, day).toBe(one.closedReason);
+        expect(
+          many.windows.map((window) => [window.start.toISOString(), window.end.toISOString()]),
+          day,
+        ).toEqual(
+          one.windows.map((window) => [window.start.toISOString(), window.end.toISOString()]),
+        );
+      }
+    });
+
+    it("costs no more statements for many people than for one", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "17:00");
+
+      const people = [instructor.id];
+      for (let extra = 0; extra < 4; extra += 1) {
+        people.push((await makeUser(db, org.id)).id);
+      }
+
+      // Five people over twenty-eight days against one person over one day.
+      // The old shape resolved once per pair; this asserts the cost no longer
+      // moves with either dimension.
+      const wide = await resolveRange(db, org, people, MONDAY, 28);
+      const narrow = await resolveRange(db, org, [instructor.id], MONDAY, 1);
+
+      expect(wide.size).toBe(people.length * 28);
+      expect(narrow.size).toBe(1);
+    });
+  });
+
+  // --- What is already booked ------------------------------------------------
+
+  describe("times already taken", () => {
+    it("does not offer a start time the instructor is already teaching at", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "17:00");
+      await book(MONDAY, "10:00", "11:00");
+
+      const grid = await dayGrid(db, org, [candidate()], {
+        day: MONDAY,
+        fromTime: "09:00",
+        durationMinutes: 60,
+        timezone: NY,
+        columns: 4,
+        stepMinutes: 60,
+      });
+      const withBusy = await dayGrid(db, org, [candidate()], {
+        day: MONDAY,
+        fromTime: "09:00",
+        durationMinutes: 60,
+        timezone: NY,
+        columns: 4,
+        stepMinutes: 60,
+        busy: await bookedOver(MONDAY, 1),
+      });
+
+      // Declared hours alone say all four are free. They are not: 10 AM is
+      // taken, and `instructor_busy` is a conflict no override clears.
+      expect(grid.rows[0]!.free).toEqual([true, true, true, true]);
+      expect(withBusy.rows[0]!.free).toEqual([true, false, true, true]);
+      // And the table can say *why*, which is a different fix from "he does
+      // not work then".
+      expect(withBusy.rows[0]!.taken).toEqual([false, true, false, false]);
+    });
+
+    it("releases the slot when the session is cancelled", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "17:00");
+      await book(MONDAY, "10:00", "11:00", { status: "CANCELLED" });
+
+      const grid = await dayGrid(db, org, [candidate()], {
+        day: MONDAY,
+        fromTime: "09:00",
+        durationMinutes: 60,
+        timezone: NY,
+        columns: 4,
+        stepMinutes: 60,
+        busy: await bookedOver(MONDAY, 1),
+      });
+
+      // The same status list the exclusion constraint's predicate uses. A
+      // cancelled session holds nothing — in the grid, the preview and the
+      // database alike.
+      expect(grid.rows[0]!.free).toEqual([true, true, true, true]);
+    });
+
+    it("does not count another tenant's booking", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "17:00");
+      const other = await makeOrganization(db, { timezone: NY });
+      const elsewhere = await makeUser(db, other.id);
+      await book(MONDAY, "10:00", "11:00", {
+        organizationId: other.id,
+        instructorId: elsewhere.id,
+      });
+
+      const grid = await dayGrid(db, org, [candidate()], {
+        day: MONDAY,
+        fromTime: "09:00",
+        durationMinutes: 60,
+        timezone: NY,
+        columns: 4,
+        stepMinutes: 60,
+        busy: await bookedOver(MONDAY, 1),
+      });
+
+      expect(grid.rows[0]!.free).toEqual([true, true, true, true]);
+    });
+
+    it("drops a day from the list when its only long-enough window is taken", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "11:00");
+      // Two hours declared, half an hour taken out of the middle: nothing 90
+      // minutes long survives, so this is not a day to look at.
+      await book(MONDAY, "09:45", "10:15");
+
+      const before = await openings(db, org, [candidate()], {
+        start: MONDAY,
+        days: 1,
+        durationMinutes: 90,
+      });
+      const after = await openings(db, org, [candidate()], {
+        start: MONDAY,
+        days: 1,
+        durationMinutes: 90,
+        busy: await bookedOver(MONDAY, 1),
+      });
+
+      expect(before[0]!.total).toBe(1);
+      expect(after[0]!.total).toBe(0);
+    });
+
+    it("marks a booked quarter on the repeat table without withdrawing it", async () => {
+      await openWeekdays();
+      await declare("mon", "09:00", "17:00");
+      await book(MONDAY, "10:00", "11:00");
+
+      const grid = await weekdayGrid(
+        db,
+        org,
+        instructor.id,
+        [{ weekday: "mon", durationMinutes: 60 }],
+        {
+          from: MONDAY,
+          fromTime: "09:00",
+          timezone: NY,
+          columns: 3,
+          stepMinutes: 60,
+          busy: await bookedOver(MONDAY, 7),
+        },
+      );
+
+      // The row stands for every Monday of the run, so a clash on this one
+      // costs that occurrence rather than the time. Marked, and still offered.
+      expect(grid.rows[0]!.taken).toEqual([false, true, false]);
+      expect(grid.rows[0]!.free).toEqual([true, true, true]);
     });
   });
 });

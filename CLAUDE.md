@@ -204,8 +204,39 @@ questions get asked.** No date: which day. A date but no instructor: who, on
 that day. Both: when, with that person. And a run repeating on several
 weekdays with one instructor: when, on *each* of those weekdays — one row per
 weekday, resolved forward from the session date so no row is a date already
-past, and each row tested against its own weekday's length. All four read
-`resolveDay`, so none of them can disagree with the one that led there.
+past, and each row tested against its own weekday's length. All four resolve
+through `resolveFrom`, so none of them can disagree with the one that led
+there.
+
+**One rule, fed two ways.** `resolveFrom` is that rule and the only copy of it:
+rows in, one instructor's windows on one date out, narrowest layer last.
+`resolveDay` fetches one instructor's one day and calls it; `fetchLayers` and
+`resolveRange` fetch every instructor's whole range in the same five statements
+and call it for each pair. A grid drawn for a hundred people over fifty-six days
+therefore costs five statements rather than twenty-eight thousand — measured,
+both ways, before and after. Two implementations would eventually disagree, and
+the screen that showed a time would stop matching the preview that refused it,
+so the way to add a caller is to feed the rule rather than to restate it. The
+one price is that `resolveDay` no longer returns early on a closed day: up to
+four extra statements when the organization is shut, and none on a day somebody
+is teaching, which is the case that used to run in a loop.
+
+**Declared hours are not the whole answer, and the two grids differ on what to
+do about that.** When somebody *works* comes from the availability layers; when
+they are *already spoken for* comes from `busyIntervals`, which lives in
+`lib/conflicts.ts` because its filter is `BLOCKING_STATUSES` and that list
+belongs beside the check whose predicate the database mirrors. Availability
+takes the answer as an argument, so the two modules still point one way.
+
+The day grids are about one specific date, so a clash there is exactly the clash
+preview will report and `INSTRUCTOR_BUSY` is a kind no override clears: the
+column stops being free. The repeat table is about *weekdays*, each resolved
+forward to one representative date, so a clash there costs one occurrence of the
+run rather than the time itself: the quarter is marked and still offered. Both
+report it as `taken` alongside `free` rather than folding it in, because "does
+not work then" and "is already teaching then" are fixed differently — another
+time, or another person — and a table that said only "no" would send people to
+the wrong one. It is said in a glyph and in words as well as in the fill.
 
 The first three anchor their columns to the time already in the form, because
 there the person is picking one time on one date and eight columns of 3 a.m.
@@ -218,16 +249,22 @@ which weekday happened to sort first. The quarter a row is set to is drawn as
 pressed, including where the instructor is not free at it: that is where the
 row stands, and hiding it is worst exactly when it matters.
 
-Every quarter of it is on offer, and every quarter is drawn alike.
-`outside_availability` is an *overridable* conflict rather than a refusal — the
-service lets a run be booked outside declared hours by somebody permitted to
-override — and the Start time select has always offered the whole day, so a
-table that refused, or that shaded as though it might, would be claiming a rule
-that does not exist. This one state of the block is therefore a picker and not
-a narrowing: what the declared hours are is said by the line under the table
-for a day with none, and by Preview for a time outside them. The per-quarter
-answer is not serialised at all, because nothing would read it — `anyOpen` is
-what survives of it.
+Every quarter of it is on offer as far as *declared hours* go, and declared
+hours shade nothing there. `outside_availability` is an *overridable* conflict
+rather than a refusal — the service lets a run be booked outside declared hours
+by somebody permitted to override — and the Start time select has always offered
+the whole day, so a table that refused, or that shaded as though it might, would
+be claiming a rule that does not exist. What the declared hours are is said by
+the line under the table for a day with none, and by Preview for a time outside
+them. The per-quarter `free` answer is therefore not serialised at all, because
+nothing would read it — `anyOpen` is what survives of it.
+
+`taken` is serialised, because it is not that kind of answer. It says the
+instructor is already teaching then, on a real date, which is a fact rather than
+a rule this table could enforce — and the person choosing should see it before
+Preview does. It still does not withdraw the quarter, for the reason above: the
+row stands for every Monday of the run, and refusing the time because of one of
+them would be refusing the other fifty-two.
 
 Its resolution and its layout are deliberately different numbers. Every other
 time control on the form offers quarter hours, so a table that could only set a
@@ -286,6 +323,17 @@ server-rendered markup the component does not own. It costs no second query:
 `calendarRange` already returns the instructor, the students, the location and
 the series position, so the dialog cannot show anything the page was not
 already allowed to show.
+
+**Which of the four is offered is asked per session.** A permission answers
+"may this person cancel sessions"; only `availableActions` answers "may they
+cancel *this* one", which additionally depends on its status. Deciding once for
+the page from a broad permission was offering an administrator "Cancel session"
+on a completed one — right permission, wrong answer, and a promise the write
+then refuses. "Edit Series" tests `edit_series` alone: `canEditSeries` refuses a
+session with no series before it consults the permission, so it is the whole
+answer, and the display label `seriesPosition` is not a second test — it is null
+for a session that has a series but no index, and gating a control on a display
+field is the same mistake in a smaller place.
 
 **Reading and writing are two screens.** `/sessions/[ref]` reads;
 `/sessions/[ref]/edit` writes. That is what lets the modal offer "Session
@@ -383,13 +431,14 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-525 tests — 274 pure, 251 database-backed — plus 386 browser tests and
+538 tests — 280 pure, 258 database-backed — plus 386 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The reference still has more tests than this does (509 against 431), and the
-difference is almost entirely its HTML assertions: it tests rendered markup
+The counts have since crossed — 538 here against the reference's 509 — but the
+shape of the gap has not, and the raw number was never the point. The
+difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
 template structure rather than behaviour. Where such a test was about a rule,
 the rule was ported and tested at the layer that owns it — the directory's role

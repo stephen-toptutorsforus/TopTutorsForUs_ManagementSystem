@@ -1346,6 +1346,12 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   text-align: center; color: var(--ink-400);
 }
 .daygrid tbody td.is-free { background: var(--good-surface); color: var(--good-text); }
+/* Three answers, not two. A cell is free, or the instructor does not work then,
+   or the instructor is already teaching then — and the third is the one worth
+   telling apart, because it is fixed by choosing another person rather than
+   another time. Its own ground rather than a shade of the empty one, and a
+   glyph beside it, so the distinction does not rest on colour. */
+.daygrid tbody td.is-taken { background: var(--warn-surface); color: var(--warn-text); }
 
 
 /* --- The live availability region -----------------------------------------
@@ -1443,6 +1449,13 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   cursor: pointer;
 }
 .quartercell:hover { background: var(--brand-100); color: var(--brand-700); }
+/* Already teaching then, on the date this row resolved to — marked, and still
+   pressable. The row stands for a weekday across a whole run, so a clash here
+   costs one occurrence rather than the time itself, and refusing the quarter
+   would be refusing the other fifty-two. Declared hours still shade nothing:
+   that is an overridable conflict, and this is not. */
+.quartercell.is-taken { background: var(--warn-surface); color: var(--warn-text); }
+.quartercell.is-taken:hover { background: var(--brand-100); color: var(--brand-700); }
 /* A start time is an instant, not a span, so it is drawn as a line at the edge
    the session begins on rather than as a filled quarter. The same inset rule
    the selected navigation row uses. Filling the quarter said "these fifteen
@@ -1521,6 +1534,8 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 /* Unavailable is a span, never a button: nothing to tab to, nothing to press,
    no dead control that looks like it should do something. */
 .timecell.is-out { color: var(--ink-400); font-weight: 500; }
+/* Also a span, for the same reason: an hour already booked is not a control. */
+.timecell.is-busy { color: var(--warn-text); font-weight: 600; }
 
 
 /* --- Week and day: the time grid -----------------------------------------

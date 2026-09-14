@@ -28,7 +28,7 @@
 
 import { DeliveryType, SessionStatus } from "@/generated/prisma/enums";
 import type { Db } from "@/lib/db";
-import { isAvailable, type OrganizationRef } from "@/lib/availability";
+import { type BusyByInstructor, isAvailable, type OrganizationRef } from "@/lib/availability";
 
 /**
  * Which statuses hold their slot. One decision, made once, because the
@@ -89,6 +89,52 @@ export function overridableConflicts(report: ConflictReport): Conflict[] {
 
 export function summary(report: ConflictReport): string {
   return report.conflicts.map((conflict) => conflict.message).join("; ");
+}
+
+/**
+ * When each instructor is already booked, over a range — one statement.
+ *
+ * The booking screen's grids need this alongside declared hours: a time that
+ * reads free and is already taken is a promise the write cannot keep, because
+ * `INSTRUCTOR_BUSY` is one of the kinds no override clears and the exclusion
+ * constraint refuses it outright.
+ *
+ * It lives here rather than in `lib/availability.ts` because the filter is
+ * `BLOCKING_STATUSES` and that list belongs beside the check whose predicate
+ * the database mirrors. Availability takes the answer as an argument, which
+ * also keeps the two modules pointing one way.
+ */
+export async function busyIntervals(
+  db: Db,
+  organization: OrganizationRef,
+  instructorIds: readonly bigint[],
+  from: Date,
+  to: Date,
+): Promise<BusyByInstructor> {
+  const ids = [...new Set(instructorIds)];
+  const out: BusyByInstructor = new Map();
+  if (ids.length === 0) return out;
+
+  const rows = await db.sessionOccurrence.findMany({
+    where: {
+      organizationId: organization.id,
+      archivedAt: null,
+      instructorId: { in: ids },
+      status: { in: BLOCKING_STATUSES },
+      scheduledStart: { lt: to },
+      scheduledEnd: { gt: from },
+    },
+    select: { instructorId: true, scheduledStart: true, scheduledEnd: true },
+  });
+
+  for (const row of rows) {
+    if (row.instructorId === null) continue;
+    const key = String(row.instructorId);
+    const list = out.get(key) ?? [];
+    list.push({ start: row.scheduledStart, end: row.scheduledEnd });
+    out.set(key, list);
+  }
+  return out;
 }
 
 export interface CheckInput {

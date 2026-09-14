@@ -69,6 +69,12 @@ const PAIRS = [
   ["chosen start time, closed", "--brand-700", "--ink-050", 4.5],
   ["chosen start marker", "--brand-600", "--good-surface", 3.0],
   ["chosen start marker, closed", "--brand-600", "--ink-050", 3.0],
+  // A slot the instructor is already teaching in. The grids draw it on its own
+  // ground so "does not work then" and "is teaching then" are not one answer,
+  // and the chosen marker has to stay legible over it as well.
+  ["already booked cell", "--warn-text", "--warn-surface", 4.5],
+  ["chosen start time, booked", "--brand-700", "--warn-surface", 4.5],
+  ["chosen start marker, booked", "--brand-600", "--warn-surface", 3.0],
   ["focus outline", "--brand-500", "--paper", 3.0],
   ["open filter menu border", "--brand-600", "--paper", 3.0],
   ["body text", "--ink-900", "--paper", 4.5],
