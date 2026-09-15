@@ -20,6 +20,7 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:scenarios": "tsx prisma/scenarios.ts",
     "postinstall": "prisma generate",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

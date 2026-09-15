@@ -28,6 +28,30 @@ async function peek(page: Page): Promise<void> {
 }
 
 /**
+ * Open the modal for a session that actually offers the named control.
+ *
+ * The first chip on the calendar used to do, because every seeded session was
+ * scheduled. Since `prisma/scenarios.ts` there are cancelled and completed ones
+ * too, and those correctly offer neither editing nor cancelling — so a test
+ * that reached for the first chip started failing on the feature working. What
+ * it wants is a session in a state that admits the action, and finding one is
+ * the honest way to say so.
+ */
+async function peekOffering(page: Page, control: string): Promise<void> {
+  await page.goto("/calendar");
+  const chips = page.locator("[data-session-ref]:visible");
+  const count = await chips.count();
+  for (let index = 0; index < Math.min(count, 30); index += 1) {
+    await chips.nth(index).click();
+    await expect(dialog(page)).toBeVisible();
+    if (await dialog(page).getByRole("link", { name: control }).isVisible()) return;
+    await page.locator(".peek-actions").getByRole("button", { name: "Close" }).click();
+    await expect(dialog(page)).toBeHidden();
+  }
+  throw new Error(`no session on the calendar offers "${control}"`);
+}
+
+/**
  * Open the modal for the first session whose status matches, if there is one.
  *
  * Find-or-skip rather than fixture-or-fail: the seed has no completed or
@@ -117,14 +141,14 @@ test.describe("the session modal", () => {
   });
 
   test("goes to the editing screen for this one session", async ({ page }) => {
-    await peek(page);
+    await peekOffering(page, "Edit Session");
     await dialog(page).getByRole("link", { name: "Edit Session" }).click();
     await expect(page).toHaveURL(/\/sessions\/ses\w+\/edit$/);
     await expect(page.locator("h1")).toContainText("Edit");
   });
 
   test("opens the cancel panel when that is what was pressed", async ({ page }) => {
-    await peek(page);
+    await peekOffering(page, "Cancel session");
     await dialog(page).getByRole("link", { name: "Cancel session" }).click();
     await expect(page).toHaveURL(/\/edit\?do=cancel$/);
 

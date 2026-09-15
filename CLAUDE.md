@@ -477,6 +477,23 @@ node tools/contrast.mjs   # palette against WCAG, both colour schemes
 node tools/snapshot-html.mjs <dir>   # every route's markup, for diffing
 ```
 
+`db:scenarios` is additive and idempotent. Every session it writes carries the
+program **Coverage scenarios**, which is how it knows whether it has run, how
+`--refresh` finds exactly its own rows, and how anybody reading a session's page
+can tell fixture from real. It deletes nothing else, and it books its own
+instructors and students rather than the seeded ones — the first version used
+the seeded cast and failed on its first run against a real database, because a
+session booked by hand already held the hour. That refusal was correct;
+depending on it was not.
+
+Everything in it is built by `plan()` and `createFromPlan()` and then moved into
+state by the same service functions the screens call, so each row is one the
+product could have produced and has an audit trail behind it. Two states cannot
+be reached that way and the file says so where it makes them: `IN_PROGRESS`,
+which nothing sets until the Phase 4 classroom does, and `REQUESTED`, which
+needs `booking.require_approval` on and a parent — the setting is turned on for
+those two bookings and put back afterwards.
+
 `snapshot-html.mjs` is the check for any change that is meant to move markup
 without altering it. Snapshot before, snapshot after, diff: a refactor that
 only relocates markup produces nothing. It redacts the CSRF token — which must
@@ -497,7 +514,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-545 tests — 287 pure, 258 database-backed — plus 404 browser tests and
+545 tests — 287 pure, 258 database-backed — plus 416 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
@@ -511,15 +528,28 @@ the rule was ported and tested at the layer that owns it — the directory's rol
 filter is asked of `listPeople`, not of a `<table>`. Where it was about markup,
 it was not ported, and the equivalent has not been written.
 
-One known gap:
+One known gap, now half closed:
 
 - `seeds/scenarios.py` — the reference's awkward-case fixtures for manual
   testing. `prisma/seed.ts` ports the main seed (two tenants, people, programs,
-  availability, groups, closures, example bookings) but not those extras.
+  availability, groups, closures, example bookings). `prisma/scenarios.ts`
+  (`npm run db:scenarios`) adds the awkward cases for **calendar and booking**:
+  all eight session states, a day that overflows a month cell, sessions at both
+  ends of the clock, a series with a detached occurrence and a cancelled one,
+  and instructors whose availability is missing, narrow, excepted or blocked.
+  The equivalent for the other screens is still unwritten.
 
 The browser tests in `e2e/` close the other. They are deliberately structural —
 a heading, a landmark, a status code, a width — so that design work does not
-invalidate them weekly. They sign in by reusing `scripts/mint-session.ts`, and
+invalidate them weekly. They must also not pin *how much* data the seed happens
+to make: five of them asserted the number three, which was how many instructors
+the seed created, and broke the day the scenario fixture added its own. What
+they were about — the list narrows when a student is chosen and comes back when
+they are removed — is true at any roster size, and they now measure the
+unnarrowed list rather than reciting it. Two others took the first session on
+the calendar and assumed it could be edited, which stopped being true once
+there were cancelled ones to find; they now look for a session that offers the
+control. They sign in by reusing `scripts/mint-session.ts`, and
 they run as three people, because two tenants are what make an isolation bug
 visible.
 

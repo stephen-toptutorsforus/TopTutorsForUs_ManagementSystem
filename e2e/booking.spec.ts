@@ -48,6 +48,22 @@ async function expectOffered(page: Page, count: number): Promise<void> {
   await expect(page.locator("#instructor_ref option")).toHaveCount(count + 1);
 }
 
+/**
+ * How many the screen offers with no roster chosen.
+ *
+ * Measured rather than written down. These cases used to assert the number 3,
+ * which was how many instructors the seed happened to create — so the day
+ * `prisma/scenarios.ts` added three more for its own cases, five of them failed
+ * without anything being wrong. The property they are about is that the list
+ * *narrows* and then *comes back*, and that is true whatever the roster is.
+ */
+async function everyoneOffered(page: Page): Promise<string[]> {
+  await settled(page);
+  const all = await offered(page);
+  expect(all.length, "the seed should offer at least one instructor").toBeGreaterThan(0);
+  return all;
+}
+
 /** Wait until the block has been asked and answered. */
 async function settled(page: Page): Promise<void> {
   await page.waitForTimeout(REFRESH_DELAY_MS + 60);
@@ -69,8 +85,7 @@ test.describe("the instructor list follows the roster", () => {
   test("narrows when a student is added and comes back when they are removed", async ({
     page,
   }) => {
-    await expectOffered(page, 3);
-    const everyone = await offered(page);
+    const everyone = await everyoneOffered(page);
     await expect(page.locator("#instructor-hint")).toContainText("Every instructor here");
 
     // The seed assigns each student to one instructor in turn, so exactly one
@@ -86,20 +101,22 @@ test.describe("the instructor list follows the roster", () => {
     // assertion above.
     await page.getByRole("button", { name: `Remove ${STUDENT}` }).click();
     await settled(page);
-    await expectOffered(page, 3);
+    await expectOffered(page, everyone.length);
     expect(await offered(page)).toEqual(everyone);
   });
 
   test("the availability grid is drawn from the same narrowed list", async ({ page }) => {
     // The defect this rules out: a dropdown that filters while the grid beside
     // it still offers a Select button for somebody the preview would refuse.
+    const everyone = await everyoneOffered(page);
     const today = await page.locator("#start_date").getAttribute("min");
     await page.locator("#start_date").fill(today!);
     await settled(page);
     await expect(page.locator(".daygrid")).toBeVisible();
-    const before = await page.locator(".daygrid tbody tr").count();
 
-    expect(before).toBe(3);
+    // One row per instructor the dropdown offers — that is the whole assertion,
+    // and it holds at any roster size.
+    await expect(page.locator(".daygrid tbody tr")).toHaveCount(everyone.length);
     await addStudent(page, STUDENT);
 
     await expect(page.locator(".daygrid tbody tr")).toHaveCount(1);
@@ -113,6 +130,7 @@ test.describe("the instructor list follows the roster", () => {
   }) => {
     // The distinction the copy exists for: nobody *may* teach them, which is
     // not the same as nobody being free, and sends you somewhere else to fix it.
+    const everyone = await everyoneOffered(page);
     await page.locator("#group_ref").selectOption({ label: GROUP });
     await settled(page);
 
@@ -124,7 +142,7 @@ test.describe("the instructor list follows the roster", () => {
 
     await page.locator("#group_ref").selectOption({ label: "No group" });
     await settled(page);
-    await expectOffered(page, 3);
+    await expectOffered(page, everyone.length);
   });
 
   test("clears an instructor the new roster does not allow, and says why", async ({
@@ -132,12 +150,13 @@ test.describe("the instructor list follows the roster", () => {
   }) => {
     // Find out who is eligible for this student, then deliberately choose
     // somebody else before adding them.
+    const everyone = await everyoneOffered(page);
     await addStudent(page, STUDENT);
     await expectOffered(page, 1);
     const eligible = await offered(page);
     await page.getByRole("button", { name: `Remove ${STUDENT}` }).click();
     await settled(page);
-    await expectOffered(page, 3);
+    await expectOffered(page, everyone.length);
 
     const ineligible = (await offered(page)).find((who) => !eligible.includes(who))!;
     expect(ineligible, "the seed should leave at least one").toBeTruthy();
@@ -250,8 +269,11 @@ test.describe("the backend is the one that refuses", () => {
 
     await page.getByRole("button", { name: `Remove ${STUDENT}` }).click();
     await settled(page);
-    await expectOffered(page, 3);
-    const ineligible = (await offered(page)).find((who) => !eligible.includes(who))!;
+    const everyone = await everyoneOffered(page);
+    expect(everyone.length, "there must be somebody this student may not have").toBeGreaterThan(
+      eligible.length,
+    );
+    const ineligible = everyone.find((who) => !eligible.includes(who))!;
     await page.locator("#instructor_ref").selectOption({ label: ineligible });
 
     await page.locator("#title").fill("Algebra practice");
