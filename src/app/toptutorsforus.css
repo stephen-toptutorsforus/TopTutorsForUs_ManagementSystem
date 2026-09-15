@@ -1270,6 +1270,10 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
   font-family: var(--mono); font-size: 0.78rem; color: var(--ink-500);
   overflow-wrap: anywhere;
 }
+/* Try again first, leaving second. A dropped connection is the common case and
+   the cheapest fix should be the nearest one, so they sit in that order and
+   wrap rather than shrink on a narrow screen. */
+.refusal .error-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 
 /* What a record *is*, under its title: status, delivery, which of a series it
    is, and any warning that it was edited alone or booked over a clash. A row
