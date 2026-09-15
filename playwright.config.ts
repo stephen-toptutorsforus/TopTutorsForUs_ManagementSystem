@@ -24,6 +24,15 @@ import { defineConfig, devices } from "@playwright/test";
  * nothing about the code on disk. A build is slower to start once and honest
  * about what it is testing. The separate port also means a dev server can stay
  * running while these do.
+ *
+ * `reuseExistingServer` used to be on outside CI, and reintroduced the very
+ * hazard the paragraph above exists to avoid — from the other direction. A
+ * server left running from an earlier command is a *build* from an earlier
+ * command, so an edit made since is not under test and the suite goes green on
+ * code that is no longer there. That is not theoretical: a whole afternoon's
+ * runs passed that way here, and the change they were supposedly proving turned
+ * out to break seven tests the moment the port was cleared. Rebuilding costs
+ * about fifteen seconds. A green suite that proves nothing costs more.
  */
 const PORT = process.env.E2E_PORT ?? "3100";
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
@@ -61,7 +70,7 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx next start -p ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 420_000,
   },
 });
