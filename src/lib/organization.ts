@@ -50,6 +50,12 @@ export const DEFAULT_SETTINGS: JsonObject = {
     max_future_days: 180,
     cancellation_window_hours: 24,
     billable_cancellation_charges: true,
+    // What the booking form's Billable box starts as. `true` is what the screen
+    // used to force with a hidden field, so a tenant that configures nothing
+    // books exactly as it did before; a tenant that charges for nothing sets it
+    // false and every new session is free, with the box still there for the
+    // exception.
+    billable_default: true,
     // When true, a student or parent booking arrives as a request for an
     // instructor or administrator to decide.
     require_approval: false,

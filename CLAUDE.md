@@ -122,6 +122,20 @@ whose days differ is already expressible. The series row keeps the pattern's
 first day as its default — it is a template, not a second copy of the
 schedule.
 
+**Billable is asked, not decided.** It was a hidden field forced on, so every
+session booked on that screen was billable and could only be changed afterwards
+— a financially significant field nobody could answer at the moment they were
+answering everything else. The box now starts from
+`booking.billable_default`, which ships `true`, so a tenant that configures
+nothing books exactly as before and a tenant that charges for nothing sets it
+false once. No new permission: anyone who may book may say, and the change is
+already in the audited field list.
+
+Its hidden companion `billable_asked` is not decoration. An unticked checkbox
+sends nothing, so its absence from the echo cannot otherwise be told from a
+first paint, and the tenant default would silently retick the box somebody had
+just cleared.
+
 **A room is a record, not a sentence.** The booking screen sends `locationId`
 for an in-person session, and the free text beside it is directions — a floor, an
 entrance — rather than a substitute. Only the id can feed the room exclusion

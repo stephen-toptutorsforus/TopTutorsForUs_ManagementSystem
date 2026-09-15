@@ -28,6 +28,7 @@ import type { Db } from "@/lib/db";
 import {
   MAX_OCCURRENCES_PER_SERIES,
   deliveryAvailable,
+  settingBoolean,
   settingNumber,
   settingsReader,
 } from "@/lib/organization";
@@ -242,6 +243,12 @@ export interface BookingContext extends AvailabilityBlock {
   durations: number[];
   deliveryTypes: { value: string; label: string }[];
   canOverride: boolean;
+  /**
+   * What the Billable box starts as. The screen used to force it on with a
+   * hidden field, so this ships `true` and a tenant that configures nothing
+   * books exactly as before.
+   */
+  billableDefault: boolean;
 }
 
 const DOW_LONG = [
@@ -613,5 +620,6 @@ export async function bookingContext(
       { value: "external_link", label: deliveryMeta(DeliveryType.EXTERNAL_LINK).choice },
     ],
     canOverride: principal.has(Permission.SESSION_OVERRIDE_CONFLICT),
+    billableDefault: settingBoolean(reader, ["booking", "billable_default"], true),
   };
 }

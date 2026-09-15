@@ -28,7 +28,7 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Field, Hint, Notice, OptionSelect, TrashIcon } from "@/components/ui";
+import { Button, Card, Choice, Field, Hint, Notice, OptionSelect, TrashIcon } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { noEligibleInstructors } from "@/lib/web/eligibilityCopy";
 import {
@@ -194,6 +194,15 @@ export function BookingForm({
   const [matrixDays, setMatrixDays] = useState(context.matrixDays);
 
   const value = (name: string, fallback = "") => values[name] ?? fallback;
+  /**
+   * Whether the Billable box is ticked.
+   *
+   * An unticked checkbox sends nothing, so its absence from the echo cannot be
+   * told from a first paint — which is why the hidden marker beside it is sent
+   * whether or not the box is ticked. Before the first submission the tenant's
+   * default decides; after it, what the person actually left the box at does.
+   */
+  const billable = values.billable_asked ? value("billable") === "on" : context.billableDefault;
   const chosenDate = value("start_date");
   // Snapped onto the clock's grid, so a time stored off it — by the API, or by
   // a tenant whose step used to differ — still selects something rather than
@@ -384,12 +393,29 @@ export function BookingForm({
                 options={context.deliveryTypes}
               />
                         </Field>
-            {/* The Billable switch is not offered here, but the value still has to
-                be sent: the action reads `billable == "on"`, so simply dropping
-                the control would book every new session as non-billable — a
-                silent change to what gets charged, from a change to a form.
-                Billable is still editable on the session itself. */}
-            <input type="hidden" name="billable" value="on" />
+            {/* Asked, rather than decided. This was a hidden field forced on,
+                so every session booked here was billable and could only be
+                changed afterwards — a financially significant field nobody
+                could answer at the point they were answering everything else.
+
+                It starts from the tenant's own default rather than from `true`,
+                which is what lets an organization that charges for nothing book
+                free sessions without unticking a box each time. The default
+                ships as `true`, so a tenant that configures nothing books
+                exactly as it did before.
+
+                Keyed on its own value for the same reason every other field
+                here is: `useActionState` resets the form after each action, and
+                a checkbox restored to a stale `defaultChecked` would flip back
+                under whoever had just changed it. */}
+            <Choice
+              type="checkbox"
+              name="billable"
+              label="Billable"
+              defaultChecked={billable}
+              key={`billable-${billable}`}
+            />
+            <input type="hidden" name="billable_asked" value="1" />
           </div>
 
           {/* Only some of these belong to the chosen type. All of them stay in
