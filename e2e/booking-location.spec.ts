@@ -16,7 +16,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { statePath } from "./accounts";
-import { LANE, bookableDate } from "./slots";
+import { LANE, bookableDate, pickFreeTime, previewAndBook } from "./slots";
 
 test.use({ storageState: statePath("admin") });
 
@@ -76,13 +76,13 @@ test.describe("where an in-person session is", () => {
     await page.locator("#instructor_ref").selectOption(await instructor.getAttribute("value") ?? "");
     await settled(page);
 
-    // Preview first: the confirm button only exists once there is a plan, which
-    // is the guarantee that what is written is what was shown.
-    await page.getByRole("button", { name: /^Preview session/ }).click();
-    const book = page.getByRole("button", { name: /^Book Session/ });
-    await expect(book).toBeEnabled();
-    await book.click();
-    await expect(page).toHaveURL(/\/sessions\/ses/);
+    // A time the grid says is free, rather than the form's default. Since the
+    // grid learned about existing bookings it cannot offer one already taken,
+    // which is what stops this test colliding with every earlier run of it.
+    await pickFreeTime(page);
+    await settled(page);
+
+    await previewAndBook(page);
 
     // The room by name, which can only come from a `locationId` the form
     // actually sent — the free text is shown in its own field beside it.

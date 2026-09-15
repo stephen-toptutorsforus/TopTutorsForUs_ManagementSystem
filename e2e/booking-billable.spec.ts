@@ -15,7 +15,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { statePath } from "./accounts";
-import { LANE, bookableDate } from "./slots";
+import { LANE, bookableDate, pickFreeTime, previewAndBook } from "./slots";
 
 test.use({ storageState: statePath("admin") });
 
@@ -78,13 +78,17 @@ test.describe("billable", () => {
       .selectOption((await instructor.getAttribute("value")) ?? "");
     await settled(page);
 
+    // A time the grid says is free, rather than the form's default. Since the
+    // grid learned about existing bookings it cannot offer one already taken,
+    // which is what stops this test colliding with every earlier run of it.
+    await pickFreeTime(page);
+    await settled(page);
+
+    // Last, so the refresh that follows picking a time cannot reset it — the
+    // very thing the case above this one is about.
     await page.locator('input[name="billable"]').uncheck();
 
-    await page.getByRole("button", { name: /^Preview session/ }).click();
-    const book = page.getByRole("button", { name: /^Book Session/ });
-    await expect(book).toBeEnabled();
-    await book.click();
-    await expect(page).toHaveURL(/\/sessions\/ses/);
+    await previewAndBook(page);
 
     // The record, not the form: the field's own value, found through the label
     // beside it rather than by looking for "No" anywhere on the page.
