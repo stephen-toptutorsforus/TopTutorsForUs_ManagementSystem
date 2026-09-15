@@ -389,6 +389,50 @@ the first field of the card, so the header draws only the way out, at the front
 of the row. The `h1` stays and stops being visible — it is the page's only one,
 and a screen reader's heading list and the skip link are built from it.
 
+**A page that cannot render is still a page.** `(app)/forbidden.tsx`,
+`(app)/not-found.tsx` and `(app)/error.tsx` render inside the shell, because
+`not-found`, `forbidden` and `unauthorized` are per-segment file types and the
+navigation is the way out — it is already the list of pages this person may
+open. The root `not-found.tsx` and `error.tsx` keep the centred card, which is
+right where there is no session and so no navigation to keep, and
+`global-error.tsx` carries its own `<html>` and imports the stylesheet itself,
+because the import in the root layout is exactly what did not run.
+
+There is no `unauthorized.tsx`: `interrupt()` redirects a signed-out visitor to
+the sign-in form rather than calling `unauthorized()`, and the file would
+advertise a path that does not exist.
+
+An error page shows `error.digest` and nothing else from the error. Next already
+replaces a server error's message with a generic string, and a *client* error's
+message is real text that on this product can quote a record — no student's
+information reaches a screen, and an error page is a screen. The digest is
+opaque and is the thing worth quoting to whoever has the logs.
+
+**"Try again" needs `router.refresh()` in front of `reset()`.** `reset()` alone
+re-renders the boundary's children, which recovers a component that failed in
+the browser and does nothing at all for a server component: the failed result is
+already in the router cache, so replaying it returns the same error. Measured on
+a route rigged to fail exactly once — the button left the error page up. Both
+calls now sit in one transition. `global-error` reloads instead, because
+refreshing a tree that never assembled is not a recovery. `ErrorCard` holds no
+hooks and `useRetry` beside it does, which is what lets the card render in the
+pure suite where no app router is mounted.
+
+**There is deliberately no `loading.tsx`, and it is not an oversight.** A
+skeleton was built, worked, and was removed. A `loading.tsx` at the `(app)` level
+creates a Suspense boundary, so Next streams the shell immediately and commits
+the 200 — and a page that then calls `forbidden()` or `notFound()` still renders
+the refusal but can no longer set its status. Every refusal answered 200.
+Measured: seven smoke assertions that had passed for months began failing, and
+passed again the moment the file was removed.
+
+Status codes are load-bearing here rather than decorative. Tenant isolation is
+*expressed* as "404, never 403", the JSON API and the HTML transport are asserted
+to agree, and anything watching this service reads the code before it reads the
+page. A skeleton is worth less than that. Getting both would mean each route's
+permission check moving into a layout above its own boundary, which is a
+restructure and not a styling change.
+
 **Back, from a record, is read from the referrer.** A session is reached from
 six screens, so a fixed destination is wrong five times out of six, and
 `router.back()` would cost the page its script-free behaviour.
@@ -453,12 +497,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-538 tests — 280 pure, 258 database-backed — plus 386 browser tests and
+545 tests — 287 pure, 258 database-backed — plus 404 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 538 here against the reference's 509 — but the
+The counts have since crossed — 545 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
