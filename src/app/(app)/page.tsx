@@ -154,7 +154,7 @@ export default async function DashboardPage() {
                   <td data-label="Instructor">{row.instructorName ?? "—"}</td>
                   <td data-label="Students">{row.studentNames.join(", ") || "—"}</td>
                   <td data-label="Status">
-                    <StatusBadge status={row.session.status} />
+                    <StatusBadge status={row.session.status} endsAt={row.session.scheduledEnd} />
                   </td>
                 </tr>
               ))}

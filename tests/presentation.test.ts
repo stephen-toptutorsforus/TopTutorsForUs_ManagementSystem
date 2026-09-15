@@ -20,6 +20,9 @@ import {
   ROLE_FILTER_ORDER,
   STATUS_FILTER_ORDER,
   USER_STATUS_FILTER_ORDER,
+  attendeesLabel,
+  sessionStateMeta,
+  statusMeta,
   userStatusMeta,
 } from "@/lib/presentation";
 import { narrows, ticked } from "@/lib/selection";
@@ -132,5 +135,108 @@ describe("what an account state is drawn as", () => {
     for (const status of Object.values(UserStatus)) {
       expect(userStatusMeta(status).label, status).not.toBe("Unknown");
     }
+  });
+});
+
+describe("what a session's state is, as against what its status says", () => {
+  const HOUR = 3_600_000;
+  const now = new Date("2026-09-09T18:00:00Z");
+  const past = new Date(now.getTime() - HOUR);
+  const future = new Date(now.getTime() + HOUR);
+
+  it("calls a scheduled session whose hour has gone Incomplete", () => {
+    // The complaint this answers: a past session went on saying it was going to
+    // happen. Nothing moves it on, because completing and missing are things a
+    // person does, so the status is right about the record and wrong about the
+    // world.
+    const meta = sessionStateMeta(SessionStatus.SCHEDULED, past, now);
+
+    expect(meta.label).toBe("Incomplete");
+    expect(meta.icon).toBe("–");
+  });
+
+  it("says the same of a rescheduled one", () => {
+    // Moved and then not held is exactly as unresolved as never moved.
+    expect(sessionStateMeta(SessionStatus.RESCHEDULED, past, now).label).toBe("Incomplete");
+  });
+
+  it("leaves a session that has not happened yet alone", () => {
+    expect(sessionStateMeta(SessionStatus.SCHEDULED, future, now).label).toBe("Scheduled");
+  });
+
+  it("does not overwrite a state somebody has already settled", () => {
+    // Each of these has had its outcome recorded. Calling any of them
+    // incomplete would be replacing an answer with a question.
+    for (const status of [
+      SessionStatus.COMPLETED,
+      SessionStatus.MISSED,
+      SessionStatus.CANCELLED,
+      SessionStatus.REJECTED,
+    ]) {
+      expect(sessionStateMeta(status, past, now).label, status).toBe(
+        statusMeta(status).label,
+      );
+    }
+  });
+
+  it("leaves a request that has gone past as a request", () => {
+    // It wants a *decision*, not an outcome, and the two are fixed with
+    // different controls. "Incomplete" would send somebody to the wrong one.
+    expect(sessionStateMeta(SessionStatus.REQUESTED, past, now).label).toBe("Requested");
+  });
+
+  it("leaves in-progress alone, because nothing sets it yet", () => {
+    // What a stale one means is the classroom integration's question to answer
+    // when it exists, not this function's to guess at.
+    expect(sessionStateMeta(SessionStatus.IN_PROGRESS, past, now).label).toBe("In progress");
+  });
+
+  it("draws Incomplete as an absence rather than an alarm", () => {
+    // Muted, not bad: nothing has gone wrong, something is merely unfinished.
+    expect(sessionStateMeta(SessionStatus.SCHEDULED, past, now).tone).toBe("muted");
+  });
+});
+
+describe("who a session is, in the space a chip has", () => {
+  it("names both when there are two of them", () => {
+    expect(attendeesLabel("Marguerite Okonjo", ["Ada Fenwick"], "Algebra")).toBe(
+      "Marguerite Okonjo & Ada Fenwick",
+    );
+  });
+
+  it("counts students once there are more than one", () => {
+    // Four names in a chip is four truncated names. The count scans, and the
+    // dialog has the list for when it matters.
+    expect(
+      attendeesLabel("Marguerite Okonjo", ["Ada", "Bruno", "Chiara"], "Algebra"),
+    ).toBe("3 students & Marguerite Okonjo");
+  });
+
+  it("falls back to the title when there is nobody to name", () => {
+    // Better a title than an empty chip: something has to be clickable.
+    expect(attendeesLabel(null, [], "Algebra")).toBe("Algebra");
+  });
+
+  it("names whichever half exists", () => {
+    expect(attendeesLabel("Marguerite Okonjo", [], "Algebra")).toBe("Marguerite Okonjo");
+    expect(attendeesLabel(null, ["Ada Fenwick"], "Algebra")).toBe("Ada Fenwick");
+    expect(attendeesLabel(null, ["Ada", "Bruno"], "Algebra")).toBe("2 students");
+  });
+
+  it("shortens to given names when a chip is sharing its column", () => {
+    // Two sessions in one hour halve the width, and a month cell is narrow at
+    // any time. "Marguerite Okonjo & Ada Fenwick" arrives as "Marguer…", which
+    // names nobody; this is the form that fits.
+    expect(attendeesLabel("Marguerite Okonjo", ["Ada Fenwick"], "Algebra", true)).toBe(
+      "Marguerite & Ada",
+    );
+    expect(
+      attendeesLabel("Marguerite Okonjo", ["Ada F", "Bruno S"], "Algebra", true),
+    ).toBe("2 students & Marguerite");
+  });
+
+  it("ignores blanks rather than counting them", () => {
+    // A participant row with no name on it is a data problem, not a student.
+    expect(attendeesLabel("  ", ["Ada Fenwick", "  "], "Algebra")).toBe("Ada Fenwick");
   });
 });

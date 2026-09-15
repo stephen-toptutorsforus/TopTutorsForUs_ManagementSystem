@@ -18,11 +18,19 @@ test.use({ storageState: statePath("admin") });
 
 const dialog = (page: Page) => page.getByRole("dialog");
 
-/** Open the modal for the first session on the calendar. */
+/**
+ * Open the modal for the first session on the calendar.
+ *
+ * Visible ones only, the same rule the helpers below follow. A month cell
+ * renders every session it holds and hides the ones past its limit behind
+ * "+N more", and below the breakpoint the days either side of the month are
+ * hidden outright — so the first chip in the document is quite often one no
+ * pointer can reach.
+ */
 async function peek(page: Page): Promise<void> {
   await page.goto("/calendar");
-  const chip = page.locator("[data-session-ref]").first();
-  await expect(chip).toBeAttached();
+  const chip = page.locator("[data-session-ref]:visible").first();
+  await expect(chip).toBeVisible();
   await chip.click();
   await expect(dialog(page)).toBeVisible();
 }
@@ -201,8 +209,8 @@ test.describe("with no script", () => {
 
   test("a session on the calendar is still a link to its page", async ({ page }) => {
     await page.goto("/calendar");
-    const chip = page.locator("[data-session-ref]").first();
-    await expect(chip).toBeAttached();
+    const chip = page.locator("[data-session-ref]:visible").first();
+    await expect(chip).toBeVisible();
     await chip.click();
     await expect(page).toHaveURL(/\/sessions\/ses/);
   });

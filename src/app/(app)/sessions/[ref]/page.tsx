@@ -194,7 +194,7 @@ export default async function SessionDetailPage({
           <div className="form-row">
             <Fact label="Type">{deliveryMeta(session.deliveryType).label}</Fact>
             <Fact label="Status">
-              <StatusBadge status={session.status} />
+              <StatusBadge status={session.status} endsAt={session.scheduledEnd} />
             </Fact>
           </div>
 

@@ -334,6 +334,53 @@ panel away as well as the number. The rule there is to re-seed only from an
 echo the server actually *changed* — a clamp — and to ignore one it merely
 repeated.
 
+**A status is what was recorded; a state is what is true.** Nothing moves a
+session on when its hour passes — completing and missing are things a person
+does — so a scheduled session went on claiming it was going to happen long after
+it had not. `sessionStateMeta` draws a scheduled or rescheduled session whose end
+has gone by as **Incomplete**, muted, glyph `–`.
+
+Derived, not stored, and that is the whole design. Nothing is written, so there
+is no migration and no scheduler; the column still says `SCHEDULED`, so the
+action panel still offers Complete and Missed; and "nobody recorded an outcome"
+stays distinguishable from "somebody recorded that it was incomplete", which a
+stored status would have merged. It is therefore not in the filter menu either:
+that menu offers what the database holds.
+
+Only those two states. A `REQUESTED` session that has gone past wants a
+*decision* rather than an outcome, and the two are fixed with different
+controls. `IN_PROGRESS` is left alone because nothing sets it until the
+classroom does. `StatusBadge` takes an optional `endsAt` and asks
+`sessionStateMeta` when it has one, so there is one implementation and the
+badge and the chip cannot disagree. The calendar's dialog resolves it on the
+server: comparing the browser's clock against a server-rendered page is a
+hydration mismatch waiting for the two to differ by a second.
+
+**A chip names people, not the session.** A month of "Weekly maths clinic" says
+nothing about which one is whose; who is teaching and who is being taught is
+what somebody scanning a week is looking for. `attendeesLabel` names one student
+and counts several — four names in a chip is four truncated names — and takes a
+`brief` form, given names only, for the places where the space is genuinely
+short: every month cell, and any week-grid chip sharing its column. The title
+keeps its place in the accessible name and in the dialog, so nothing is lost,
+only moved.
+
+**The time grid labels every half hour and rules every quarter.** It used to
+label only whole hours, on the grounds that more was noise; that was wrong twice
+over, because a session at half past had no line to be read against and the
+half-hour labels were already being computed and thrown away. The quarter line
+is a `::after` inside the half-hour row rather than a row of its own: rows are
+grid rows, each distinct one needs its own class in the stylesheet — `style-src
+'self'` forbids inline positions — and ninety-six row classes to draw a line is
+the wrong trade when the row already knows its height.
+
+**Overlapping sessions have always had lanes.** `assignLanes` splits a cluster
+across the column and the stylesheet declares `.lane-N-of-M`, and none of it had
+ever been on screen, because nothing in the seed overlapped. It takes two
+instructors: an instructor cannot overlap themselves, since `instructor_busy` is
+absolute and a GiST constraint refuses it. `prisma/scenarios.ts` now books that
+case, exactly and partially.
+
 **The calendar answers "what is this" without leaving the month.** Pressing a
 session opens a dialog over it: the facts, and the four things somebody wants
 next — close, cancel, edit this session, edit the series. The chips stay real
@@ -514,12 +561,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-545 tests — 287 pure, 258 database-backed — plus 416 browser tests and
+558 tests — 300 pure, 258 database-backed — plus 424 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 545 here against the reference's 509 — but the
+The counts have since crossed — 558 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
@@ -549,7 +596,10 @@ they are removed — is true at any roster size, and they now measure the
 unnarrowed list rather than reciting it. Two others took the first session on
 the calendar and assumed it could be edited, which stopped being true once
 there were cancelled ones to find; they now look for a session that offers the
-control. They sign in by reusing `scripts/mint-session.ts`, and
+control. And three took the first chip in the *document* rather than the first
+one on screen: a month cell renders every session it holds and hides the ones
+past its limit, and below the breakpoint the neighbouring months go too, so
+`:visible` is not optional in a calendar. They sign in by reusing `scripts/mint-session.ts`, and
 they run as three people, because two tenants are what make an isolation bug
 visible.
 

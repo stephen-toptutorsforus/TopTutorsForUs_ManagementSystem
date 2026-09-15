@@ -113,7 +113,7 @@ export default async function SeriesDetailPage({
                     )}
                   </td>
                   <td data-label="Status">
-                    <StatusBadge status={row.session.status} />
+                    <StatusBadge status={row.session.status} endsAt={row.session.scheduledEnd} />
                   </td>
                   <td data-label="Attendance">{percent(row.attendanceRate)}</td>
                   <td data-label="Actual length">

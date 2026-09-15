@@ -31,7 +31,12 @@ import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters"
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
 import { StateFields } from "@/components/ui/StateFields";
 import { readScreenState } from "@/lib/web/filterState";
-import { deliveryMeta, statusFilterOptions, statusMeta } from "@/lib/presentation";
+import {
+  attendeesLabel,
+  deliveryMeta,
+  sessionStateMeta,
+  statusFilterOptions,
+} from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import { Moment } from "@/lib/rendering";
 import { calendarRange, parseFilters, type SessionRow } from "@/lib/services/sessionQuery";
@@ -81,10 +86,24 @@ function monthOf(day: CivilDate): string {
   return day.slice(0, 7);
 }
 
-/** One event chip in a month cell or a list. */
-function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boolean }) {
+/**
+ * One event chip in a month cell.
+ *
+ * Given names, always: a month is seven columns wide and the chip has room for
+ * about a dozen characters after the time, so "Marguerite Okonjo & Ada Fenwick"
+ * arrived as "Marguer…" and named nobody. "Marguerite & Ada" fits, and the
+ * dialog has the rest.
+ *
+ * (It used to take a `showNames` option. Nothing ever passed it, and a dead
+ * switch on a shared component is a decision somebody has to re-derive before
+ * they can rule it out.)
+ */
+function EventLink({ row }: { row: SessionRow }) {
   const session = row.session;
-  const meta = statusMeta(session.status);
+  // What the session *is*, which for a scheduled one whose hour has gone by is
+  // Incomplete rather than Scheduled. Nothing in the database changed to make
+  // that true — see `sessionStateMeta`.
+  const meta = sessionStateMeta(session.status, session.scheduledEnd);
   const moment = new Moment(session.scheduledStart, session.timezone);
 
   return (
@@ -97,14 +116,7 @@ function EventLink({ row, showNames = true }: { row: SessionRow; showNames?: boo
     >
       <span className="cal-time">{moment.time}</span>
       <span className="cal-label">
-        {showNames && (row.instructorName || row.studentNames.length > 0) ? (
-          <>
-            {row.instructorName ?? "—"}
-            {row.studentNames.length > 0 && <> &amp; {row.studentNames.join(", ")}</>}
-          </>
-        ) : (
-          session.title
-        )}
+        {attendeesLabel(row.instructorName, row.studentNames, session.title, true)}
       </span>
       {/* The status travels as a glyph and, for a screen reader, as a word —
           the swatch colour is never the only signal. */}
@@ -483,7 +495,7 @@ export default async function CalendarPage() {
                             {row.studentNames.join(", ") || "—"}
                           </td>
                           <td data-label="Status">
-                            <StatusBadge status={row.session.status} />
+                            <StatusBadge status={row.session.status} endsAt={row.session.scheduledEnd} />
                           </td>
                         </tr>
                       ))}

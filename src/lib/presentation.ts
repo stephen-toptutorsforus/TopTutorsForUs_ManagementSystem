@@ -107,6 +107,104 @@ export function statusMeta(status: SessionStatus): Badge {
   return STATUS_META[status] ?? UNKNOWN;
 }
 
+/**
+ * A session that was going to happen, has not, and nobody has said what became
+ * of it.
+ *
+ * Muted rather than bad: nothing has gone wrong yet, something is merely
+ * unfinished. The glyph is a dash for the same reason — an absence, not an
+ * alarm.
+ */
+export const INCOMPLETE: Badge = { label: "Incomplete", tone: "muted", icon: "–" };
+
+/**
+ * What a session's state **is**, which is not always what its status says.
+ *
+ * `complete` and `markMissed` are things a person does. Nothing moves a session
+ * on when its hour passes, so a scheduled session goes on claiming it is going
+ * to happen long after it has not — which is the one thing the record is
+ * certainly wrong about.
+ *
+ * So a scheduled or rescheduled session whose end has gone by is drawn as
+ * *Incomplete*. Nothing is written: the column still says `SCHEDULED`, the
+ * action panel still offers Complete and Missed, and "nobody recorded an
+ * outcome" stays distinguishable from "somebody recorded that it was
+ * incomplete" — which a stored status would have merged.
+ *
+ * Only those two states. A `REQUESTED` session that has gone past still wants a
+ * *decision* rather than an outcome, and calling it incomplete would send
+ * somebody hunting for a control that is not the one they need. `CANCELLED`,
+ * `REJECTED`, `COMPLETED` and `MISSED` are all settled already. `IN_PROGRESS`
+ * is left alone because nothing sets it until the classroom does, and what a
+ * stale one means is that integration's question to answer.
+ *
+ * `now` is a parameter so this is a pure function of its inputs. It is resolved
+ * on the server at every call site, including the calendar's dialog: comparing
+ * the browser's clock against a server-rendered page is a hydration mismatch
+ * waiting for the two to disagree by a second.
+ */
+export function sessionStateMeta(
+  status: SessionStatus,
+  scheduledEnd: Date,
+  now: Date = new Date(),
+): Badge {
+  const unsettled =
+    status === SessionStatus.SCHEDULED || status === SessionStatus.RESCHEDULED;
+  if (unsettled && scheduledEnd.getTime() < now.getTime()) return INCOMPLETE;
+  return statusMeta(status);
+}
+
+/**
+ * Who a session is, in the space a chip has.
+ *
+ * A calendar chip used to show the session's title, which is the least useful
+ * thing on it: a month of "Weekly maths clinic" says nothing about which one is
+ * whose. Who is teaching and who is being taught is what somebody scanning a
+ * week is looking for.
+ *
+ * One student is named, because with one there is room and the name is the
+ * point. Several are counted, because four names in a chip is four truncated
+ * names — and the modal has the list for when it matters. The instructor is
+ * always named: they are the one constant a coordinator scans down a column
+ * for.
+ *
+ * The order follows the question being asked. "Marguerite Okonjo & Ada
+ * Fenwick" reads as a pair; "3 students & Marguerite Okonjo" reads as a group
+ * and its teacher, and putting the count first is what makes it scan as one.
+ */
+export function attendeesLabel(
+  instructorName: string | null,
+  studentNames: readonly string[],
+  fallback: string,
+  /**
+   * Given names only, for a chip sharing its column with another.
+   *
+   * Two sessions in one hour halve the width available, and a full name in half
+   * a column is a name cut in the middle — "Margue…" identifies nobody. The
+   * caller knows how many lanes it is drawing into, so it can ask for the form
+   * that fits.
+   *
+   * Taking the first word is taking the given name *for this data*: these
+   * strings are built as `firstName lastName` by the query layer, so the split
+   * is undoing a join rather than guessing at the shape of a name. If that ever
+   * stops being how they are assembled, this has to stop too.
+   */
+  brief = false,
+): string {
+  const given = (name: string) => (brief ? (name.trim().split(/\s+/)[0] ?? name) : name);
+  const instructor = brief
+    ? given(instructorName ?? "")
+    : (instructorName?.trim() ?? "");
+  const students = studentNames.filter((name) => name.trim() !== "").map(given);
+
+  if (students.length === 0) return instructor || fallback;
+  if (instructor === "") {
+    return students.length === 1 ? students[0]! : `${students.length} students`;
+  }
+  if (students.length === 1) return `${instructor} & ${students[0]}`;
+  return `${students.length} students & ${instructor}`;
+}
+
 export function attendanceMeta(status: AttendanceStatus): Badge {
   return ATTENDANCE_META[status] ?? UNKNOWN;
 }

@@ -96,17 +96,32 @@ type Db = PrismaClient;
 // a fixture that is *accidentally* outside declared hours is noise. The two
 // cases that are deliberately outside it say so.
 
-/** `offset` days from today, moved forward off a weekend. */
-function weekdayFrom(today: CivilDate, offset: number): CivilDate {
-  let day = addDays(today, offset);
-  while (isoWeekday(day) > 5) day = addDays(day, 1);
+/**
+ * The `count`-th weekday after today.
+ *
+ * Counting weekdays rather than adding days and then sliding off the weekend,
+ * because sliding collapses: with a Wednesday today, +10 lands on Saturday and
+ * +12 on Monday, and both then slide to the *same* Monday. Two cases meant for
+ * different days landed on one, the second clashed with the first, and the
+ * script refused itself. Counting cannot do that — distinct counts are distinct
+ * days, which is the only property anything here needs from it.
+ */
+function weekdayFrom(today: CivilDate, count: number): CivilDate {
+  let day = today;
+  for (let left = count; left > 0; ) {
+    day = addDays(day, 1);
+    if (isoWeekday(day) <= 5) left -= 1;
+  }
   return day;
 }
 
-/** `offset` days *before* today, moved backward off a weekend. */
-function weekdayBefore(today: CivilDate, offset: number): CivilDate {
-  let day = addDays(today, -offset);
-  while (isoWeekday(day) > 5) day = addDays(day, -1);
+/** The `count`-th weekday before today, counted the same way and for the same reason. */
+function weekdayBefore(today: CivilDate, count: number): CivilDate {
+  let day = today;
+  for (let left = count; left > 0; ) {
+    day = addDays(day, -1);
+    if (isoWeekday(day) <= 5) left -= 1;
+  }
   return day;
 }
 
@@ -152,6 +167,7 @@ async function main(): Promise<void> {
 
   await theSevenStatuses(context);
   await theBusyDay(context);
+  await theSameHourTwice(context);
   await theEdgesOfTheDay(context);
   await theDeliveryTypes(context);
   await aSeriesWithHistory(context);
@@ -421,6 +437,19 @@ async function theSevenStatuses(context: Context): Promise<void> {
   // Scheduled — the one the ordinary seed already produces, here for comparison.
   await book(context, base(context, "Scheduled: algebra practice", weekdayFrom(today, 2), "10:00"));
 
+  // And the same status in the past, deliberately left alone. Nothing moves a
+  // session on when its hour passes — `complete` and `markMissed` are things a
+  // person does — so this one goes on saying it is going to happen long after
+  // it has not. The calendar draws it as *Incomplete* rather than Scheduled,
+  // which is worked out at render time from the end instant: see
+  // `sessionStateMeta`. The row itself still says SCHEDULED, and the action
+  // panel still offers Complete and Missed, which is the whole point of not
+  // writing it down.
+  await book(
+    context,
+    base(context, "Incomplete: nobody said what happened", weekdayBefore(today, 3), "15:00"),
+  );
+
   // Rescheduled. Booked, then moved — the status is what `reschedule` leaves
   // behind, so it cannot be arrived at any other way.
   const [moving] = await book(
@@ -562,6 +591,54 @@ async function theBusyDay(context: Context): Promise<void> {
       studentIds: [context.students[index % context.students.length]!.id],
     });
   }
+}
+
+// --- Case: more than one session in the same hour ----------------------------
+
+/**
+ * Sessions that overlap, so the week grid's lanes have something to draw.
+ *
+ * `assignLanes` has always split a cluster of overlapping sessions across the
+ * column, and the stylesheet has always declared `.lane-N-of-M` — but nothing
+ * in the seed or in the rest of this file ever overlapped, so it had never
+ * appeared on a screen. A feature nobody has seen work is a feature nobody
+ * knows is broken.
+ *
+ * It takes **two instructors**, and that is the interesting part: an instructor
+ * cannot overlap themselves, because `instructor_busy` is a conflict no
+ * override clears and a GiST exclusion constraint refuses it in the database.
+ * Two people teaching at once in the same column is the only way this happens,
+ * which is also why it is worth drawing rather than hiding.
+ */
+async function theSameHourTwice(context: Context): Promise<void> {
+  const day = weekdayFrom(context.today, 10);
+  const [first, second] = context.instructors;
+
+  // Exactly together: two lanes, side by side, neither hiding the other.
+  await book(context, {
+    ...base(context, "Overlap: at the same time as another", day, "10:00"),
+    instructorId: first!.id,
+    studentIds: [context.students[0]!.id],
+  });
+  await book(context, {
+    ...base(context, "Overlap: the other one", day, "10:00"),
+    instructorId: second!.id,
+    studentIds: [context.students[1]!.id],
+  });
+
+  // And a partial overlap, which is the case a naive implementation gets wrong:
+  // these two clash with each other but the second also runs past the first, so
+  // the cluster is decided by mutual overlap rather than by a shared start.
+  await book(context, {
+    ...base(context, "Overlap: starts on the half hour", day, "14:00"),
+    instructorId: first!.id,
+    studentIds: [context.students[0]!.id],
+  });
+  await book(context, {
+    ...base(context, "Overlap: runs past the first", day, "14:30"),
+    instructorId: second!.id,
+    studentIds: context.students.slice(1, 3).map((who) => who.id),
+  });
 }
 
 // --- Case: the two ends of the clock -----------------------------------------

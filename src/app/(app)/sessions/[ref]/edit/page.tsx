@@ -123,7 +123,7 @@ export default async function EditSessionPage({
           <div className="form-row">
             <Fact label="Title">{session.title}</Fact>
             <Fact label="Status">
-              <StatusBadge status={session.status} />
+              <StatusBadge status={session.status} endsAt={session.scheduledEnd} />
             </Fact>
           </div>
           <div className="form-row">

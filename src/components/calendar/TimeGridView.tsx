@@ -13,7 +13,7 @@
 import Link from "next/link";
 
 import { Card, EmptyState, VisuallyHidden } from "@/components/ui";
-import { statusMeta } from "@/lib/presentation";
+import { attendeesLabel, sessionStateMeta } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { type CivilDate, isoWeekday } from "@/lib/time";
 import { type TimeGrid, gridIsEmpty, positionClass } from "@/lib/timegrid";
@@ -82,7 +82,9 @@ export function TimeGridView({
 
           {/* Every slot rules a line across the columns, which is also what
               gives the grid its full height when a column happens to be empty.
-              Only the hours are labelled — a label every half hour is noise. */}
+              Each row is half an hour, and the stylesheet draws one more line
+              inside it, so the hour reads as four — the resolution sessions are
+              actually booked at. */}
           {grid.slots.map((slot) => (
             <div
               key={`line-${slot.row}`}
@@ -90,20 +92,39 @@ export function TimeGridView({
               aria-hidden="true"
             />
           ))}
-          {grid.slots
-            .filter((slot) => slot.isHour)
-            .map((slot) => (
-              <span key={`time-${slot.row}`} className={`tg-time r${slot.row}`} aria-hidden="true">
-                {slot.label}
-              </span>
-            ))}
+          {/* Every half hour is labelled, not only the whole ones. This used to
+              filter to `isHour` on the grounds that a label every half hour was
+              noise, which was wrong twice over: a session at half past has no
+              line to read against, and the labels were already being computed
+              and thrown away. The hour keeps the stronger weight, so the column
+              still scans as hours with halves inside them. */}
+          {grid.slots.map((slot) => (
+            <span
+              key={`time-${slot.row}`}
+              className={`tg-time r${slot.row} ${slot.isHour ? "is-hour" : ""}`}
+              aria-hidden="true"
+            >
+              {slot.label}
+            </span>
+          ))}
 
           {grid.columns.flatMap((column, columnIndex) =>
             column.placed.map((item) => {
               const session = item.row.session;
-              const meta = statusMeta(session.status);
+              // What it *is*: a scheduled session whose hour has gone by reads
+              // Incomplete, and nothing was written to make that so.
+              const meta = sessionStateMeta(session.status, session.scheduledEnd);
               const start = new Moment(session.scheduledStart, session.timezone);
               const end = new Moment(session.scheduledEnd, session.timezone);
+              // Given names only when this chip is sharing its column: two
+              // sessions in one hour halve the width, and a full name in half a
+              // column is a name cut in the middle.
+              const who = attendeesLabel(
+                item.row.instructorName,
+                item.row.studentNames,
+                session.title,
+                item.lanes > 1,
+              );
               return (
                 <Link
                   key={String(session.id)}
@@ -112,14 +133,16 @@ export function TimeGridView({
                   data-session-ref={session.ref}
                 >
                   <span className="tg-event-time">{start.time}</span>
-                  <span className="tg-event-title">{session.title}</span>
+                  {/* Who, not what it is called. A week of "Weekly maths
+                      clinic" says nothing about which one is whose, and who is
+                      teaching whom is what somebody scanning a column is
+                      looking for. The title is still in the accessible name
+                      below, and in the dialog. */}
+                  <span className="tg-event-title">{who}</span>
+                  {/* Room for the title only when the block is tall enough to
+                      hold a second line and is not sharing its column. */}
                   {item.span > 2 && item.lanes === 1 && (
-                    <span className="tg-event-who">
-                      {item.row.instructorName ?? "No instructor"}
-                      {item.row.studentNames.length > 0 && (
-                        <> · {item.row.studentNames.join(", ")}</>
-                      )}
-                    </span>
+                    <span className="tg-event-who">{session.title}</span>
                   )}
                   <span className={`tg-event-flag badge-${meta.tone}`} aria-hidden="true">
                     {meta.icon}

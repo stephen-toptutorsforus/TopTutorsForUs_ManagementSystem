@@ -12,7 +12,7 @@
  * follows.
  */
 
-import { durationWords } from "@/lib/presentation";
+import { durationWords, sessionStateMeta } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import type { SessionRow } from "@/lib/services/sessionQuery";
 
@@ -22,8 +22,16 @@ export interface PeekSession {
   description: string | null;
   /** `Online`, `In person` — the delivery type's own word. */
   deliveryLabel: string;
-  /** The session's own status, for the badge. */
-  status: string;
+  /**
+   * The session's state, already resolved.
+   *
+   * Not the raw status: a scheduled session whose hour has gone by reads
+   * *Incomplete*, and working that out means comparing against "now". The
+   * modal is a client component, so doing it there would compare the browser's
+   * clock against a server-rendered page and disagree with itself by a second
+   * now and then. Resolved here, where the page was rendered.
+   */
+  state: { label: string; tone: string; icon: string };
   /** `Thu 10 Sep 2026, 09:00 EDT`. */
   startLabel: string;
   /** `1 hour 15 minutes`. */
@@ -69,7 +77,7 @@ export function peekOf(
     title: session.title,
     description: session.description,
     deliveryLabel,
-    status: session.status,
+    state: sessionStateMeta(session.status, session.scheduledEnd),
     startLabel: start.full,
     durationLabel: durationWords(minutes),
     // Shown only to somebody already allowed to see this session, and never

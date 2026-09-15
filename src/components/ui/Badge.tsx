@@ -15,7 +15,13 @@ import type {
   SessionStatus,
   UserStatus,
 } from "@/generated/prisma/enums";
-import { attendanceMeta, deliveryMeta, statusMeta, userStatusMeta } from "@/lib/presentation";
+import {
+  attendanceMeta,
+  deliveryMeta,
+  sessionStateMeta,
+  statusMeta,
+  userStatusMeta,
+} from "@/lib/presentation";
 
 export type Tone = "good" | "warn" | "bad" | "info" | "muted" | "live" | "pending" | "moved";
 
@@ -61,8 +67,25 @@ export function UserStatusBadge({ status }: { status: UserStatus }) {
   );
 }
 
-export function StatusBadge({ status }: { status: SessionStatus }) {
-  const meta = statusMeta(status);
+/**
+ * A session's state.
+ *
+ * Given `endsAt` it draws what the session *is* rather than what its status
+ * column says — a scheduled session whose hour has gone by is Incomplete, and
+ * nothing in the database changed to make that true. See `sessionStateMeta`.
+ *
+ * Optional, so a caller with no end time in hand still gets the plain status
+ * rather than a compile error, and so the two cannot silently disagree: there
+ * is one implementation and this is the only way in.
+ */
+export function StatusBadge({
+  status,
+  endsAt,
+}: {
+  status: SessionStatus;
+  endsAt?: Date | null;
+}) {
+  const meta = endsAt ? sessionStateMeta(status, endsAt) : statusMeta(status);
   return (
     <Badge tone={meta.tone} glyph={meta.icon}>
       {meta.label}

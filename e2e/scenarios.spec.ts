@@ -221,3 +221,108 @@ test.describe("the booking screen, against awkward availability", () => {
     await expect(page.locator(".daygrid td.is-taken").first(), RUN_THE_FIXTURE).toBeVisible();
   });
 });
+
+/**
+ * Switch to the week grid and wait for it.
+ *
+ * The view switcher submits the calendar's own form — the view is state this
+ * screen holds rather than an address it goes to — so the click is a round trip
+ * and not a re-render. Asserting straight after it reads the month that is
+ * still on screen, which is how three of these first reported that the grid had
+ * no hour labels at all.
+ */
+async function weekView(page: Page): Promise<void> {
+  await page.goto("/calendar");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(page.locator(".cal-timegrid")).toBeVisible();
+}
+
+test.describe("what the calendar says about time", () => {
+  test("calls a past scheduled session Incomplete rather than Scheduled", async ({
+    page,
+  }) => {
+    // The fixture leaves one scheduled session in the past on purpose. Nothing
+    // moves a session on when its hour passes, so the row still says SCHEDULED
+    // — and the calendar has to say what is true rather than what is stored.
+    await page.goto("/calendar");
+    const labels = await page
+      .locator("[data-session-ref]")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("aria-label") ?? node.textContent ?? ""),
+      );
+    const mine = labels.find((label) => label.includes("nobody said what happened"));
+    expect(mine, RUN_THE_FIXTURE).toBeTruthy();
+    expect(mine).toContain("Incomplete");
+    expect(mine).not.toContain("Scheduled");
+  });
+
+  test("labels every half hour on the week grid, not only the hours", async ({
+    page,
+    viewport,
+  }) => {
+    test.skip((viewport?.width ?? 0) <= 720, "the gutter is narrower below 720px");
+
+    await weekView(page);
+
+    const labels = await page.locator(".tg-time").allTextContents();
+    // Forty-eight of them, one per half hour of the day. The grid used to draw
+    // twenty-four and throw the rest away, so a session at half past had no
+    // line to be read against.
+    expect(labels).toContain("9 AM");
+    expect(labels, "the half hours were being computed and discarded").toContain("9:30 AM");
+    expect(labels.length).toBe(48);
+  });
+});
+
+test.describe("more than one session in the same hour", () => {
+  test("draws them side by side instead of on top of each other", async ({
+    page,
+    viewport,
+  }) => {
+    test.skip((viewport?.width ?? 0) <= 720, "one day at a time below 720px");
+
+    await weekView(page);
+
+    // `assignLanes` has always done this and the stylesheet has always had the
+    // classes; nothing in the seed overlapped, so it had never been on screen.
+    // It takes two instructors — an instructor cannot overlap themselves,
+    // because the exclusion constraint refuses it.
+    const overlapping = page.locator(".tg-event[class*='lane-'][class*='-of-2']");
+    const found = await overlapping.count();
+    if (found === 0) {
+      // The fixture's overlapping day may fall in the following week.
+      await page.getByRole("button", { name: "Next week" }).click();
+    }
+    await expect(
+      page.locator(".tg-event[class*='-of-2']").first(),
+      RUN_THE_FIXTURE,
+    ).toBeVisible();
+
+    // Side by side means different left edges, which is the thing a lane class
+    // is for and the thing a test can see.
+    const boxes = await page.locator(".tg-event[class*='-of-2']").evaluateAll((nodes) =>
+      nodes.slice(0, 2).map((node) => Math.round(node.getBoundingClientRect().left)),
+    );
+    expect(new Set(boxes).size, "two lanes should not share an edge").toBe(boxes.length);
+  });
+
+  test("names people on a chip rather than the session's title", async ({
+    page,
+    viewport,
+  }) => {
+    test.skip((viewport?.width ?? 0) <= 720, "one day at a time below 720px");
+
+    await weekView(page);
+
+    // A week of "Weekly maths clinic" says nothing about which one is whose.
+    // Who is teaching and who is being taught is what somebody scanning a
+    // column is looking for; the title is still in the accessible name.
+    const titles = await page.locator(".tg-event-title").allTextContents();
+    expect(titles.length, RUN_THE_FIXTURE).toBeGreaterThan(0);
+    for (const title of titles) {
+      expect(title, "a chip should name people, not the session").not.toMatch(
+        /^(Busy day|Overlap:|Scheduled:|Series:)/,
+      );
+    }
+  });
+});

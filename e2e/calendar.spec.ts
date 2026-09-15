@@ -103,7 +103,10 @@ test("the grid opens on the working day, not at midnight", async ({ page }) => {
   const opened = await page.evaluate(() => {
     const pane = document.querySelector<HTMLElement>(".cal-timegrid-scroll")!;
     const top = pane.getBoundingClientRect().top;
-    const first = [...document.querySelectorAll<HTMLElement>(".tg-time")].find(
+    // Whole hours only. Every half hour is labelled now, so the first label
+    // below the fold is "6:30 AM" — the pane still opens exactly on seven, and
+    // asking about hours is asking the question this test is actually about.
+    const first = [...document.querySelectorAll<HTMLElement>(".tg-time.is-hour")].find(
       (label) => label.getBoundingClientRect().top >= top + 10,
     );
     return { scrollTop: Math.round(pane.scrollTop), firstHour: first?.textContent?.trim() };

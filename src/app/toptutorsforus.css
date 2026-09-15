@@ -1579,7 +1579,7 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 :not(.main-fill) > .cal-grid-card .cal-timegrid-scroll { max-height: 74vh; }
 
 .cal-timegrid {
-  --tg-slot: 26px;
+  --tg-slot: 30px;
   --tg-gutter: 72px;
   display: grid;
   grid-template-columns: var(--tg-gutter) repeat(7, minmax(122px, 1fr));
@@ -1613,18 +1613,38 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 
 /* Hour labels sit in the gutter, lifted so each reads as the line it marks. */
+/* Every half hour is labelled. The hour carries the weight and the half sits
+   back from it, so the column still reads as hours with halves inside them
+   rather than as forty-eight equal numbers. */
 .tg-time {
   grid-column: 1; z-index: 2;
   padding-right: 0.5rem;
   transform: translateY(-0.55em);
-  text-align: right; font-size: 0.74rem; color: var(--ink-500);
+  text-align: right; font-size: 0.68rem; color: var(--ink-400);
   background: var(--paper);
 }
+.tg-time.is-hour { font-size: 0.74rem; color: var(--ink-500); font-weight: 650; }
+
 .tg-line {
   grid-column: 2 / -1;
   border-top: 1px solid var(--ink-100);
+  position: relative;
 }
 .tg-line.is-hour { border-top-color: var(--ink-200); }
+/* The quarter, drawn inside the half-hour row rather than given a row of its
+   own. Sessions can start at quarter past, so an hour that reads as two has
+   nothing to line them up against — but rows are grid rows, and each distinct
+   one needs its own class in this file (see the note above `.r1`). Ninety-six
+   row classes and thirty-two span classes to draw a line is the wrong trade
+   when the row already knows its own height. */
+.tg-line::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  /* Dotted, and in the *hour* tone rather than the half-hour one. At `--ink-100`
+     it was there and invisible — the same colour as the solid line above it, so
+     nothing to tell them apart by. Dotting is what makes it read as the lightest
+     of the three; the colour is what makes it read at all. */
+  border-top: 1px dotted var(--ink-200);
+}
 
 .tg-colrule {
   grid-row: 2 / -1; z-index: 0;
@@ -1648,7 +1668,17 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 }
 .tg-event:hover { background: var(--paper); box-shadow: var(--shadow); color: var(--ink-900); }
 .tg-event-time { font-weight: 700; font-variant-numeric: tabular-nums; }
-.tg-event-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Two lines when there is room for two, rather than one line cut mid-name.
+   A chip sharing its column with another is half as wide, and on one line that
+   turned "Marguerite Okonjo & Ada Fenwick" into "Marg…" — which names nobody.
+   The block is usually taller than it is wide, so height is the axis with room
+   to spare. Short blocks still clip, which is what `overflow: hidden` on the
+   chip is for. */
+.tg-event-title {
+  font-weight: 600;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .tg-event-who { color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-event-flag { position: absolute; top: 3px; right: 4px; font-size: 0.68rem; }
 .tg-event { position: relative; }

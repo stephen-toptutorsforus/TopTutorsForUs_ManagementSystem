@@ -32,9 +32,12 @@ const backLink = (page: Page) => page.locator(".page-header-actions a").first();
 async function openSessionFrom(page: Page, path: string): Promise<void> {
   await page.goto(path);
   // `^=` on the ref prefix: `/sessions/export.csv` is also under `/sessions/`
-  // and downloading it is not opening a session.
-  const link = page.locator('a[href^="/sessions/ses"]').first();
-  await expect(link).toBeAttached();
+  // and downloading it is not opening a session. `:visible` because a month
+  // cell renders every session it holds and hides the ones past its limit,
+  // and below the breakpoint the neighbouring months go too — so the first
+  // match in the document is often one no pointer can reach.
+  const link = page.locator('a[href^="/sessions/ses"]:visible').first();
+  await expect(link).toBeVisible();
   await link.click();
 
   const dialog = page.getByRole("dialog");

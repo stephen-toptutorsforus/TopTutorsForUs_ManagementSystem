@@ -30,8 +30,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Button, LinkButton, Modal, StatusBadge, Tag } from "@/components/ui";
-import type { SessionStatus } from "@/generated/prisma/enums";
+import { Badge, Button, LinkButton, Modal, Tag } from "@/components/ui";
 import type { PeekSession } from "@/lib/web/sessionPeek";
 
 /** A click that means "open this in a new tab", not "tell me about it". */
@@ -97,7 +96,9 @@ export function SessionPeek({
 
               <dt>Status</dt>
               <dd>
-                <StatusBadge status={session.status as SessionStatus} />
+                <Badge tone={session.state.tone} glyph={session.state.icon}>
+                  {session.state.label}
+                </Badge>
               </dd>
 
               <dt>{session.placeIsLink ? "Online Classroom link" : "Location"}</dt>

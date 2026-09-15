@@ -82,7 +82,7 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
     case "invoice":
       return <>{session.invoiceRef ?? "—"}</>;
     case "status":
-      return <StatusBadge status={session.status} />;
+      return <StatusBadge status={session.status} endsAt={session.scheduledEnd} />;
     case "attendance":
       return <>{percent(row.attendanceRate)}</>;
     case "scheduled_start":
