@@ -1253,6 +1253,24 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 
 .card-padded { padding: 1.25rem 1.4rem 1.5rem; }
 
+/* A page that could not be shown: refused, missing, or broken. Narrow, because
+   it is one sentence and one way on, and a full-width card of mostly nothing
+   reads as a page that failed to load rather than one that is saying something.
+   Not centred in the viewport — the shell is still around it, and a card
+   floating in the middle of the content area would fight the sidebar it sits
+   beside. */
+.refusal { max-width: 34rem; }
+.refusal h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
+.refusal p { margin: 0 0 1rem; color: var(--ink-700); }
+.refusal p:last-child { margin-bottom: 0; }
+/* The digest an error page shows. Monospace because it exists to be copied or
+   read aloud to somebody with the logs open, and quiet because it means nothing
+   to the person reading it. */
+.refusal .digest {
+  font-family: var(--mono); font-size: 0.78rem; color: var(--ink-500);
+  overflow-wrap: anywhere;
+}
+
 /* What a record *is*, under its title: status, delivery, which of a series it
    is, and any warning that it was edited alone or booked over a clash. A row
    of badges rather than a sentence, because every one of them is also a word

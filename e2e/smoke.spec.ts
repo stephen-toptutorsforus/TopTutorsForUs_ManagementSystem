@@ -57,8 +57,26 @@ test.describe("a student", () => {
     test(`is refused ${route}`, async ({ page }) => {
       const response = await page.goto(route);
       expect(response?.status(), `${route} should answer 403`).toBe(403);
+      // Refused, and still inside the product. Without `(app)/forbidden.tsx`
+      // this was Next's built-in page: the right status on a bare document with
+      // no navigation, which reads as a broken application rather than a closed
+      // door — and the navigation is the way out, because it is already the
+      // list of pages this person may open.
+      await expectShell(page);
     });
   }
+
+  test("says no the same way wherever it happens", async ({ page }) => {
+    await page.goto(ADMIN_ONLY_ROUTES[0]!);
+
+    const main = page.locator("main");
+    await expect(main.getByRole("heading", { level: 1 })).toHaveText("No access");
+    await expect(main.getByRole("link", { name: /dashboard/i })).toBeVisible();
+    // One refusal, not one per route. Naming the page would need a
+    // route-to-words map kept in step with the routes — the thing that got a
+    // screen wrong when the Back button had one, and was deleted for it.
+    await expect(main).not.toContainText(ADMIN_ONLY_ROUTES[0]!);
+  });
 
   test("is offered nothing it cannot open", async ({ page }) => {
     await page.goto("/");
@@ -100,6 +118,21 @@ test.describe("another tenant", () => {
     } finally {
       await outsider.close();
     }
+  });
+
+  test("keeps the navigation on a record that is not there", async ({ page }) => {
+    // A stale link, a mistyped ref, a record since archived — all of them land
+    // here, and all of them are one click from the calendar so long as the
+    // shell is still on the page. That is what `(app)/not-found.tsx` is for:
+    // the root one answers for a signed-out visitor, where there is no
+    // navigation to keep.
+    const response = await page.goto("/sessions/ses_nosuchrecord");
+    expect(response?.status(), "a made-up ref should answer 404").toBe(404);
+
+    await expectShell(page);
+    await expect(page.locator("main").getByRole("heading", { level: 1 })).toHaveText(
+      "Not found",
+    );
   });
 });
 
