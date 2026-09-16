@@ -110,6 +110,12 @@ function EventLink({ row }: { row: SessionRow }) {
     <Link
       className={`cal-event is-${session.status.toLowerCase()}`}
       href={`/sessions/${session.ref}`}
+      // Only Incomplete carries one, and it is the state that asks for
+      // something to be done. On the whole chip rather than on the 18px
+      // square: the square is what says the state, but the chip is what a
+      // pointer is already over. Said again in the dialog and on the help
+      // page, because a title reaches neither touch nor most screen readers.
+      title={meta.meaning}
       // What `SessionPeek` listens for. The anchor stays real, so with no
       // script this still goes to the session's own page.
       data-session-ref={session.ref}

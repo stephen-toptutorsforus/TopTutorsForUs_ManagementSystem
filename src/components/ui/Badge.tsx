@@ -86,8 +86,11 @@ export function StatusBadge({
   endsAt?: Date | null;
 }) {
   const meta = endsAt ? sessionStateMeta(status, endsAt) : statusMeta(status);
+  // `meaning` is set on exactly one state — Incomplete, which is derived rather
+  // than stored and so cannot be looked up in the status filter's menu like
+  // every other word here. Undefined elsewhere, which renders no attribute.
   return (
-    <Badge tone={meta.tone} glyph={meta.icon}>
+    <Badge tone={meta.tone} glyph={meta.icon} title={meta.meaning}>
       {meta.label}
     </Badge>
   );

@@ -792,6 +792,13 @@ legend { padding: 0 0.35rem; font-weight: 600; font-size: 0.88rem; color: var(--
  * cancels a session while reaching for Close. */
 .peek-details { margin-bottom: 1.25rem; }
 .peek-details dd { min-width: 0; overflow-wrap: anywhere; }
+/* The sentence under a status that needs one — see `INCOMPLETE`. Quieter than
+   the badge and on its own line, because it explains the badge rather than
+   competing with it. */
+.peek-meaning {
+  display: block; margin-top: 0.3rem;
+  font-size: 0.82rem; color: var(--ink-500);
+}
 .peek-actions {
   display: flex; flex-wrap: wrap; gap: 0.6rem;
   align-items: center; justify-content: space-between;

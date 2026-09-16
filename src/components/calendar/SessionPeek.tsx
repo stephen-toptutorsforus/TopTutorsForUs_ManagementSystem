@@ -96,9 +96,22 @@ export function SessionPeek({
 
               <dt>Status</dt>
               <dd>
-                <Badge tone={session.state.tone} glyph={session.state.icon}>
+                <Badge
+                  tone={session.state.tone}
+                  glyph={session.state.icon}
+                  title={session.state.meaning}
+                >
                   {session.state.label}
                 </Badge>
+                {/* And in words, for everybody the title does not reach —
+                    every touch screen, and most screen readers. Only
+                    Incomplete has one: it is worked out when the page is drawn
+                    rather than stored, so it is the one state that cannot be
+                    looked up in the status filter's menu, and the one that
+                    asks for something to be done. */}
+                {session.state.meaning !== undefined && (
+                  <span className="peek-meaning">{session.state.meaning}</span>
+                )}
               </dd>
 
               <dt>{session.placeIsLink ? "Online Classroom link" : "Location"}</dt>

@@ -31,7 +31,7 @@ export interface PeekSession {
    * clock against a server-rendered page and disagree with itself by a second
    * now and then. Resolved here, where the page was rendered.
    */
-  state: { label: string; tone: string; icon: string };
+  state: { label: string; tone: string; icon: string; meaning?: string };
   /** `Thu 10 Sep 2026, 09:00 EDT`. */
   startLabel: string;
   /** `1 hour 15 minutes`. */

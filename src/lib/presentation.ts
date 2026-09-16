@@ -20,6 +20,15 @@ export interface Badge {
   label: string;
   tone: string;
   icon: string;
+  /**
+   * The sentence behind the word, where the word is not enough on its own.
+   * Optional because most are: "Cancelled" needs no gloss, and a tooltip on
+   * every badge is a tooltip nobody reads. It rides as a `title`, and never
+   * only as one — a title is unreachable by touch and unreliable with a screen
+   * reader, so anything set here is also written somewhere a person can read
+   * without a pointer.
+   */
+  meaning?: string;
 }
 
 export const STATUS_META: Record<SessionStatus, Badge> = {
@@ -115,7 +124,22 @@ export function statusMeta(status: SessionStatus): Badge {
  * unfinished. The glyph is a dash for the same reason — an absence, not an
  * alarm.
  */
-export const INCOMPLETE: Badge = { label: "Incomplete", tone: "muted", icon: "–" };
+export const INCOMPLETE: Badge = {
+  label: "Incomplete",
+  tone: "muted",
+  icon: "–",
+  /**
+   * The one session state that needs saying. Every other word on the calendar
+   * is either self-explanatory or in the status filter's own menu, where it
+   * can be looked up; this one is in neither, because it is worked out when the
+   * page is drawn rather than stored. So somebody meeting it has nowhere to ask
+   * what it means, and — worse — it is the state that asks them to *do*
+   * something. The sentence says which thing.
+   */
+  meaning:
+    "The session's time has passed and nobody recorded whether it happened. " +
+    "Editing the session offers Mark completed and Mark missed.",
+};
 
 /**
  * What a session's state **is**, which is not always what its status says.

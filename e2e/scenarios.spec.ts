@@ -326,3 +326,68 @@ test.describe("more than one session in the same hour", () => {
     }
   });
 });
+
+test.describe("what Incomplete means", () => {
+  /**
+   * A tooltip on the one state that cannot be looked up anywhere else.
+   *
+   * It is worked out when the page is drawn rather than stored, so it is not in
+   * the status filter's menu with the other seven — and it is the state that
+   * asks the reader to do something. The sentence goes on the chip as a title,
+   * and again in the dialog and on the help page, because a title reaches
+   * neither touch nor most screen readers.
+   */
+  test("explains itself on the chip, and only there", async ({ page }) => {
+    await page.goto("/calendar");
+
+    const chips = await page.locator("[data-session-ref]").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        label: node.getAttribute("aria-label") ?? node.textContent ?? "",
+        title: node.getAttribute("title"),
+        state: node.querySelector(".cal-flag")?.textContent ?? "",
+      })),
+    );
+    expect(chips.length, RUN_THE_FIXTURE).toBeGreaterThan(0);
+
+    const incomplete = chips.filter((chip) => chip.state.includes("–"));
+    expect(incomplete.length, "the fixture leaves a scheduled session in the past").toBeGreaterThan(0);
+    for (const chip of incomplete) {
+      expect(chip.title, "an Incomplete chip should say what that means").toContain(
+        "nobody recorded",
+      );
+    }
+
+    // And nowhere else. A gloss on every badge is a gloss nobody reads, and the
+    // other seven are either plain English or in the filter's own menu.
+    for (const chip of chips.filter((c) => !c.state.includes("–"))) {
+      expect(chip.title, `no title belongs on ${chip.state}`).toBeNull();
+    }
+  });
+
+  test("says it in words as well, where a title cannot reach", async ({ page }) => {
+    await page.goto("/calendar");
+
+    // Visible ones only — a month cell hides what overflows it.
+    const chips = page.locator("[data-session-ref]:visible");
+    const count = await chips.count();
+    for (let index = 0; index < Math.min(count, 30); index += 1) {
+      if ((await chips.nth(index).getAttribute("title")) === null) continue;
+      await chips.nth(index).click();
+
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText("Incomplete");
+      // The same sentence, as text, for every touch screen and most screen
+      // readers — neither of which ever sees a title.
+      await expect(dialog.locator(".peek-meaning")).toContainText("nobody recorded");
+      return;
+    }
+    throw new Error(RUN_THE_FIXTURE);
+  });
+
+  test("is written down somewhere a pointer is not needed", async ({ page }) => {
+    await page.goto("/help");
+    await expect(page.locator("main")).toContainText("Incomplete");
+    await expect(page.locator("main")).toContainText("nobody said what happened");
+  });
+});

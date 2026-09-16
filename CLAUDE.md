@@ -352,7 +352,18 @@ Only those two states. A `REQUESTED` session that has gone past wants a
 controls. `IN_PROGRESS` is left alone because nothing sets it until the
 classroom does. `StatusBadge` takes an optional `endsAt` and asks
 `sessionStateMeta` when it has one, so there is one implementation and the
-badge and the chip cannot disagree. The calendar's dialog resolves it on the
+badge and the chip cannot disagree.
+
+It is also the one state that says what it means. Every other word on the
+calendar is either plain English or in the status filter's own menu, where it
+can be looked up; this one is in neither, precisely because it is derived — and
+it is the state that asks the reader to do something. So `Badge.meaning` holds
+the sentence and it rides as a `title` on the chip, the grid block and the
+badge. Only there: a gloss on all eight is a gloss nobody reads. It names the
+two controls rather than a screen, because the badge is drawn on five of them.
+And never *only* as a title, which reaches neither touch nor most screen
+readers — the same sentence is text in the calendar's dialog and a paragraph on
+the help page, which is the rule `UserStatusBadge` already followed. The calendar's dialog resolves it on the
 server: comparing the browser's clock against a server-rendered page is a
 hydration mismatch waiting for the two to differ by a second.
 
@@ -598,12 +609,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-558 tests — 300 pure, 258 database-backed — plus 424 browser tests and
+560 tests — 302 pure, 258 database-backed — plus 430 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 558 here against the reference's 509 — but the
+The counts have since crossed — 560 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about

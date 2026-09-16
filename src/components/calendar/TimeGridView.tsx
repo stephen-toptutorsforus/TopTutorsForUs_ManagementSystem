@@ -131,6 +131,8 @@ export function TimeGridView({
                   className={`tg-event is-${session.status.toLowerCase()} c${columnIndex + 1} ${positionClass(item)}`}
                   href={`/sessions/${session.ref}`}
                   data-session-ref={session.ref}
+                  // Incomplete only — see the same line on the month chip.
+                  title={meta.meaning}
                 >
                   {/* The start time and the status, on one line. The glyph
                       used to be positioned into the corner over the top of

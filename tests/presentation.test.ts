@@ -191,6 +191,40 @@ describe("what a session's state is, as against what its status says", () => {
     expect(sessionStateMeta(SessionStatus.IN_PROGRESS, past, now).label).toBe("In progress");
   });
 
+  it("says what Incomplete means, because nowhere else can", () => {
+    // Every other word on the calendar is either plain English or in the status
+    // filter's own menu, where it can be looked up. This one is in neither: it
+    // is worked out when the page is drawn rather than stored. So the sentence
+    // travels with it.
+    const meaning = sessionStateMeta(SessionStatus.SCHEDULED, past, now).meaning;
+
+    expect(meaning).toBeTypeOf("string");
+    expect(meaning).toContain("nobody recorded");
+    // And it says what to do about it, which is the point of noticing at all —
+    // naming the two controls rather than a screen, because this badge is drawn
+    // on the calendar, the grid, the dialog, the list and the record.
+    expect(meaning).toContain("Mark completed");
+    expect(meaning).toContain("Mark missed");
+  });
+
+  it("explains only the state that needs explaining", () => {
+    // A gloss on every badge is a gloss nobody reads, and these are all either
+    // self-evident or in the filter menu.
+    for (const status of [
+      SessionStatus.SCHEDULED,
+      SessionStatus.COMPLETED,
+      SessionStatus.MISSED,
+      SessionStatus.CANCELLED,
+      SessionStatus.REJECTED,
+      SessionStatus.REQUESTED,
+      SessionStatus.IN_PROGRESS,
+    ]) {
+      expect(sessionStateMeta(status, future, now).meaning, status).toBeUndefined();
+    }
+    // Including a past one that is already settled.
+    expect(sessionStateMeta(SessionStatus.COMPLETED, past, now).meaning).toBeUndefined();
+  });
+
   it("draws Incomplete as an absence rather than an alarm", () => {
     // Muted, not bad: nothing has gone wrong, something is merely unfinished.
     expect(sessionStateMeta(SessionStatus.SCHEDULED, past, now).tone).toBe("muted");

@@ -117,6 +117,17 @@ export default async function HelpPage() {
             Marking everyone present only fills places nobody has judged yet. An excused
             absence does not count against an attendance rate.
           </dd>
+          <dt>Session status</dt>
+          <dd>
+            A session keeps the status somebody last gave it, so one whose time has
+            passed with nothing recorded still says it was going to happen. The
+            calendar draws those as <strong>Incomplete</strong> — a muted{" "}
+            <span aria-hidden="true">&ndash;</span> — meaning the time has passed and
+            nobody said what happened. It is not a status you can set or filter on:
+            editing the session offers <strong>Mark completed</strong> and{" "}
+            <strong>Mark missed</strong>, and once one of those is recorded it becomes
+            a status like any other.
+          </dd>
           <dt>Account status</dt>
           <dd>
             <strong>Active</strong> — setup is complete and the person can sign in.
