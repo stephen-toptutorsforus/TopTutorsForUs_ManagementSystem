@@ -132,7 +132,17 @@ export function TimeGridView({
                   href={`/sessions/${session.ref}`}
                   data-session-ref={session.ref}
                 >
-                  <span className="tg-event-time">{start.time}</span>
+                  {/* The start time and the status, on one line. The glyph
+                      used to be positioned into the corner over the top of
+                      this; in the flow it cannot land on the time however
+                      narrow the block gets, and the block is at its narrowest
+                      exactly when two of them share the column. */}
+                  <span className="tg-event-head">
+                    <span className="tg-event-time">{start.time}</span>
+                    <span className={`tg-event-flag badge-${meta.tone}`} aria-hidden="true">
+                      {meta.icon}
+                    </span>
+                  </span>
                   {/* Who, not what it is called. A week of "Weekly maths
                       clinic" says nothing about which one is whose, and who is
                       teaching whom is what somebody scanning a column is
@@ -148,9 +158,6 @@ export function TimeGridView({
                   {item.span >= 2 && item.lanes === 1 && (
                     <span className="tg-event-who">{session.title}</span>
                   )}
-                  <span className={`tg-event-flag badge-${meta.tone}`} aria-hidden="true">
-                    {meta.icon}
-                  </span>
                   <VisuallyHidden>
                     — {session.title}, {meta.label}, {start.full} to {end.time}
                   </VisuallyHidden>

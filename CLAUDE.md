@@ -387,13 +387,29 @@ in half against `overflow: hidden`, and a two-row block has room for the title
 under them, which is why that line is gated on the span the block already
 carries rather than on a new class.
 
-**A status glyph is the size of the text beside it.** Both chips set theirs two
-steps smaller than their own font, which made the one part carrying a
-*distinct* meaning the hardest part to read — and the glyph is not an
-annotation here, it is how status travels when colour alone must not be the
-signal. `1em` on each ties it to its chip so the two cannot drift apart again;
-the month's swatch grew from 16px to 19px to hold it without touching the
-border.
+**A status is drawn as one square, in all three places that draw one.** The
+filter menu, the month chip and the time-grid chip each show the same eight
+statuses, so an 18px bordered square is declared once and shared: three
+spellings of one thing is a second vocabulary to learn. The glyph inside is
+sized from the text it sits among — the menu's row is 0.9rem and would touch the
+border, a chip's is 0.76rem and does not — so each reads at its own scale
+without the square changing. Both chips used to set theirs two steps under their
+own text, which made the one part carrying a *distinct* meaning the hardest part
+to read, and the grid's was not a square at all but a bare glyph positioned into
+the corner over whatever was beneath it. With that positioning gone,
+`.tg-event`'s `position: relative` went with it: it existed only to be that
+glyph's origin.
+
+A block sharing its column is where the square costs something. At 58px it has
+46.8px inside, and a square plus a five-character start time want 53 — and what
+gave way was the time, "1…" where "10:15" was, which is worse than no time at
+all, since the whole reason two blocks sit side by side is that they begin at
+different moments. So a shared block is drawn tighter — less padding, a smaller
+gap, a 16px square — and the time then fits exactly. Exactly, not comfortably:
+there is no slack in 58px, and what the tightening buys is that the next pixel
+lost is an ellipsis rather than four digits. Three and four lanes are 38px and
+28px, where it clips regardless; that is a block too narrow to read, not a
+layout to solve.
 
 **Overlapping sessions have always had lanes.** `assignLanes` splits a cluster
 across the column and the stylesheet declares `.lane-N-of-M`, and none of it had

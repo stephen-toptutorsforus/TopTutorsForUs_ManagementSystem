@@ -1020,10 +1020,17 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 .filtermenu-count { white-space: nowrap; }
 
 .filtermenu-swatches { display: inline-flex; gap: 2px; }
-.filtermenu-swatch {
+/* A status, drawn as a square. Shared with the calendar's chips — the month's
+   `.cal-flag` and the time grid's `.tg-event-flag` — because the same eight
+   statuses appear in all three and a swatch that differs between them is a
+   second vocabulary to learn. The glyph is sized from whatever it sits in, so
+   each keeps its own text's scale without the square changing. */
+.filtermenu-swatch,
+.cal-flag,
+.tg-event-flag {
   display: inline-grid; place-items: center;
   width: 18px; height: 18px; border-radius: 4px;
-  font-size: 0.7rem; font-weight: 700; border: 1px solid;
+  font-size: 1em; line-height: 1; font-weight: 700; border: 1px solid;
 }
 
 .filtermenu-panel {
@@ -1120,14 +1127,9 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 .cal-event:hover { background: var(--brand-100); color: var(--ink-900); }
 .cal-time { font-variant-numeric: tabular-nums; color: var(--ink-500); flex: none; }
 .cal-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-flag {
-  margin-left: auto; flex: none;
-  display: inline-grid; place-items: center;
-  width: 19px; height: 19px; border-radius: 4px;
-  /* At the chip's size, for the reason given at `.tg-event-flag`. The box grows
-     with it: a 1em glyph in a 16px square touched the border. */
-  font-size: 1em; line-height: 1; font-weight: 700; border: 1px solid;
-}
+/* Pushed to the end of the chip, which is the only thing about it that is not
+   shared — see the swatch rule beside `.filtermenu-swatch`. */
+.cal-flag { margin-left: auto; flex: none; }
 .cal-event.is-scheduled { border-left-color: var(--info-text); }
 .cal-event.is-rescheduled { border-left-color: var(--moved-text); }
 .cal-event.is-in_progress { border-left-color: var(--live-text); }
@@ -1681,7 +1683,15 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   font-size: 0.76rem; line-height: 1.25; text-decoration: none;
 }
 .tg-event:hover { background: var(--paper); box-shadow: var(--shadow); color: var(--ink-900); }
-.tg-event-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tg-event-head { display: flex; align-items: center; gap: 0.25rem; }
+/* The time takes what is left and the swatch keeps its size, so the block that
+   runs out of room loses characters off the end of a time rather than putting
+   two things in one place. */
+.tg-event-time {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
 /* Two lines when there is room for two, rather than one line cut mid-name.
    A chip sharing its column with another is half as wide, and on one line that
    turned "Marguerite Okonjo & Ada Fenwick" into "Marg…" — which names nobody.
@@ -1700,17 +1710,41 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
    class the block already carries, so this needs no new one. */
 .tg-event.s1 .tg-event-title { -webkit-line-clamp: 1; }
 .tg-event-who { color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The status glyph, at the chip's own size rather than under it. It was set
-   two steps smaller than the text it sits beside, which made the one part of
-   the chip carrying a *distinct* meaning the hardest part to read — and a
-   glyph is not an annotation here, it is how status travels when colour alone
-   must not be the signal. `1em` keeps it tied to the chip, so the two can
-   never drift apart again. */
-.tg-event-flag {
-  position: absolute; top: 3px; right: 4px;
-  font-size: 1em; line-height: 1; font-weight: 700;
-}
-.tg-event { position: relative; }
+/* The status swatch — the same object as the filter menu's `.filtermenu-swatch`
+   and the month chip's `.cal-flag`, at the same size. A bordered square reads
+   as a status; a bare glyph on a tinted ground reads as a stray character, and
+   at `badge-muted` on a tinted chip it barely read at all. Three places show
+   the same eight statuses, so they are one shape or they are three dialects of
+   one.
+
+   Not `position: absolute` any more: in the corner it sat over whatever was
+   under it, which was fine while it was a small glyph and is not once it is a
+   box. `.tg-event-head` puts it beside the time instead. */
+.tg-event-flag { flex: none; }
+
+/* A block sharing its column is about half as wide, and there the square and a
+   five-character start time do not both fit at the full-width spacing: a 58px
+   block has 46.8px inside it and the two want 53. Measured, and the loss fell
+   on the time — "1…" where "10:15" was, which is worse than no time at all,
+   since the whole reason two blocks sit side by side is that they start at
+   different moments.
+    
+   So the shared case is drawn tighter — less padding, a smaller gap, a square
+   two pixels down — and then the time fits exactly: 33px wanted, 33px given,
+   measured. Exactly, not comfortably; there is no slack in a 58px block and
+   pretending otherwise would be the wrong thing to write down. What it buys is
+   that the degradation is now an ellipsis on the last character rather than a
+   time reduced to one digit. The square does not shrink below the text beside
+   it — sixteen pixels still holds a 12px glyph clear of its border, and a
+   square drawn smaller than the glyph it exists to show is not a saving.
+
+   Every block carries exactly one lane class, so `:not(.lane-1-of-1)` is
+   exactly "sharing". Three and four lanes are 38px and 28px, where the time
+   clips as it did before: that is a block too narrow to read rather than a
+   layout to solve, and the dialog is one press away. */
+.tg-event:not(.lane-1-of-1) { padding: 0.2rem 0.15rem; }
+.tg-event:not(.lane-1-of-1) .tg-event-head { gap: 0.1rem; }
+.tg-event:not(.lane-1-of-1) .tg-event-flag { width: 16px; height: 16px; }
 
 .tg-event.is-cancelled, .tg-event.is-rejected { opacity: 0.62; text-decoration: line-through; }
 .tg-event.is-completed { border-left-color: var(--good-text); background: var(--good-surface); }
