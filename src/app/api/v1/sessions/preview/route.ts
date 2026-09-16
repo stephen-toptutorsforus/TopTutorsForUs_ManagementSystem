@@ -21,6 +21,7 @@ import {
   plan,
 } from "@/lib/services/booking";
 import { outMoment } from "@/lib/web/api";
+import { NO_STORE_HEADERS } from "@/lib/web/caching";
 import { requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -118,8 +119,8 @@ export async function POST(request: Request): Promise<Response> {
         blocked: isBlocked(planned),
         has_conflicts: hasConflicts(planned),
       })),
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
-    return Response.json(payloadFor(error), { status: statusFor(error) });
+    return Response.json(payloadFor(error), { status: statusFor(error), headers: NO_STORE_HEADERS });
   }
 }

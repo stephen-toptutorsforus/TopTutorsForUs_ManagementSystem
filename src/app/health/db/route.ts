@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { NO_STORE_PROBE } from "@/lib/web/caching";
 
 /**
  * Readiness: the database answers and the migrations are applied.
@@ -28,13 +29,16 @@ export async function GET() {
     const applied = await prisma.$queryRaw<{ count: bigint }[]>(
       Prisma.sql`SELECT count(*)::bigint AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL`,
     );
-    return Response.json({
-      status: "ok",
-      migrations: Number(applied[0]?.count ?? 0),
-    });
+    return Response.json(
+      { status: "ok", migrations: Number(applied[0]?.count ?? 0) },
+      { headers: { "cache-control": NO_STORE_PROBE } },
+    );
   } catch (error) {
     // Logged, not returned. Nothing from the driver reaches the response.
     console.error("readiness check failed", error);
-    return Response.json({ status: "unavailable" }, { status: 503 });
+    return Response.json(
+      { status: "unavailable" },
+      { status: 503, headers: { "cache-control": NO_STORE_PROBE } },
+    );
   }
 }

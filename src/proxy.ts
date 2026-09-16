@@ -2,6 +2,12 @@
  * Two jobs, and they are here for the same reason: both have to happen before
  * anything renders.
  *
+ * `src/proxy.ts`, not `src/middleware.ts`. Next 16 renamed the convention and
+ * printed a deprecation on every build under the old name — and a build that
+ * always prints a warning is a build whose warnings nobody reads, which is how
+ * the next real one gets missed. Same file, same export shape, new name for
+ * both.
+ *
  * **A Content-Security-Policy, with a per-request nonce.** The stylesheet and
  * `lib/timegrid.ts` have both said `style-src 'self'` for as long as they have
  * existed — it is why a grid row resolves to a hand-written class instead of an
@@ -104,7 +110,7 @@ const SCREENS = {
   },
 } as const;
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname, searchParams } = request.nextUrl;
 
   // One nonce per request, from the platform's CSPRNG. `Math.random` would be
@@ -119,6 +125,14 @@ export function middleware(request: NextRequest): NextResponse {
   forwarded.set("content-security-policy", csp);
   const carry = (response: NextResponse): NextResponse => {
     response.headers.set("content-security-policy", csp);
+    // Nothing that passes through here may be stored by a shared cache. Two
+    // reasons, and the redirect below is both of them at once: the policy
+    // carries a nonce, and a nonce reused from a cache is a nonce an attacker
+    // can rely on — which is the whole of its value gone. And that redirect
+    // answers with a `Set-Cookie` holding one person's filter, under a URL that
+    // says nothing about who they are. A cache that keeps it hands their filter
+    // to whoever asks next.
+    response.headers.set("cache-control", "private, no-store, max-age=0");
     return response;
   };
 
@@ -165,11 +179,15 @@ export function middleware(request: NextRequest): NextResponse {
  * build's own assets, the images, the icon. Those are served with the static
  * headers from `next.config.ts` and have no scripts to govern.
  *
+ * `no-script.css` is named with them for the same reason: it is a file, it has
+ * no script to govern, and sweeping it in would have replaced its cacheability
+ * with the `no-store` this sets on everything it does match.
+ *
  * The redirect is still exactly those three paths: it is keyed on `SCREENS`,
  * not on the matcher. `/sessions/export.csv` shares a prefix with one of them
  * and keeps its own query string, which is why that lookup is an exact match
  * and not a prefix.
  */
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|img/|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|img/|favicon.ico|no-script.css).*)"],
 };

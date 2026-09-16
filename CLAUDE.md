@@ -215,7 +215,7 @@ worse than an untidy address, not better. There is a fixed-point test per
 screen.
 
 Three things still carry a query string, each for a reason. `/sessions/export.csv`
-is a download rather than a page. `src/middleware.ts` honours an older link
+is a download rather than a page. `src/proxy.ts` honours an older link
 once — the parameters seed the screen's cookie and the request is redirected to
 the bare path, which is the only place a URL changes on its own and happens
 before anything renders. And nothing on an address identifies anybody: the
@@ -580,7 +580,7 @@ Both are wired now, and both have something that fails when they are not.
 `src/instrumentation.ts` runs the startup checks in the one place refusing is
 cheaper than serving, and exits rather than throwing, because a throw there is
 caught, logged, and followed by serving traffic. The policy is minted per
-request in `src/middleware.ts` — it carries a nonce, which is what puts it there
+request in `src/proxy.ts` — it carries a nonce, which is what puts it there
 rather than beside the static headers in `next.config.ts` — and
 `e2e/headers.spec.ts` asserts the header, that the nonce changes per response,
 that `'unsafe-inline'` never appears, and, the half that matters, that every
@@ -650,6 +650,24 @@ be reached that way and the file says so where it makes them: `IN_PROGRESS`,
 which nothing sets until the Phase 4 classroom does, and `REQUESTED`, which
 needs `booking.require_approval` on and a parent — the setting is turned on for
 those two bookings and put back afterwards.
+
+**Nothing about one tenant may be stored.** Next puts `no-store` on a
+dynamically rendered page and puts *nothing* on a route handler's response — and
+every route handler here answers with tenant data from a URL that names no
+tenant, authorised by a cookie that is in no cache key. The session export went
+out as a CSV of who was taught and when with no `Cache-Control` at all. They say
+`private, no-store` now: `private` refuses the shared caches and `no-store`
+refuses the browser's disk, which matters most on the export. `Vary: Cookie`
+would have been the other route and it asks every cache in the path to be
+careful, losing quietly if one is not.
+
+`src/proxy.ts` sets the same on everything it matches, which covers the redirect
+that carries somebody's filter cookie — cached, that hands their filter to
+whoever asks next — and the CSP nonce, which is worth nothing the moment a
+second person can be served the first person's copy. The brand images are the
+deliberate exception: same bytes for everybody, and an hour of freshness rather
+than the `max-age=0` that spent a revalidation on every page load. `no-store`
+everywhere is not a caching policy, it is the absence of one.
 
 `snapshot-html.mjs` is the check for any change that is meant to move markup
 without altering it. Snapshot before, snapshot after, diff: a refactor that

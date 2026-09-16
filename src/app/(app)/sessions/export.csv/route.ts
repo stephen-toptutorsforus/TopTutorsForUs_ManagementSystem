@@ -13,6 +13,7 @@ import { payloadFor, statusFor } from "@/lib/errors";
 import { Permission } from "@/lib/policies/permissions";
 import { listSessions, parseFilters, toCsv } from "@/lib/services/sessionQuery";
 import { civilDate } from "@/lib/time";
+import { NO_STORE } from "@/lib/web/caching";
 import { requestMeta, requirePrincipal } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,10 @@ export async function GET(request: Request): Promise<Response> {
       headers: {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition": `attachment; filename="sessions-${stamp}.csv"`,
+        // A file of who was taught and when, authorised by a cookie and served
+        // from a URL that names no tenant. It went out with no `Cache-Control`
+        // at all — see `lib/web/caching.ts`.
+        "cache-control": NO_STORE,
       },
     });
   } catch (error) {

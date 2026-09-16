@@ -15,6 +15,7 @@ import {
   parseFilters,
 } from "@/lib/services/sessionQuery";
 import { toSessionOut } from "@/lib/web/api";
+import { NO_STORE_HEADERS } from "@/lib/web/caching";
 import { requirePrincipal } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +33,8 @@ export async function GET(request: Request): Promise<Response> {
       total: results.total,
       page: results.page,
       pages: pageCount(results),
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
-    return Response.json(payloadFor(error), { status: statusFor(error) });
+    return Response.json(payloadFor(error), { status: statusFor(error), headers: NO_STORE_HEADERS });
   }
 }

@@ -11,6 +11,7 @@ import { scoped } from "@/lib/policies/scoping";
 import { availableActions, canView } from "@/lib/policies/sessions";
 import { decorate } from "@/lib/services/sessionQuery";
 import { toSessionOut } from "@/lib/web/api";
+import { NO_STORE_HEADERS } from "@/lib/web/caching";
 import { requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,6 @@ export async function GET(
       }),
     );
   } catch (error) {
-    return Response.json(payloadFor(error), { status: statusFor(error) });
+    return Response.json(payloadFor(error), { status: statusFor(error), headers: NO_STORE_HEADERS });
   }
 }

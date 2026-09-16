@@ -59,6 +59,18 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: production ? [...SECURITY_HEADERS, HSTS] : SECURITY_HEADERS,
       },
+      {
+        /*
+         * The brand images, which Next otherwise serves as `public, max-age=0`
+         * — so every page load spends a request revalidating a logo that has
+         * not changed, for every person, all day. An hour of freshness is worth
+         * that, and it is an hour: these are not content-hashed like the build's
+         * own assets, so a replaced logo has to become visible on its own, and
+         * the window in which it does not is the price of the header.
+         */
+        source: "/img/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600, must-revalidate" }],
+      },
     ];
   },
 
