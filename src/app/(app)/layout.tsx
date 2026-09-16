@@ -32,8 +32,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           any other page. This lays the navigation out as a static block
           instead: no drawer, no button, every link reachable. It is a
           `<noscript>`, so a hydrated page never sees a line of it. */}
+      {/* Linked, not inlined: an inline `<style>` is what `style-src 'self'`
+          refuses, and this was the only thing in the codebase that broke when
+          the policy the stylesheet had always claimed was actually sent. The
+          rules are in `public/no-script.css`. Still inside the `<noscript>`, so
+          a browser with scripting on never fetches it. */}
       <noscript>
-        <style>{NO_SCRIPT_NAV}</style>
+        {/* The lint rule wants CSS imported so the build can bundle it, and
+            bundling is exactly what must not happen: these rules apply only
+            when scripting is off, and an import would ship them to everybody
+            and apply them to nobody. A `<link>` inside `<noscript>` is the one
+            thing that loads on that condition and no other. */}
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/no-script.css" />
       </noscript>
       <AppShell
         nav={nav}
@@ -47,16 +58,3 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     </>
   );
 }
-
-/** Below the breakpoint only: above it the sidebar is already a column. */
-const NO_SCRIPT_NAV = `
-@media (max-width: 720px) {
-  .sidebar {
-    position: static;
-    width: auto; height: auto;
-    transform: none; visibility: visible;
-    border-right: 0; border-bottom: 1px solid var(--ink-200);
-  }
-  .topbar-menu, .drawer-close, .drawer-backdrop { display: none; }
-}
-`;

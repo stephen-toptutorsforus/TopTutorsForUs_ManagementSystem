@@ -1,0 +1,24 @@
+/*
+ * The navigation, for a browser with scripting off.
+ *
+ * Linked from a `<noscript>` in `src/app/(app)/layout.tsx`, which is where the
+ * reasoning lives. Below the breakpoint the sidebar is a drawer opened from
+ * React state, so with no script there is no way to open it and no route to any
+ * other page; this lays it out as a static block instead.
+ *
+ * A file rather than the `<style>` block it used to be, because that block was
+ * inline CSS and `style-src 'self'` forbids inline CSS. It was the one thing in
+ * the codebase that broke when the policy the codebase had always claimed was
+ * finally sent — found by the browser test that exists for exactly this, which
+ * had the navigation vanish on a phone with no script.
+ */
+
+@media (max-width: 720px) {
+  .sidebar {
+    position: static;
+    width: auto; height: auto;
+    transform: none; visibility: visible;
+    border-right: 0; border-bottom: 1px solid var(--ink-200);
+  }
+  .topbar-menu, .drawer-close, .drawer-backdrop { display: none; }
+}

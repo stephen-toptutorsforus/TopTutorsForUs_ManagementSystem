@@ -565,6 +565,44 @@ colour *and* a word, why the modal is `:target` and not `<dialog>`, why
 a prop. A raw class name in a page should be a modifier passed to a component,
 not a rebuilt component.
 
+**A policy that is only in the comments is not a policy.** `lib/timegrid.ts`
+and the stylesheet both cite `style-src 'self'` as the reason a grid row
+resolves to a hand-written class rather than an inline `top`, and there was no
+Content-Security-Policy on any response for the life of the project. The design
+cost was paid every day and the protection was never collected once. The same
+shape twice over: `startupChecks()` said an unconfigured deployment "fails an
+explicit startup check rather than quietly running with a known key", and
+nothing called it — a production deploy with the shipped `SECRET_KEY` would have
+started and signed cookies with a key that is in this repository, and
+`readSession` asks only whether a signature verifies.
+
+Both are wired now, and both have something that fails when they are not.
+`src/instrumentation.ts` runs the startup checks in the one place refusing is
+cheaper than serving, and exits rather than throwing, because a throw there is
+caught, logged, and followed by serving traffic. The policy is minted per
+request in `src/middleware.ts` — it carries a nonce, which is what puts it there
+rather than beside the static headers in `next.config.ts` — and
+`e2e/headers.spec.ts` asserts the header, that the nonce changes per response,
+that `'unsafe-inline'` never appears, and, the half that matters, that every
+page satisfies the policy it is served with. A policy nobody can load the page
+under is one that gets switched off the first time it is inconvenient.
+
+Turning it on cost exactly one thing, which is the measure of how well the
+constraint had been kept: the `<noscript>` navigation fallback was an inline
+`<style>`, so a phone with scripting off lost its whole navigation. It is
+`public/no-script.css` now. Nothing else in the codebase has a `style=`
+attribute, and the logo stopped being a `next/image` because that component
+writes one.
+
+**A rate limit keyed on a header is not a limit.** `clientKey` is built from
+`X-Forwarded-For`, which behind a proxy is the client's address and, with
+nothing stripping it, is whatever the client typed. A route handler is given
+headers and no socket, so there is nothing trustworthy to fall back to — and
+rather than pretend otherwise, sign-in also counts against a key made from the
+address being signed in to. That one cannot be spoofed away. Spraying one guess
+across many accounts still evades both and wants a shared store, which the
+in-process limiter is explicitly not.
+
 **Tenant isolation is a column, not a join chain.** Every owned table carries
 `organizationId`, and every read goes through the scoping helper. Another
 tenant's record is **404, never 403** — a 403 confirms it exists.
@@ -633,12 +671,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-562 tests — 304 pure, 258 database-backed — plus 430 browser tests and
+564 tests — 306 pure, 258 database-backed — plus 440 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 562 here against the reference's 509 — but the
+The counts have since crossed — 564 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about

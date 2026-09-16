@@ -12,7 +12,6 @@
  * Which rows *exist* is still decided on the server, by permission.
  */
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -173,13 +172,25 @@ export function Sidebar({
             open side by side, the logo alone would make the two sidebars
             identical. */}
         <Link className="brand" href="/">
-          <Image
+                    {/* A plain `img`, not `next/image`.
+              `next/image` writes `style="color:transparent"` onto the tag to
+              hide alt text while the file loads, and a style *attribute* is
+              exactly what `style-src 'self'` forbids — so every page logged a
+              violation for it. A policy that cries wolf on every load is one
+              whose reports stop being read, and widening the policy to admit a
+              framework's convenience would be paying for that convenience with
+              the guarantee.
+              Nothing is lost here: a fixed-size local wordmark gains no
+              responsive `srcset` worth a second request, and `priority` had
+              already turned the lazy loading off. It also takes this off the
+              `/_next/image` path, and with it `sharp`. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             className="brand-logo"
             src="/img/logo.png"
             alt="TopTutorsForUs"
             width={1688}
             height={381}
-            priority
           />
           <span className="brand-mark" aria-hidden="true">
             T

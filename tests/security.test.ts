@@ -160,6 +160,40 @@ describe("rate limiting", () => {
     expect(limiter.check("ip:one")).toBe(true);
   });
 
+  it("stops recording once a key is over, so being blocked costs nothing", () => {
+    // Without the cap, a client that keeps knocking grows the stored array for
+    // the whole window — which turns being rate-limited into a way to spend the
+    // server's memory. The answer is already "no" by then, so the extra
+    // timestamps decide nothing.
+    const limiter = new RateLimiter(2, 60);
+    for (let attempt = 0; attempt < 500; attempt += 1) limiter.check("ip:one");
+
+    const held = (limiter as unknown as { hits: Map<string, number[]> }).hits.get("ip:one");
+    expect(held!.length).toBe(2);
+    // And it is still refusing, which is the point of holding anything at all.
+    expect(limiter.check("ip:one")).toBe(false);
+  });
+
+  it("reopens on the oldest attempt, not the newest", () => {
+    // The consequence of capping: the timestamps kept are the *oldest*, so
+    // hammering cannot push the reopening time further out. A client that
+    // knocks for the whole window is let back in on schedule, not punished
+    // indefinitely — and, more to the point, cannot be made to punish itself
+    // into holding the memory.
+    vi.useFakeTimers();
+    const limiter = new RateLimiter(1, 60);
+
+    expect(limiter.check("ip:one")).toBe(true);
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      vi.setSystemTime(new Date(Date.now() + 1000));
+      expect(limiter.check("ip:one")).toBe(false);
+    }
+    // Fifty-one seconds since the one attempt that counted; nine to go.
+    vi.setSystemTime(new Date(Date.now() + 10_000));
+    expect(limiter.check("ip:one")).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("forgets attempts once the window has passed", () => {
     vi.useFakeTimers();
     const limiter = new RateLimiter(1, 60);

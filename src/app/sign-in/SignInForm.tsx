@@ -9,7 +9,6 @@
  * it names.
  */
 
-import Image from "next/image";
 import { useActionState } from "react";
 
 import { signIn } from "@/app/actions/auth";
@@ -24,13 +23,25 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
     <div className="auth-shell">
       <Card className="auth-card">
         <p className="brand">
-          <Image
+                    {/* A plain `img`, not `next/image`.
+              `next/image` writes `style="color:transparent"` onto the tag to
+              hide alt text while the file loads, and a style *attribute* is
+              exactly what `style-src 'self'` forbids — so every page logged a
+              violation for it. A policy that cries wolf on every load is one
+              whose reports stop being read, and widening the policy to admit a
+              framework's convenience would be paying for that convenience with
+              the guarantee.
+              Nothing is lost here: a fixed-size local wordmark gains no
+              responsive `srcset` worth a second request, and `priority` had
+              already turned the lazy loading off. It also takes this off the
+              `/_next/image` path, and with it `sharp`. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             className="brand-logo"
             src="/img/logo.png"
             alt="TopTutorsForUs"
             width={1688}
             height={381}
-            priority
           />
         </p>
         <h1>Sign in</h1>

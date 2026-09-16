@@ -19,9 +19,15 @@
  * from a different session does not validate.
  *
  * **Rate limits are in-process.** That is honest about what it is: enough to
- * blunt credential stuffing and invitation abuse on a single instance, and
- * explicitly not a distributed limiter. A multi-instance deployment needs a
- * shared store, and the interface here is narrow enough to swap.
+ * blunt credential stuffing on a single instance, and explicitly not a
+ * distributed limiter. A multi-instance deployment needs a shared store, and
+ * the interface here is narrow enough to swap.
+ *
+ * Only `loginLimiter` is wired to anything. `inviteLimiter` and `publicLimiter`
+ * are declared for endpoints that do not exist yet, and this paragraph used to
+ * claim they blunted "invitation abuse" — a limiter nothing calls stops
+ * nothing, and a comment saying otherwise is worse than no comment, because
+ * somebody reads it and stops looking.
  *
  * The signing is written out rather than pulled in. `itsdangerous` has no
  * TypeScript equivalent with the same shape, and the alternative — a JWT
@@ -227,10 +233,22 @@ export class RateLimiter {
     const now = Date.now();
     const cutoff = now - this.windowSeconds * 1000;
     const kept = (this.hits.get(key) ?? []).filter((at) => at > cutoff);
-    kept.push(now);
+    const allowed = kept.length < this.limit;
+    // Record the attempts that counted, and only those. Every attempt used to
+    // be stored, which had two costs. A client that keeps knocking grew this
+    // array for the length of the window, so being rate-limited was itself a
+    // way to spend the server's memory. And each rejected attempt sat in the
+    // window too, pushing the moment it reopens further out with every knock —
+    // so a client hammering an address kept itself locked out indefinitely,
+    // which is not a limit but a self-inflicted ban, and the same mechanism
+    // aimed at somebody else's account would be a way to hold it shut.
+    //
+    // At most `limit` timestamps per key now, and the window reopens exactly
+    // one window after the oldest attempt that was let through.
+    if (allowed) kept.push(now);
     this.hits.set(key, kept);
     if (this.hits.size > 10_000) this.prune(cutoff); // bound memory under a spray of keys
-    return kept.length <= this.limit;
+    return allowed;
   }
 
   /** Clear a key, called after a successful sign-in. */

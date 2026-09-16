@@ -36,8 +36,26 @@ export async function signIn(
   const email = String(form.get("email") ?? "");
   const password = String(form.get("password") ?? "");
 
-  const key = await clientKey();
-  if (!loginLimiter.check(key)) {
+  // Two keys, and the second is the one that holds.
+  //
+  // `clientKey` is built from `X-Forwarded-For`, which is a request header:
+  // behind a proxy it is the client's address, and with no proxy stripping it,
+  // it is whatever the client typed. A limiter keyed only on that is one an
+  // attacker turns off by varying a header, which makes it a limiter in name.
+  // There is no socket address to fall back to — a route handler is given
+  // headers and nothing else — so rather than pretend the header is trusted,
+  // the account being attacked gets a key of its own. That one cannot be
+  // spoofed away: credential stuffing against an address is stopped no matter
+  // where it appears to come from. Spraying one guess across many accounts
+  // still evades both, and needs a shared store to catch properly.
+  //
+  // Both are recorded before either is judged, so an address over its limit
+  // still counts against the account it is guessing at.
+  const addressKey = await clientKey();
+  const accountKey = `account:${email.trim().toLowerCase()}`;
+  const addressOk = loginLimiter.check(addressKey);
+  const accountOk = loginLimiter.check(accountKey);
+  if (!addressOk || !accountOk) {
     return { error: "Too many sign-in attempts — wait a few minutes and try again.", email };
   }
 
@@ -81,7 +99,8 @@ export async function signIn(
   });
 
   const token = issueSession(matched.id);
-  loginLimiter.reset(key);
+  loginLimiter.reset(addressKey);
+  loginLimiter.reset(accountKey);
   console.info(`sign-in accepted org=${matched.organizationId}`);
 
   const jar = await cookies();
