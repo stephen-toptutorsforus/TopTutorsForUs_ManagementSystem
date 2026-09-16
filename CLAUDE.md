@@ -624,5 +624,16 @@ past its limit, and below the breakpoint the neighbouring months go too, so
 they run as three people, because two tenants are what make an isolation bug
 visible.
 
+A spec that *books* needs a slot no earlier run has taken, which `e2e/slots.ts`
+supplies: the date separates the lanes and the time comes from the availability
+grid, so the slot one run takes is not offered to the next. What that leaves out
+is a day with no free cells at all — the lane date roams twenty weeks forward and
+one run landed on the seed's own closure, where every column is correctly refused
+for everybody. An instructor's exception does the same on a smaller scale, and so
+eventually does a day earlier runs have filled. All three want the same answer,
+so `pickFreeTime` steps to the next weekday and asks again, up to a week, and
+names the dates it tried when it gives up. The failure it replaced pointed at a
+missing button.
+
 Nothing in Phases 2–5 of [`docs/brief.md`](docs/brief.md) is built, which is
 deliberate — see the standing instruction about seams above.

@@ -50,13 +50,58 @@ export function bookableDate(
  * bookings a cell already taken is not one. So this cannot pick a time that
  * will then be refused — and two runs on the same date pick different times,
  * because the first one's booking removes its cell from the second one's grid.
+ *
+ * What that argument leaves out is that a lane date can land on a day with no
+ * free cells *at all*, and then there is no time to pick and no booking to
+ * test. Observed: `bookableDate` roams twenty weeks forward, and one run landed
+ * on the seed's own closure — "Staff training day" — where every column of the
+ * grid is correctly refused for everybody. An instructor's availability
+ * exception does the same thing on a smaller scale, and so, eventually, does a
+ * date whose cells earlier runs have taken.
+ *
+ * All three want the same answer: this day is no good, try the next one. Which
+ * day it is was never the point — `bookableDate` separates lanes so that runs
+ * do not collide, and a lane that has to step forward a day is still a lane.
+ * So step, up to a week's worth, and say plainly if a whole week is refused.
  */
 export async function pickFreeTime(page: Page): Promise<string> {
   const cell = page.locator('button[name="pick_time"]').first();
-  await expect(cell).toBeVisible();
+  const tried: string[] = [];
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if ((await cell.count()) > 0) break;
+
+    const on = (await page.locator("#start_date").inputValue()) || "";
+    tried.push(on);
+    await page.locator("#start_date").fill(nextWeekday(on));
+    // The form's own debounce, then the refresh it asks for.
+    await page.waitForTimeout(260);
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator(".availability")).not.toHaveAttribute("aria-busy", "true");
+  }
+
+  await expect(
+    cell,
+    `no free time on any of ${tried.join(", ")} — a closure, an exception, or a day earlier runs have filled`,
+  ).toBeVisible();
   const time = (await cell.getAttribute("value")) ?? "";
   await cell.click();
   return time;
+}
+
+/**
+ * The next weekday after a date, in the seed's Monday-to-Friday window.
+ *
+ * Counted rather than added to, for the same reason `prisma/scenarios.ts`
+ * counts them: adding a day slides onto a Saturday, where nobody has declared
+ * hours, and then two of these in a row land on the same Monday.
+ */
+function nextWeekday(day: string): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  do {
+    date.setUTCDate(date.getUTCDate() + 1);
+  } while (date.getUTCDay() === 0 || date.getUTCDay() === 6);
+  return date.toISOString().slice(0, 10);
 }
 
 /**
