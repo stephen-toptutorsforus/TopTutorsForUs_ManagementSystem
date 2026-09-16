@@ -77,7 +77,9 @@ export function peekOf(
     title: session.title,
     description: session.description,
     deliveryLabel,
-    state: sessionStateMeta(session.status, session.scheduledEnd),
+    state: sessionStateMeta(session.status, session.scheduledEnd, {
+      attendanceRecorded: row.attendanceRecorded,
+    }),
     startLabel: start.full,
     durationLabel: durationWords(minutes),
     // Shown only to somebody already allowed to see this session, and never

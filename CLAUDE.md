@@ -361,6 +361,20 @@ it is the state that asks the reader to do something. So `Badge.meaning` holds
 the sentence and it rides as a `title` on the chip, the grid block and the
 badge. Only there: a gloss on all eight is a gloss nobody reads. It names the
 two controls rather than a screen, because the badge is drawn on five of them.
+
+It is two sentences, chosen per session, because "no attendance has been
+recorded" is not true of all of them and a tooltip that says it anyway lies on
+the sessions it matters most on. `SCHEDULED` and `RESCHEDULED` both admit the
+`attendance` action, so an instructor may have marked the room present and never
+pressed Mark completed; that session is incomplete *and* has its attendance, and
+what it is missing is the outcome. `SessionRow.attendanceRecorded` answers it —
+not `attendanceRate !== null`, which is a different question and gets this one
+wrong twice over, since a session whose students are all *excused* has attendance
+and no rate, and one with no students has neither. It costs no query:
+`decorate` already reads every participant's `attendance` for the rate. (The
+rows themselves always exist — `attachParticipants` writes one per student at
+booking time so the denominator is fixed. What is absent is the judgement, not
+the record, which is why the sentence says "recorded" and not "records".)
 And never *only* as a title, which reaches neither touch nor most screen
 readers — the same sentence is text in the calendar's dialog and a paragraph on
 the help page, which is the rule `UserStatusBadge` already followed. The calendar's dialog resolves it on the
@@ -572,6 +586,16 @@ node tools/contrast.mjs   # palette against WCAG, both colour schemes
 node tools/snapshot-html.mjs <dir>   # every route's markup, for diffing
 ```
 
+`db:scenarios` is additive and idempotent — including across days, which took
+two goes. `--refresh` cleared the fixture's *sessions* and nothing else, while
+its exceptions, time off and closure are placed at offsets counted from **today**
+— so a Thursday run left time off exactly where the following Tuesday's run
+wanted to book, and they piled up. Found by a two-hour block refused as "outside
+declared availability" on a day the instructor plainly works. `clearOwnAvailability`
+now removes them, which is safe precisely because the file books its own cast: it
+owns everything about those instructors. The closure goes by its label, so the
+seed's own stays.
+
 `db:scenarios` is additive and idempotent. Every session it writes carries the
 program **Coverage scenarios**, which is how it knows whether it has run, how
 `--refresh` finds exactly its own rows, and how anybody reading a session's page
@@ -609,12 +633,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-560 tests — 302 pure, 258 database-backed — plus 430 browser tests and
+562 tests — 304 pure, 258 database-backed — plus 430 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 560 here against the reference's 509 — but the
+The counts have since crossed — 562 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about

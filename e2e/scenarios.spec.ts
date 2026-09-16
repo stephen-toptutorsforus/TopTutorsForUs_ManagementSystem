@@ -352,9 +352,10 @@ test.describe("what Incomplete means", () => {
     const incomplete = chips.filter((chip) => chip.state.includes("–"));
     expect(incomplete.length, "the fixture leaves a scheduled session in the past").toBeGreaterThan(0);
     for (const chip of incomplete) {
-      expect(chip.title, "an Incomplete chip should say what that means").toContain(
-        "nobody recorded",
+      expect(chip.title, "an Incomplete chip should say what that means").toMatch(
+        /attendance/i,
       );
+      expect(chip.title, "and what to do about it").toContain("Mark completed");
     }
 
     // And nowhere else. A gloss on every badge is a gloss nobody reads, and the
@@ -379,7 +380,7 @@ test.describe("what Incomplete means", () => {
       await expect(dialog).toContainText("Incomplete");
       // The same sentence, as text, for every touch screen and most screen
       // readers — neither of which ever sees a title.
-      await expect(dialog.locator(".peek-meaning")).toContainText("nobody recorded");
+      await expect(dialog.locator(".peek-meaning")).toContainText("attendance");
       return;
     }
     throw new Error(RUN_THE_FIXTURE);
@@ -388,6 +389,6 @@ test.describe("what Incomplete means", () => {
   test("is written down somewhere a pointer is not needed", async ({ page }) => {
     await page.goto("/help");
     await expect(page.locator("main")).toContainText("Incomplete");
-    await expect(page.locator("main")).toContainText("nobody said what happened");
+    await expect(page.locator("main")).toContainText("no attendance has been");
   });
 });

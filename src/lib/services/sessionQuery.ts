@@ -234,6 +234,20 @@ export interface SessionRow {
   subjectName: string | null;
   gradeName: string | null;
   attendanceRate: number | null;
+  /**
+   * Whether anybody has judged a student on this session yet.
+   *
+   * Not `attendanceRate !== null`, which is a different question and answers
+   * this one wrongly twice: a session whose students are all *excused* has had
+   * its attendance recorded and no rate, because an authorised absence leaves
+   * the denominator, and a session with no students has neither. This asks only
+   * whether a mark exists.
+   *
+   * Free: `decorate` already reads every participant's `attendance` to work out
+   * the rate, so this is the same rows counted a second way rather than a
+   * second query.
+   */
+  attendanceRecorded: boolean;
   seriesPosition: string | null;
 }
 
@@ -446,6 +460,9 @@ export async function decorate(
       occurrence.subjectId === null ? null : (subjects.get(occurrence.subjectId) ?? null),
     gradeName: occurrence.gradeId === null ? null : (grades.get(occurrence.gradeId) ?? null),
     attendanceRate: rateOf(attendance.get(occurrence.id) ?? []),
+    attendanceRecorded: (attendance.get(occurrence.id) ?? []).some(
+      (status) => status !== AttendanceStatus.UNMARKED,
+    ),
     seriesPosition:
       occurrence.seriesId !== null &&
       occurrence.seriesIndex !== null &&

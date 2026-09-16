@@ -113,7 +113,9 @@ export function TimeGridView({
               const session = item.row.session;
               // What it *is*: a scheduled session whose hour has gone by reads
               // Incomplete, and nothing was written to make that so.
-              const meta = sessionStateMeta(session.status, session.scheduledEnd);
+              const meta = sessionStateMeta(session.status, session.scheduledEnd, {
+                attendanceRecorded: item.row.attendanceRecorded,
+              });
               const start = new Moment(session.scheduledStart, session.timezone);
               const end = new Moment(session.scheduledEnd, session.timezone);
               // Given names only when this chip is sharing its column: two

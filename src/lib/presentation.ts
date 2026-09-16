@@ -124,21 +124,42 @@ export function statusMeta(status: SessionStatus): Badge {
  * unfinished. The glyph is a dash for the same reason — an absence, not an
  * alarm.
  */
+/**
+ * What Incomplete means, which depends on what is on the session.
+ *
+ * The one session state that needs saying at all. Every other word on the
+ * calendar is either self-explanatory or in the status filter's own menu, where
+ * it can be looked up; this one is in neither, because it is worked out when the
+ * page is drawn rather than stored. So somebody meeting it has nowhere to ask —
+ * and, worse, it is the state that asks *them* to do something. The sentence
+ * says which thing.
+ *
+ * Two sentences rather than one, because "no attendance has been recorded" is
+ * not true of every incomplete session and a tooltip that says it anyway is a
+ * tooltip that lies on the sessions it matters most on. `SCHEDULED` and
+ * `RESCHEDULED` both admit the `attendance` action — see `ACTIONS_BY_STATUS` —
+ * so an instructor may perfectly well have marked the room present and simply
+ * never pressed Mark completed. That session is incomplete *and* has its
+ * attendance; what it is missing is the outcome, and saying otherwise would
+ * send somebody to re-record what is already there.
+ *
+ * (The rows themselves always exist: `attachParticipants` writes one per student
+ * at booking time so the attendance denominator is fixed before anybody can
+ * change the roster. What is absent on an unmarked session is the judgement,
+ * not the record — which is why this says "recorded" rather than "records".)
+ */
+export function incompleteMeaning(attendanceRecorded = false): string {
+  const doThis = "Editing the session offers Mark completed and Mark missed.";
+  return attendanceRecorded
+    ? `The session's time has passed and attendance was recorded, but nobody said whether it happened. ${doThis}`
+    : `The session's time has passed and no attendance has been recorded yet. ${doThis}`;
+}
+
 export const INCOMPLETE: Badge = {
   label: "Incomplete",
   tone: "muted",
   icon: "–",
-  /**
-   * The one session state that needs saying. Every other word on the calendar
-   * is either self-explanatory or in the status filter's own menu, where it
-   * can be looked up; this one is in neither, because it is worked out when the
-   * page is drawn rather than stored. So somebody meeting it has nowhere to ask
-   * what it means, and — worse — it is the state that asks them to *do*
-   * something. The sentence says which thing.
-   */
-  meaning:
-    "The session's time has passed and nobody recorded whether it happened. " +
-    "Editing the session offers Mark completed and Mark missed.",
+  meaning: incompleteMeaning(),
 };
 
 /**
@@ -170,11 +191,25 @@ export const INCOMPLETE: Badge = {
 export function sessionStateMeta(
   status: SessionStatus,
   scheduledEnd: Date,
-  now: Date = new Date(),
+  facts: {
+    /** Injectable so a test does not depend on the wall clock. */
+    now?: Date;
+    /**
+     * Whether anybody has been marked on it. Only changes the sentence, never
+     * the state: a session with attendance on it and no outcome is exactly as
+     * incomplete as one with neither. `SessionRow.attendanceRecorded` is where
+     * a caller gets this; omitting it reads as "nothing recorded", which is the
+     * common case and the safer thing to say when it is not known.
+     */
+    attendanceRecorded?: boolean;
+  } = {},
 ): Badge {
+  const { now = new Date(), attendanceRecorded = false } = facts;
   const unsettled =
     status === SessionStatus.SCHEDULED || status === SessionStatus.RESCHEDULED;
-  if (unsettled && scheduledEnd.getTime() < now.getTime()) return INCOMPLETE;
+  if (unsettled && scheduledEnd.getTime() < now.getTime()) {
+    return { ...INCOMPLETE, meaning: incompleteMeaning(attendanceRecorded) };
+  }
   return statusMeta(status);
 }
 

@@ -21,6 +21,7 @@ import {
   STATUS_FILTER_ORDER,
   USER_STATUS_FILTER_ORDER,
   attendeesLabel,
+  incompleteMeaning,
   sessionStateMeta,
   statusMeta,
   userStatusMeta,
@@ -149,7 +150,7 @@ describe("what a session's state is, as against what its status says", () => {
     // happen. Nothing moves it on, because completing and missing are things a
     // person does, so the status is right about the record and wrong about the
     // world.
-    const meta = sessionStateMeta(SessionStatus.SCHEDULED, past, now);
+    const meta = sessionStateMeta(SessionStatus.SCHEDULED, past, { now });
 
     expect(meta.label).toBe("Incomplete");
     expect(meta.icon).toBe("–");
@@ -157,11 +158,11 @@ describe("what a session's state is, as against what its status says", () => {
 
   it("says the same of a rescheduled one", () => {
     // Moved and then not held is exactly as unresolved as never moved.
-    expect(sessionStateMeta(SessionStatus.RESCHEDULED, past, now).label).toBe("Incomplete");
+    expect(sessionStateMeta(SessionStatus.RESCHEDULED, past, { now }).label).toBe("Incomplete");
   });
 
   it("leaves a session that has not happened yet alone", () => {
-    expect(sessionStateMeta(SessionStatus.SCHEDULED, future, now).label).toBe("Scheduled");
+    expect(sessionStateMeta(SessionStatus.SCHEDULED, future, { now }).label).toBe("Scheduled");
   });
 
   it("does not overwrite a state somebody has already settled", () => {
@@ -173,7 +174,7 @@ describe("what a session's state is, as against what its status says", () => {
       SessionStatus.CANCELLED,
       SessionStatus.REJECTED,
     ]) {
-      expect(sessionStateMeta(status, past, now).label, status).toBe(
+      expect(sessionStateMeta(status, past, { now }).label, status).toBe(
         statusMeta(status).label,
       );
     }
@@ -182,13 +183,13 @@ describe("what a session's state is, as against what its status says", () => {
   it("leaves a request that has gone past as a request", () => {
     // It wants a *decision*, not an outcome, and the two are fixed with
     // different controls. "Incomplete" would send somebody to the wrong one.
-    expect(sessionStateMeta(SessionStatus.REQUESTED, past, now).label).toBe("Requested");
+    expect(sessionStateMeta(SessionStatus.REQUESTED, past, { now }).label).toBe("Requested");
   });
 
   it("leaves in-progress alone, because nothing sets it yet", () => {
     // What a stale one means is the classroom integration's question to answer
     // when it exists, not this function's to guess at.
-    expect(sessionStateMeta(SessionStatus.IN_PROGRESS, past, now).label).toBe("In progress");
+    expect(sessionStateMeta(SessionStatus.IN_PROGRESS, past, { now }).label).toBe("In progress");
   });
 
   it("says what Incomplete means, because nowhere else can", () => {
@@ -196,10 +197,10 @@ describe("what a session's state is, as against what its status says", () => {
     // filter's own menu, where it can be looked up. This one is in neither: it
     // is worked out when the page is drawn rather than stored. So the sentence
     // travels with it.
-    const meaning = sessionStateMeta(SessionStatus.SCHEDULED, past, now).meaning;
+    const meaning = sessionStateMeta(SessionStatus.SCHEDULED, past, { now }).meaning;
 
     expect(meaning).toBeTypeOf("string");
-    expect(meaning).toContain("nobody recorded");
+    expect(meaning).toContain("no attendance has been recorded");
     // And it says what to do about it, which is the point of noticing at all —
     // naming the two controls rather than a screen, because this badge is drawn
     // on the calendar, the grid, the dialog, the list and the record.
@@ -219,15 +220,44 @@ describe("what a session's state is, as against what its status says", () => {
       SessionStatus.REQUESTED,
       SessionStatus.IN_PROGRESS,
     ]) {
-      expect(sessionStateMeta(status, future, now).meaning, status).toBeUndefined();
+      expect(sessionStateMeta(status, future, { now }).meaning, status).toBeUndefined();
     }
     // Including a past one that is already settled.
-    expect(sessionStateMeta(SessionStatus.COMPLETED, past, now).meaning).toBeUndefined();
+    expect(sessionStateMeta(SessionStatus.COMPLETED, past, { now }).meaning).toBeUndefined();
+  });
+
+  it("does not claim there is no attendance when there is", () => {
+    // The sentence people asked for — "incomplete sessions don't have
+    // attendance records yet" — is not true of all of them. `SCHEDULED` and
+    // `RESCHEDULED` both admit the `attendance` action, so an instructor may
+    // have marked the room present and simply never pressed Mark completed.
+    // Saying otherwise on that session sends somebody to redo work already done.
+    const marked = sessionStateMeta(SessionStatus.SCHEDULED, past, {
+      now,
+      attendanceRecorded: true,
+    });
+
+    expect(marked.label, "still incomplete — what is missing is the outcome").toBe(
+      "Incomplete",
+    );
+    expect(marked.meaning).toContain("attendance was recorded");
+    expect(marked.meaning).not.toContain("no attendance");
+    // The thing that *is* missing, and the same two controls.
+    expect(marked.meaning).toContain("nobody said whether it happened");
+    expect(marked.meaning).toContain("Mark completed");
+  });
+
+  it("assumes nothing was recorded when the caller does not say", () => {
+    // The common case, and the safer of the two to guess: a caller with no
+    // roster in hand should not assert that somebody has been marked.
+    expect(sessionStateMeta(SessionStatus.SCHEDULED, past, { now }).meaning).toBe(
+      incompleteMeaning(false),
+    );
   });
 
   it("draws Incomplete as an absence rather than an alarm", () => {
     // Muted, not bad: nothing has gone wrong, something is merely unfinished.
-    expect(sessionStateMeta(SessionStatus.SCHEDULED, past, now).tone).toBe("muted");
+    expect(sessionStateMeta(SessionStatus.SCHEDULED, past, { now }).tone).toBe("muted");
   });
 });
 

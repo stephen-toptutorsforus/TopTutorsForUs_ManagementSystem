@@ -38,6 +38,7 @@ import type { Prisma, PrismaClient } from "../src/generated/prisma/client";
 import {
   AttendanceStatus,
   DeliveryType,
+  ParticipantRole,
   Role,
   SessionStatus,
   UserStatus,
@@ -500,6 +501,26 @@ async function theSevenStatuses(context: Context): Promise<void> {
     context,
     base(context, "Incomplete: nobody said what happened", weekdayBefore(today, 3), "15:00"),
   );
+
+  // And the same state with the attendance already taken, which is the case a
+  // blanket "incomplete sessions have no attendance recorded" would have got
+  // wrong. `SCHEDULED` admits the `attendance` action — see `ACTIONS_BY_STATUS`
+  // — so an instructor can mark the room present and never press Mark
+  // completed. This session is incomplete and has its attendance; what it is
+  // missing is only the outcome, and a tooltip that told somebody to go and
+  // record attendance would be sending them to redo work already done.
+  const [taken] = await book(context, {
+    ...base(context, "Incomplete: attendance taken, outcome not", weekdayBefore(today, 4), "13:00"),
+    studentIds: context.students.slice(0, 2).map((who) => who.id),
+  });
+  for (const attendee of await db.sessionParticipant.findMany({
+    where: { sessionId: taken!.id, role: ParticipantRole.STUDENT },
+    orderBy: { id: "asc" },
+  })) {
+    await markAttendance(db, principal, taken!, attendee, {
+      status: AttendanceStatus.PRESENT,
+    });
+  }
 
   // Rescheduled. Booked, then moved — the status is what `reschedule` leaves
   // behind, so it cannot be arrived at any other way.

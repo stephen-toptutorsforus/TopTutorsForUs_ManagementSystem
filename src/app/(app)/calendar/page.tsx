@@ -103,7 +103,9 @@ function EventLink({ row }: { row: SessionRow }) {
   // What the session *is*, which for a scheduled one whose hour has gone by is
   // Incomplete rather than Scheduled. Nothing in the database changed to make
   // that true — see `sessionStateMeta`.
-  const meta = sessionStateMeta(session.status, session.scheduledEnd);
+  const meta = sessionStateMeta(session.status, session.scheduledEnd, {
+    attendanceRecorded: row.attendanceRecorded,
+  });
   const moment = new Moment(session.scheduledStart, session.timezone);
 
   return (

@@ -123,10 +123,13 @@ export default async function HelpPage() {
             passed with nothing recorded still says it was going to happen. The
             calendar draws those as <strong>Incomplete</strong> — a muted{" "}
             <span aria-hidden="true">&ndash;</span> — meaning the time has passed and
-            nobody said what happened. It is not a status you can set or filter on:
+            nobody said what happened — usually because no attendance has been
+            recorded for it either. It is not a status you can set or filter on:
             editing the session offers <strong>Mark completed</strong> and{" "}
             <strong>Mark missed</strong>, and once one of those is recorded it becomes
-            a status like any other.
+            a status like any other. Attendance can be taken before that, so a session
+            may be incomplete with everybody already marked; what it is missing then
+            is only the outcome.
           </dd>
           <dt>Account status</dt>
           <dd>
