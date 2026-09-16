@@ -1123,8 +1123,10 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 .cal-flag {
   margin-left: auto; flex: none;
   display: inline-grid; place-items: center;
-  width: 16px; height: 16px; border-radius: 4px;
-  font-size: 0.65rem; font-weight: 700; border: 1px solid;
+  width: 19px; height: 19px; border-radius: 4px;
+  /* At the chip's size, for the reason given at `.tg-event-flag`. The box grows
+     with it: a 1em glyph in a 16px square touched the border. */
+  font-size: 1em; line-height: 1; font-weight: 700; border: 1px solid;
 }
 .cal-event.is-scheduled { border-left-color: var(--info-text); }
 .cal-event.is-rescheduled { border-left-color: var(--moved-text); }
@@ -1579,7 +1581,19 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 :not(.main-fill) > .cal-grid-card .cal-timegrid-scroll { max-height: 74vh; }
 
 .cal-timegrid {
-  --tg-slot: 30px;
+  /* Half an hour, and it has to be tall enough to *say* something. At 30px a
+     half-hour block held one line once its margin, padding and gap were taken
+     out, so the chip showed a start time and then ran out of room for who the
+     session was with — and an hour-long one, which is most of them, fitted two
+     lines exactly and clipped the second. Two lines need 15.2px each at this
+     font size, plus 6.4px of padding, 2px of margin and the gap: forty. The
+     rest is slack, so a descender or a rounded-up line box does not clip.
+
+     It costs height — a whole day is now about 2100px rather than 1440 — and
+     the pane scrolls, opens on the working day, and never cropped the night
+     hours away in the first place. Scrolling past 3 a.m. is cheaper than not
+     being able to read 3 p.m. */
+  --tg-slot: 44px;
   --tg-gutter: 72px;
   display: grid;
   grid-template-columns: var(--tg-gutter) repeat(7, minmax(122px, 1fr));
@@ -1679,8 +1693,23 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   overflow: hidden;
 }
+/* Except in the shortest block there is. A half-hour session is one row tall,
+   which holds the start time and one line under it — so a second line of names
+   is not a second line, it is a line cut off halfway down by the chip's own
+   `overflow: hidden`, with no ellipsis to say that it was. `.s1` is the span
+   class the block already carries, so this needs no new one. */
+.tg-event.s1 .tg-event-title { -webkit-line-clamp: 1; }
 .tg-event-who { color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tg-event-flag { position: absolute; top: 3px; right: 4px; font-size: 0.68rem; }
+/* The status glyph, at the chip's own size rather than under it. It was set
+   two steps smaller than the text it sits beside, which made the one part of
+   the chip carrying a *distinct* meaning the hardest part to read — and a
+   glyph is not an annotation here, it is how status travels when colour alone
+   must not be the signal. `1em` keeps it tied to the chip, so the two can
+   never drift apart again. */
+.tg-event-flag {
+  position: absolute; top: 3px; right: 4px;
+  font-size: 1em; line-height: 1; font-weight: 700;
+}
 .tg-event { position: relative; }
 
 .tg-event.is-cancelled, .tg-event.is-rejected { opacity: 0.62; text-decoration: line-through; }

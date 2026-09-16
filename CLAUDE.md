@@ -374,6 +374,27 @@ grid rows, each distinct one needs its own class in the stylesheet — `style-sr
 'self'` forbids inline positions — and ninety-six row classes to draw a line is
 the wrong trade when the row already knows its height.
 
+**A half hour has to be tall enough to say something.** At 30px a block of one
+row held its start time and nothing else once margin, padding and the gap were
+taken out, and an hour-long session — which is most of them — fitted two lines
+exactly and cut the third. `--tg-slot` is 44px, which is the forty a second line
+needs plus slack for a rounded-up line box. It costs height: a day is about
+2100px rather than 1440. The pane scrolls, opens on the working day, and never
+cropped the night hours away, so scrolling past 3 a.m. is the cheaper of the two
+prices. What each block can then hold follows from it — a one-row block clamps
+the names to a single line with an ellipsis rather than cutting the second one
+in half against `overflow: hidden`, and a two-row block has room for the title
+under them, which is why that line is gated on the span the block already
+carries rather than on a new class.
+
+**A status glyph is the size of the text beside it.** Both chips set theirs two
+steps smaller than their own font, which made the one part carrying a
+*distinct* meaning the hardest part to read — and the glyph is not an
+annotation here, it is how status travels when colour alone must not be the
+signal. `1em` on each ties it to its chip so the two cannot drift apart again;
+the month's swatch grew from 16px to 19px to hold it without touching the
+border.
+
 **Overlapping sessions have always had lanes.** `assignLanes` splits a cluster
 across the column and the stylesheet declares `.lane-N-of-M`, and none of it had
 ever been on screen, because nothing in the seed overlapped. It takes two

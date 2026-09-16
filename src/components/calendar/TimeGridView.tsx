@@ -140,8 +140,12 @@ export function TimeGridView({
                       below, and in the dialog. */}
                   <span className="tg-event-title">{who}</span>
                   {/* Room for the title only when the block is tall enough to
-                      hold a second line and is not sharing its column. */}
-                  {item.span > 2 && item.lanes === 1 && (
+                      hold a third line and is not sharing its column. An
+                      hour-long session — which is most of them — now clears
+                      that: at a 44px half hour it has 88px to put three lines
+                      of 15 in. It used to need ninety minutes, on rows short
+                      enough that the third line would have been cut anyway. */}
+                  {item.span >= 2 && item.lanes === 1 && (
                     <span className="tg-event-who">{session.title}</span>
                   )}
                   <span className={`tg-event-flag badge-${meta.tone}`} aria-hidden="true">
