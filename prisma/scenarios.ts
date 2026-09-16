@@ -87,6 +87,13 @@ const DEMO_PASSWORD = "TopTutorsForUsDemo!2026";
  */
 const MARKER = "Coverage scenarios";
 
+/**
+ * The label on the closure this script writes. Named rather than typed twice,
+ * because `clearOwnAvailability` finds it by exactly this string and a closure
+ * it fails to find is one that accumulates.
+ */
+const SCENARIO_CLOSURE = "Mid-term break";
+
 type Db = PrismaClient;
 
 // --- Placing the cases -------------------------------------------------------
@@ -156,6 +163,13 @@ async function main(): Promise<void> {
   const principal = await loadPrincipal(db, admin.id);
 
   const people = await cast(db, org.id, org.timezone);
+  if (already > 0) {
+    await clearOwnAvailability(
+      db,
+      org.id,
+      people.instructors.map((who) => who.id),
+    );
+  }
   const context: Context = {
     db,
     org: org as BookingOrganization & { id: bigint; timezone: string },
@@ -216,6 +230,43 @@ async function markerProgram(db: Db, organizationId: bigint) {
  * created elsewhere that happens to have a scenario occurrence on it keeps its
  * own rows.
  */
+/**
+ * Remove the availability artefacts this script leaves behind, and nothing else.
+ *
+ * `removeOwn` above clears the *sessions*, which was only ever half the job.
+ * The exceptions, the time off and the closure are placed at offsets counted
+ * from **today**, so a run on Thursday puts time off where the following
+ * Tuesday's run wants to book — and since nothing removed them, they piled up.
+ * The failure that found this: a two-hour block refused as "outside declared
+ * availability" on a day the instructor plainly works, because a run nine days
+ * earlier had put its own conference on that afternoon. Two other cases had
+ * already been quietly landing on stale rows.
+ *
+ * Safe to delete outright because the cast is this script's own — the file
+ * books its own instructors and students precisely so that it owns everything
+ * about them. The closure goes by its label for the same reason: it is the one
+ * this file writes, and the seed's "Staff training day" is left alone.
+ *
+ * Only on `--refresh`. A first run has nothing to clear, and a second run
+ * without the flag does not get this far.
+ */
+async function clearOwnAvailability(
+  db: Db,
+  organizationId: bigint,
+  instructorIds: readonly bigint[],
+): Promise<void> {
+  const where = { organizationId, instructorId: { in: [...instructorIds] } };
+  const exceptions = await db.availabilityException.deleteMany({ where });
+  const timeOff = await db.timeOff.deleteMany({ where });
+  const closures = await db.offDay.deleteMany({
+    where: { organizationId, label: SCENARIO_CLOSURE },
+  });
+  console.info(
+    `removed ${exceptions.count} exceptions, ${timeOff.count} time-off rows, ` +
+      `${closures.count} closures`,
+  );
+}
+
 async function removeOwn(db: Db, organizationId: bigint, programId: bigint): Promise<void> {
   const mine = await db.sessionOccurrence.findMany({
     where: { organizationId, programId },
@@ -461,6 +512,15 @@ async function theSevenStatuses(context: Context): Promise<void> {
     startTime: "15:00",
     durationMinutes: 60,
     timezone: org.timezone,
+    // The fixture's dates roam with the clock, and four weekdays out is
+    // sometimes the seed's own closure — where every hour is refused for
+    // everybody and this stopped dead. What it is here to produce is a row in
+    // the RESCHEDULED state, not a test of closure policy; the booking on the
+    // line above already lands on the same day without complaint, because
+    // `createFromPlan` writes through an overridable conflict where
+    // `reschedule` refuses unless asked. A closure is overridable —
+    // `ABSOLUTE_KINDS` is instructor and room only — so this asks.
+    overrideConflicts: true,
   });
 
   // Completed, with attendance recorded. In the past, which is where a
@@ -542,9 +602,17 @@ async function theSevenStatuses(context: Context): Promise<void> {
   // is untouched and disappears the moment any status box is ticked. That
   // mismatch is deliberate and `tests/presentation.test.ts` guards it; this row
   // is what makes it visible.
+  //
+  // Noon today, unless the fixture is being run after about half past ten, in
+  // which case tomorrow: `validateTiming` refuses a booking less than an hour
+  // out, and a fixture that only works before eleven in the morning is a
+  // fixture that fails for whoever runs it after lunch. Which it did.
+  const running0 = resolveCivil(today, "12:00", org.timezone).instant;
+  const runningDay =
+    running0.getTime() - Date.now() > 90 * 60_000 ? today : weekdayFrom(today, 1);
   const [running] = await book(
     context,
-    base(context, "In progress: happening now", today, "12:00"),
+    base(context, "In progress: happening now", runningDay, "12:00"),
   );
   await db.sessionOccurrence.update({
     where: { id: running!.id },
@@ -826,7 +894,7 @@ async function theAwkwardAvailability(context: Context): Promise<void> {
   });
   if (!shut) {
     await db.offDay.create({
-      data: { organizationId, day: dateToDb(closure), label: "Mid-term break" },
+      data: { organizationId, day: dateToDb(closure), label: SCENARIO_CLOSURE },
     });
   }
 }
