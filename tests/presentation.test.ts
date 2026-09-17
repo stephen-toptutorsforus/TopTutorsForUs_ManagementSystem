@@ -24,6 +24,7 @@ import {
   incompleteMeaning,
   sessionStateMeta,
   statusMeta,
+  studentList,
   userStatusMeta,
 } from "@/lib/presentation";
 import { narrows, ticked } from "@/lib/selection";
@@ -302,5 +303,58 @@ describe("who a session is, in the space a chip has", () => {
   it("ignores blanks rather than counting them", () => {
     // A participant row with no name on it is a data problem, not a student.
     expect(attendeesLabel("  ", ["Ada Fenwick", "  "], "Algebra")).toBe("Ada Fenwick");
+  });
+
+  it("reads the same for a student as for the coordinator", () => {
+    // The whole point of counting rather than naming: a student is told their
+    // own name and a total, and the chip that renders from it is byte-identical
+    // to the one the coordinator sees. A chip that narrowed visibly would
+    // announce, on the calendar, that there was something being withheld.
+    const staff = attendeesLabel("Marguerite Okonjo", ["Ada", "Bruno", "Chiara"], "Algebra");
+    const student = attendeesLabel("Marguerite Okonjo", ["Ada"], "Algebra", false, 3);
+    expect(student).toBe(staff);
+    expect(student).toBe("3 students & Marguerite Okonjo");
+  });
+
+  it("will not let a narrowed list read as a one-to-one", () => {
+    // One name out of two is still a group. Counting the array would say
+    // "Marguerite & Ada" and quietly lose the other student.
+    expect(attendeesLabel("Marguerite Okonjo", ["Ada"], "Algebra", false, 2)).toBe(
+      "2 students & Marguerite Okonjo",
+    );
+  });
+
+  it("never counts fewer people than it was given names for", () => {
+    // A total that disagrees with the list is a caller bug; the names are the
+    // thing that is certainly true, so they win.
+    expect(attendeesLabel(null, ["Ada", "Bruno"], "Algebra", false, 1)).toBe("2 students");
+  });
+});
+
+describe("the students, written out", () => {
+  it("lists them when the reader may see them all", () => {
+    expect(studentList(["Ada Fenwick", "Bruno Salas"])).toBe("Ada Fenwick, Bruno Salas");
+  });
+
+  it("counts the rest when the reader may not", () => {
+    expect(studentList(["Ada Fenwick"], 3)).toBe("Ada Fenwick and 2 others");
+    expect(studentList(["Ada Fenwick"], 2)).toBe("Ada Fenwick and 1 other");
+  });
+
+  it("says nothing at all for a session with nobody on it", () => {
+    // The empty string rather than an em dash: each screen spells its own
+    // placeholder, and a table cell and a dialog spell it differently.
+    expect(studentList([])).toBe("");
+  });
+
+  it("falls back to a bare count when it may name nobody", () => {
+    // Not reachable from the session screens — a viewer who can open a session
+    // is on it, or guards somebody on it — but a list that silently emptied
+    // itself would be the wrong failure if that ever stopped being true.
+    expect(studentList([], 3)).toBe("3 students");
+  });
+
+  it("ignores blanks rather than counting them", () => {
+    expect(studentList(["Ada Fenwick", "  "])).toBe("Ada Fenwick");
   });
 });

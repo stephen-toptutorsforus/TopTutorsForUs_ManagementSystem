@@ -17,7 +17,7 @@ import {
 import { Card, CardGrid, EmptyState, LinkButton, PageHeader, StatusBadge, TableWrap, Tag, When, WhenTime } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
-import { durationLabel } from "@/lib/presentation";
+import { durationLabel, studentList } from "@/lib/presentation";
 import { decorate, visibleSessions } from "@/lib/services/sessionQuery";
 import { scheduledDurationMinutes } from "@/lib/services/sessionOps";
 import { addDays, civilDate, resolveCivil } from "@/lib/time";
@@ -79,8 +79,8 @@ export default async function DashboardPage() {
   };
 
   const [todayRows, upcomingRows] = await Promise.all([
-    decorate(prisma, todays),
-    decorate(prisma, upcoming),
+    decorate(prisma, principal, todays),
+    decorate(prisma, principal, upcoming),
   ]);
 
   return (
@@ -152,7 +152,9 @@ export default async function DashboardPage() {
                     <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
                   </td>
                   <td data-label="Instructor">{row.instructorName ?? "—"}</td>
-                  <td data-label="Students">{row.studentNames.join(", ") || "—"}</td>
+                  <td data-label="Students">
+                    {studentList(row.studentNames, row.studentCount) || "—"}
+                  </td>
                   <td data-label="Status">
                     <StatusBadge status={row.session.status} endsAt={row.session.scheduledEnd} />
                   </td>

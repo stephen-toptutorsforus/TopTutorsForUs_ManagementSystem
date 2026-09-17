@@ -14,7 +14,12 @@ import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState,
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import { durationLabel, percent, statusFilterOptions } from "@/lib/presentation";
+import {
+  durationLabel,
+  percent,
+  statusFilterOptions,
+  studentList,
+} from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import { actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
 import { FilterMenu } from "@/components/FilterMenu";
@@ -70,7 +75,7 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
     case "instructor":
       return <>{row.instructorName ?? "—"}</>;
     case "students":
-      return <>{row.studentNames.join(", ") || "—"}</>;
+      return <>{studentList(row.studentNames, row.studentCount) || "—"}</>;
     case "location":
       return <>{row.locationName ?? "—"}</>;
     case "billable":

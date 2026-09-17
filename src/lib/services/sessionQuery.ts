@@ -21,6 +21,7 @@ import { narrowsByStatus } from "@/lib/calendar";
 import type { Db } from "@/lib/db";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
+import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { readableQuery } from "@/lib/urlState";
 import { Moment } from "@/lib/rendering";
@@ -229,7 +230,16 @@ export type OccurrenceRow = Prisma.SessionOccurrenceGetPayload<object>;
 export interface SessionRow {
   session: OccurrenceRow;
   instructorName: string | null;
+  /**
+   * The students this viewer may be told about, which is not always all of
+   * them. Narrowed by `rosterFor`: staff and the session's own instructor see
+   * the register, a student sees themselves, a guardian sees the children they
+   * are linked to. `studentCount` beside it is always the true total, so a
+   * group still reads as a group to somebody who may not be told who is in it.
+   */
   studentNames: string[];
+  /** Every student on the session, named or not. */
+  studentCount: number;
   locationName: string | null;
   subjectName: string | null;
   gradeName: string | null;
@@ -392,7 +402,7 @@ export async function listSessions(
   ]);
 
   return {
-    rows: await decorate(db, occurrences),
+    rows: await decorate(db, principal, occurrences),
     total,
     page: filters.page,
     pageSize,
@@ -409,6 +419,7 @@ export async function listSessions(
  */
 export async function decorate(
   db: Db,
+  principal: Principal,
   occurrences: readonly OccurrenceRow[],
 ): Promise<SessionRow[]> {
   if (occurrences.length === 0) return [];
@@ -419,57 +430,70 @@ export async function decorate(
     where: { sessionId: { in: ids } },
     select: {
       sessionId: true,
+      userId: true,
       role: true,
       attendance: true,
       user: { select: { firstName: true, lastName: true } },
     },
   });
 
-  const students = new Map<bigint, string[]>();
+  // Kept as rows rather than flattened to names here. Who may be *named* is a
+  // policy question asked per session, and a list of strings has already thrown
+  // away the ids it is asked about.
+  const onSession = new Map<bigint, (typeof participantRows)[number][]>();
   const attendance = new Map<bigint, AttendanceStatus[]>();
   for (const row of participantRows) {
+    if (!onSession.has(row.sessionId)) onSession.set(row.sessionId, []);
+    onSession.get(row.sessionId)!.push(row);
     if (row.role !== ParticipantRole.STUDENT) continue;
-    const name = `${row.user.firstName} ${row.user.lastName}`.trim();
-    if (!students.has(row.sessionId)) students.set(row.sessionId, []);
     if (!attendance.has(row.sessionId)) attendance.set(row.sessionId, []);
-    students.get(row.sessionId)!.push(name);
+    // Every student counts towards the rate, including the ones this viewer may
+    // not be told the name of. Recomputing it over the visible few would be a
+    // different number wearing the session's label.
     attendance.get(row.sessionId)!.push(row.attendance);
   }
 
   const idsOf = (pick: (o: OccurrenceRow) => bigint | null) =>
     [...new Set(occurrences.map(pick).filter((id): id is bigint => id !== null))];
 
-  const [instructors, locations, subjects, grades, seriesTotals] = await Promise.all([
+  const [instructors, locations, subjects, grades, seriesTotals, roster] = await Promise.all([
     peopleNames(db, idsOf((o) => o.instructorId)),
     namedRows(db.location, idsOf((o) => o.locationId)),
     namedRows(db.subject, idsOf((o) => o.subjectId)),
     namedRows(db.grade, idsOf((o) => o.gradeId)),
     seriesOccurrenceTotals(db, idsOf((o) => o.seriesId)),
+    // One guardian lookup for the whole page rather than one per row, and none
+    // at all for somebody who may see every roster anyway.
+    rosterFor(db, principal),
   ]);
 
-  return occurrences.map((occurrence) => ({
-    session: occurrence,
-    instructorName:
-      occurrence.instructorId === null
-        ? null
-        : (instructors.get(occurrence.instructorId) ?? null),
-    studentNames: students.get(occurrence.id) ?? [],
-    locationName:
-      occurrence.locationId === null ? null : (locations.get(occurrence.locationId) ?? null),
-    subjectName:
-      occurrence.subjectId === null ? null : (subjects.get(occurrence.subjectId) ?? null),
-    gradeName: occurrence.gradeId === null ? null : (grades.get(occurrence.gradeId) ?? null),
-    attendanceRate: rateOf(attendance.get(occurrence.id) ?? []),
-    attendanceRecorded: (attendance.get(occurrence.id) ?? []).some(
-      (status) => status !== AttendanceStatus.UNMARKED,
-    ),
-    seriesPosition:
-      occurrence.seriesId !== null &&
-      occurrence.seriesIndex !== null &&
-      seriesTotals.has(occurrence.seriesId)
-        ? `${occurrence.seriesIndex} of ${seriesTotals.get(occurrence.seriesId)}`
-        : null,
-  }));
+  return occurrences.map((occurrence) => {
+    const named = roster.namesFor(occurrence, onSession.get(occurrence.id) ?? []);
+    return {
+      session: occurrence,
+      instructorName:
+        occurrence.instructorId === null
+          ? null
+          : (instructors.get(occurrence.instructorId) ?? null),
+      studentNames: named.names,
+      studentCount: named.total,
+      locationName:
+        occurrence.locationId === null ? null : (locations.get(occurrence.locationId) ?? null),
+      subjectName:
+        occurrence.subjectId === null ? null : (subjects.get(occurrence.subjectId) ?? null),
+      gradeName: occurrence.gradeId === null ? null : (grades.get(occurrence.gradeId) ?? null),
+      attendanceRate: rateOf(attendance.get(occurrence.id) ?? []),
+      attendanceRecorded: (attendance.get(occurrence.id) ?? []).some(
+        (status) => status !== AttendanceStatus.UNMARKED,
+      ),
+      seriesPosition:
+        occurrence.seriesId !== null &&
+        occurrence.seriesIndex !== null &&
+        seriesTotals.has(occurrence.seriesId)
+          ? `${occurrence.seriesIndex} of ${seriesTotals.get(occurrence.seriesId)}`
+          : null,
+    };
+  });
 }
 
 function rateOf(marks: readonly AttendanceStatus[]): number | null {
@@ -569,7 +593,7 @@ export async function calendarRange(
   });
 
   const buckets = new Map<CivilDate, SessionRow[]>();
-  for (const row of await decorate(db, occurrences)) {
+  for (const row of await decorate(db, principal, occurrences)) {
     const day = civilDate(row.session.scheduledStart, zone);
     if (!buckets.has(day)) buckets.set(day, []);
     buckets.get(day)!.push(row);

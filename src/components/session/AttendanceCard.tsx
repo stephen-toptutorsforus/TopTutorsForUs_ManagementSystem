@@ -34,6 +34,7 @@ export function AttendanceCard({
   csrfToken,
   timezone,
   participants,
+  hidden = 0,
   attendanceRate,
   editable,
 }: {
@@ -41,6 +42,14 @@ export function AttendanceCard({
   csrfToken: string;
   timezone: string;
   participants: ParticipantView[];
+  /**
+   * How many participants this reader was not shown.
+   *
+   * A student or a guardian sees their own row rather than the register, and
+   * the rate above is still computed over everybody — so without this the card
+   * would show one name beside a rate that plainly came from more than one.
+   */
+  hidden?: number;
   attendanceRate: number | null;
   editable: boolean;
 }) {
@@ -111,6 +120,16 @@ export function AttendanceCard({
         Overall attendance: <strong>{percent(attendanceRate)}</strong>{" "}
         <Hint>Excused absences are not counted against this rate.</Hint>
       </p>
+      {hidden > 0 && (
+        <p className="subtitle">
+          <Hint>
+            {hidden === 1
+              ? "One other person is on this session."
+              : `${hidden} other people are on this session.`}{" "}
+            The rate above counts everybody.
+          </Hint>
+        </p>
+      )}
 
       {state.error && (
         <p className="notice notice-bad" role="alert">

@@ -12,7 +12,7 @@
  * follows.
  */
 
-import { durationWords, sessionStateMeta } from "@/lib/presentation";
+import { durationWords, sessionStateMeta, studentList } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import type { SessionRow } from "@/lib/services/sessionQuery";
 
@@ -44,7 +44,17 @@ export interface PeekSession {
   /** Whether `place` is a URL to follow rather than a room to walk to. */
   placeIsLink: boolean;
   instructorName: string | null;
-  studentNames: string[];
+  /**
+   * The students, written out — already narrowed to the ones this viewer may be
+   * told about, with the rest as "and 2 others".
+   *
+   * A finished string rather than a list, for the same reason `startLabel` is
+   * one: the dialog is a client component and this is what it is handed, so
+   * resolving it here keeps the rule about who may be named on the server
+   * beside every other decision about this session. Empty for a session with
+   * nobody on it, which the dialog draws as a tag.
+   */
+  studentsLabel: string;
   /** `6 of 15`, or null for a session that stands alone. */
   seriesPosition: string | null;
   /**
@@ -88,7 +98,7 @@ export function peekOf(
     place: isLink ? session.meetingUrl : (row.locationName ?? session.locationDetail),
     placeIsLink: isLink,
     instructorName: row.instructorName,
-    studentNames: row.studentNames,
+    studentsLabel: studentList(row.studentNames, row.studentCount),
     seriesPosition: row.seriesPosition,
     actions: [...actions],
   };

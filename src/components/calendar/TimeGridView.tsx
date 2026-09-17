@@ -126,6 +126,7 @@ export function TimeGridView({
                 item.row.studentNames,
                 session.title,
                 item.lanes > 1,
+                item.row.studentCount,
               );
               return (
                 <Link

@@ -134,10 +134,10 @@ export function SessionPeek({
 
               <dt>Students</dt>
               <dd>
-                {session.studentNames.length > 0 ? (
-                  session.studentNames.join(", ")
-                ) : (
+                {session.studentsLabel === "" ? (
                   <Tag>Nobody yet</Tag>
+                ) : (
+                  session.studentsLabel
                 )}
               </dd>
 

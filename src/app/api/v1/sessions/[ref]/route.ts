@@ -47,7 +47,7 @@ export async function GET(
     });
     if (!decision.allowed) throw new NotFound("no such session");
 
-    const [row] = await decorate(prisma, [occurrence]);
+    const [row] = await decorate(prisma, principal, [occurrence]);
     const series = occurrence.seriesId
       ? await prisma.sessionSeries.findUnique({
           where: { id: occurrence.seriesId },

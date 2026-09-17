@@ -36,6 +36,7 @@ import {
   deliveryMeta,
   sessionStateMeta,
   statusFilterOptions,
+  studentList,
 } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
 import { Moment } from "@/lib/rendering";
@@ -124,7 +125,13 @@ function EventLink({ row }: { row: SessionRow }) {
     >
       <span className="cal-time">{moment.time}</span>
       <span className="cal-label">
-        {attendeesLabel(row.instructorName, row.studentNames, session.title, true)}
+        {attendeesLabel(
+          row.instructorName,
+          row.studentNames,
+          session.title,
+          true,
+          row.studentCount,
+        )}
       </span>
       {/* The status travels as a glyph and, for a screen reader, as a word —
           the swatch colour is never the only signal. */}
@@ -500,7 +507,7 @@ export default async function CalendarPage() {
                           </td>
                           <td data-label="Instructor">{row.instructorName ?? "—"}</td>
                           <td data-label="Students">
-                            {row.studentNames.join(", ") || "—"}
+                            {studentList(row.studentNames, row.studentCount) || "—"}
                           </td>
                           <td data-label="Status">
                             <StatusBadge status={row.session.status} endsAt={row.session.scheduledEnd} />

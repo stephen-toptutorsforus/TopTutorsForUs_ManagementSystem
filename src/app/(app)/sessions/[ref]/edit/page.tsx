@@ -19,10 +19,11 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { ActionsPanel } from "@/components/session/ActionsPanel";
-import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
+import { AttendanceCard } from "@/components/session/AttendanceCard";
 import { Card, CardSection, Fact, LinkButton, PageHeader, StatusBadge } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { settingStrings, settingsReader } from "@/lib/organization";
+import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
 import { durationWords } from "@/lib/presentation";
@@ -32,6 +33,7 @@ import {
   scheduledDurationMinutes,
 } from "@/lib/services/sessionOps";
 import { backTarget } from "@/lib/web/backLink";
+import { participantViews } from "@/lib/web/participants";
 import { csrfToken, requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -81,15 +83,11 @@ export default async function EditSessionPage({
       : null,
   ]);
 
-  const participants: ParticipantView[] = participantRows.map((participant) => ({
-    id: String(participant.id),
-    name: `${participant.user.firstName} ${participant.user.lastName}`.trim() || "—",
-    role: participant.role,
-    joinedAt: participant.joinedAt?.toISOString() ?? null,
-    leftAt: participant.leftAt?.toISOString() ?? null,
-    attendedMinutes: participant.attendedMinutes,
-    attendance: participant.attendance,
-  }));
+  // This screen is reachable by anybody with *an* action on the session, and
+  // `session.cancel_own` is one — so a student can open their own session here.
+  // The register is narrowed for the same reason it is on the reading screen.
+  const roster = await rosterFor(prisma, principal);
+  const { participants, hidden } = participantViews(roster, session, participantRows);
 
   const reader = settingsReader(organization);
   const token = await csrfToken();
@@ -170,6 +168,7 @@ export default async function EditSessionPage({
         csrfToken={token}
         timezone={zone}
         participants={participants}
+        hidden={hidden}
         attendanceRate={attendanceRate(participantRows)}
         editable={actions.includes("attendance")}
       />

@@ -249,6 +249,22 @@ export function attendeesLabel(
    * stops being how they are assembled, this has to stop too.
    */
   brief = false,
+  /**
+   * How many students are really on the session, when that is more than the
+   * caller was allowed to name.
+   *
+   * A student reading their own calendar is told their own name and a count of
+   * the rest, so `studentNames` can be shorter than the truth. Counting the
+   * array instead would draw their group lesson as a one-to-one — and because
+   * this label counts rather than names from two students up, feeding it the
+   * true total is exactly what makes a chip read *identically* for the
+   * coordinator and for the student.
+   *
+   * Left out by every staff-side caller, where the answer is just how many
+   * names there are — counting the *usable* ones, so a participant row with no
+   * name on it stays a data problem rather than becoming a second student.
+   */
+  total?: number,
 ): string {
   const given = (name: string) => (brief ? (name.trim().split(/\s+/)[0] ?? name) : name);
   const instructor = brief
@@ -256,12 +272,40 @@ export function attendeesLabel(
     : (instructorName?.trim() ?? "");
   const students = studentNames.filter((name) => name.trim() !== "").map(given);
 
-  if (students.length === 0) return instructor || fallback;
+  const counted = Math.max(total ?? students.length, students.length);
+
+  if (counted === 0) return instructor || fallback;
   if (instructor === "") {
-    return students.length === 1 ? students[0]! : `${students.length} students`;
+    return counted === 1 && students.length === 1 ? students[0]! : `${counted} students`;
   }
-  if (students.length === 1) return `${instructor} & ${students[0]}`;
-  return `${students.length} students & ${instructor}`;
+  if (counted === 1 && students.length === 1) return `${instructor} & ${students[0]}`;
+  return `${counted} students & ${instructor}`;
+}
+
+/**
+ * The students on a session, written out — for the places that list names
+ * rather than count them: the calendar's day list and dialog, the dashboard,
+ * the session grid and both record screens.
+ *
+ * Where `attendeesLabel` collapses a group into "3 students", this one names
+ * everybody it was given, so it is the one that has to say when it was given
+ * fewer than there are. A student reading their own session is told their own
+ * name and the rest become "and 2 others" rather than vanishing: silence there
+ * would draw a group lesson as a one-to-one and quietly disagree with the
+ * attendance rate printed beside it.
+ *
+ * Returns the empty string for a session with no students, so each caller can
+ * spell its own em dash.
+ */
+export function studentList(names: readonly string[], total?: number): string {
+  const shown = names.filter((name) => name.trim() !== "");
+  const counted = Math.max(total ?? shown.length, shown.length);
+  if (counted === 0) return "";
+  if (shown.length === 0) return `${counted} students`;
+
+  const hidden = counted - shown.length;
+  if (hidden === 0) return shown.join(", ");
+  return `${shown.join(", ")} and ${hidden} other${hidden === 1 ? "" : "s"}`;
 }
 
 export function attendanceMeta(status: AttendanceStatus): Badge {

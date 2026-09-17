@@ -46,7 +46,7 @@ export default async function SeriesDetailPage({
   // series" confirms the series exists, which is the disclosure this prevents.
   if (occurrences.length === 0) notFound();
 
-  const rows = await decorate(prisma, occurrences);
+  const rows = await decorate(prisma, principal, occurrences);
   const weekdays = (series.weekdays as string[] | null) ?? [];
 
   return (

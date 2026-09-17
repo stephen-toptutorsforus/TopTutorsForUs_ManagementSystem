@@ -13,7 +13,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AttendanceCard, type ParticipantView } from "@/components/session/AttendanceCard";
+import { AttendanceCard } from "@/components/session/AttendanceCard";
 import {
   Badge,
   Card,
@@ -26,12 +26,13 @@ import {
   When,
   WhenTime,
 } from "@/components/ui";
-import { DeliveryType, ParticipantRole, SessionStatus } from "@/generated/prisma/enums";
+import { DeliveryType, SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
-import { deliveryMeta, durationWords } from "@/lib/presentation";
+import { deliveryMeta, durationWords, studentList } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import {
   actualDurationMinutes,
@@ -39,6 +40,7 @@ import {
   scheduledDurationMinutes,
 } from "@/lib/services/sessionOps";
 import { backTarget } from "@/lib/web/backLink";
+import { participantViews } from "@/lib/web/participants";
 import { csrfToken, requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -113,24 +115,17 @@ export default async function SessionDetailPage({
   const actual = actualDurationMinutes(session);
   const delta = actual === null ? null : actual - scheduled;
 
+  // Who may be *named* to this reader. Staff and the session's own instructor
+  // see the register; a student sees themselves and a guardian sees the
+  // children they are linked to, with the rest counted rather than listed.
+  const roster = await rosterFor(prisma, principal);
+
   // Names only, and students only: the attendance register below answers who
   // turned up, this answers who the session is for.
-  const students = participantRows
-    .filter((participant) => participant.role === ParticipantRole.STUDENT)
-    .map((participant) =>
-      `${participant.user.firstName} ${participant.user.lastName}`.trim(),
-    )
-    .filter((name) => name !== "");
+  const named = roster.namesFor(session, participantRows);
+  const students = studentList(named.names, named.total);
 
-  const participants: ParticipantView[] = participantRows.map((participant) => ({
-    id: String(participant.id),
-    name: `${participant.user.firstName} ${participant.user.lastName}`.trim() || "—",
-    role: participant.role,
-    joinedAt: participant.joinedAt?.toISOString() ?? null,
-    leftAt: participant.leftAt?.toISOString() ?? null,
-    attendedMinutes: participant.attendedMinutes,
-    attendance: participant.attendance,
-  }));
+  const { participants, hidden } = participantViews(roster, session, participantRows);
 
   const token = await csrfToken();
 
@@ -303,7 +298,7 @@ export default async function SessionDetailPage({
             {/* The names only. Who attended, and for how long, is the
                 attendance register below — this answers who the session is
                 for. */}
-            {students.length > 0 ? students.join(", ") : null}
+            {students === "" ? null : students}
           </Fact>
           <div className="form-row">
             <Fact label="Group">{group?.name}</Fact>
@@ -346,6 +341,10 @@ export default async function SessionDetailPage({
         csrfToken={token}
         timezone={zone}
         participants={participants}
+        hidden={hidden}
+        // Over every participant, including any this reader may not be told the
+        // name of. A rate recomputed over the visible few would be a different
+        // number wearing this session's label.
         attendanceRate={attendanceRate(participantRows)}
         editable={false}
       />

@@ -56,6 +56,7 @@ export interface SessionOut {
   detached_from_series: boolean;
   instructor_name: string | null;
   student_names: string[];
+  student_count: number;
   attendance_rate: number | null;
   actions: string[];
 }
@@ -83,7 +84,11 @@ export function toSessionOut(
     series_index: occurrence.seriesIndex,
     detached_from_series: occurrence.detachedFromSeries,
     instructor_name: row.instructorName,
+    // Narrowed to the students this caller may be told about; `student_count`
+    // is always the true total. A group session therefore still reads as one
+    // through a student's own token without naming their classmates.
     student_names: row.studentNames,
+    student_count: row.studentCount,
     attendance_rate: row.attendanceRate,
     actions: options.actions ?? [],
   };
