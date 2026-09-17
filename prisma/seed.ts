@@ -406,6 +406,7 @@ async function bookExamples(db: PrismaClient, org: BookingOrganization): Promise
     instructorId: instructors[0]!.id,
     studentIds: [students[0]!.id],
   };
+  await bookable(db, org, standalone);
   await createFromPlan(db, org, principal, await plan(db, org, principal, standalone));
 
   const series: BookingRequest = {
@@ -425,8 +426,45 @@ async function bookExamples(db: PrismaClient, org: BookingOrganization): Promise
     endMode: "count",
     occurrenceCount: 8,
   };
+  await bookable(db, org, series);
   await createFromPlan(db, org, principal, await plan(db, org, principal, series));
   console.info("seeded example sessions");
+}
+
+/**
+ * Make sure the tenant can actually book what this seed is about to book.
+ *
+ * Whether an instructor *may* teach a student is a relationship question, and
+ * under `assigned_only` — which is the shipped default — `plan()` refuses a
+ * pairing with no assignment row behind it. The assignments above are a
+ * round-robin, one instructor per student, which is a reasonable shape for a
+ * tenant and the wrong shape for a small group: the weekly clinic puts two
+ * students with one instructor, and the second of them had been assigned to
+ * somebody else. So the seed failed, on the second of its two example bookings,
+ * on any database it had not already seeded.
+ *
+ * It failed *every time* and had not been noticed once, because a seeded
+ * database is seeded and this branch returns early on the second run. It took a
+ * genuinely empty one to see it — which is what CI runs against every time.
+ *
+ * Derived from the request rather than written out beside it, so the next
+ * person to change an example booking does not have to know this rule exists.
+ */
+async function bookable(
+  db: PrismaClient,
+  org: { id: bigint },
+  request: BookingRequest,
+): Promise<void> {
+  if (request.instructorId === null || request.instructorId === undefined) return;
+  for (const studentId of request.studentIds ?? []) {
+    const exists = await db.instructorStudent.findFirst({
+      where: { instructorId: request.instructorId, studentId },
+    });
+    if (exists) continue;
+    await db.instructorStudent.create({
+      data: { organizationId: org.id, instructorId: request.instructorId, studentId },
+    });
+  }
 }
 
 /**

@@ -616,9 +616,11 @@ tenant's record is **404, never 403** — a 403 confirms it exists.
 npm run dev          # http://127.0.0.1:3000
 npm test             # pure logic; no database needed
 npm run test:db      # database-backed
-npm run test:e2e     # browser, against a build on :3100
+npm run test:e2e     # browser, against the standalone bundle on :3100
 npm run typecheck
 npm run lint
+npm run build && npm start   # the deployable artifact, assembled and served
+npm run bundle       # assemble it without running it (for a container image)
 npm run db:migrate   # after a schema change
 node tools/contrast.mjs   # palette against WCAG, both colour schemes
 node tools/snapshot-html.mjs <dir>   # every route's markup, for diffing
@@ -651,6 +653,19 @@ which nothing sets until the Phase 4 classroom does, and `REQUESTED`, which
 needs `booking.require_approval` on and a parent — the setting is turned on for
 those two bookings and put back afterwards.
 
+`npm start` runs `scripts/serve.mjs`, and both halves of that are a fix rather
+than a preference. `next start` does not serve an `output: "standalone"` build —
+Next says so in a warning printed *after* it has claimed to be ready — and
+`package.json` had pointed at it for the life of the project. The quieter half:
+`.next/standalone/` contains `server.js`, a `package.json` and a trimmed
+`node_modules`, and nothing else. Not the client chunks under `.next/static`,
+not `public/`. Run as it comes out of the build, every page answers 200 and
+every stylesheet and script 404s. Copying those two directories in is a
+documented deployment step that lived nowhere; it lives in the thing that runs
+now, so it cannot be the step somebody forgets. The browser suite drives that
+bundle rather than `next start`, because a suite that is green against something
+other than the artifact is green about something else.
+
 **Nothing about one tenant may be stored.** Next puts `no-store` on a
 dynamically rendered page and puts *nothing* on a route handler's response — and
 every route handler here answers with tenant data from a URL that names no
@@ -675,6 +690,29 @@ only relocates markup produces nothing. It redacts the CSRF token — which must
 never reach disk — and normalises Next's action ids and React's hydration
 comments, none of which are the application's markup.
 
+`.github/workflows/ci.yml` runs all of it, which nothing did before: three
+suites, a typechecker and a linter that had only ever been run by hand on one
+machine, so "it passes" meant "it passed for whoever last remembered to look".
+Three jobs, split the way the suites are — the gate that needs nothing should
+not wait for the gate that needs Postgres and a browser. Caches are keyed on
+what each actually depends on: `~/.npm` on the lockfile via `setup-node`, the
+Playwright browsers on the Playwright version alone (on the lockfile they would
+miss at every dependency bump; on nothing they would restore a browser the
+installed Playwright cannot drive), and `.next/cache` on lockfile-plus-source
+with a lockfile-only fallback. Never `node_modules` — restoring that across a
+lockfile change is how a run ends up testing a tree nobody has on disk.
+
+The first thing rehearsing that workflow found was that **`npm run db:seed`
+failed on an empty database, and always had**. Its second example booking is a
+small group, two students with one instructor, and the assignments above it are
+a round-robin that had given the second student to somebody else — so `plan()`
+refused it under the shipped `assigned_only` eligibility mode. Nobody had seen
+it because a seeded database is seeded and that branch returns early on the
+second run; it takes a genuinely empty one, which is the only kind CI has. The
+seed now derives what it must assign from the request it is about to book,
+rather than from a rule written beside it that the next edit would not know
+about.
+
 The three test suites are separate so a machine with no Postgres, or no
 browsers, can still gate the logic that needs neither. `test:e2e` builds the app
 and serves it on its own port rather than reusing the dev server: a dev server
@@ -689,7 +727,7 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-564 tests — 306 pure, 258 database-backed — plus 440 browser tests and
+564 tests — 306 pure, 258 database-backed — plus 454 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.

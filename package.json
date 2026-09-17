@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/serve.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -23,7 +23,8 @@
     "db:scenarios": "tsx prisma/scenarios.ts",
     "postinstall": "prisma generate",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "bundle": "node scripts/serve.mjs --assemble-only"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.0",

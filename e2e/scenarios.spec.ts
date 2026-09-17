@@ -287,20 +287,30 @@ test.describe("more than one session in the same hour", () => {
     // classes; nothing in the seed overlapped, so it had never been on screen.
     // It takes two instructors — an instructor cannot overlap themselves,
     // because the exclusion constraint refuses it.
-    const overlapping = page.locator(".tg-event[class*='lane-'][class*='-of-2']");
-    const found = await overlapping.count();
-    if (found === 0) {
-      // The fixture's overlapping day may fall in the following week.
+    // Walk forward until the overlapping day is on screen. It used to step one
+    // week and assert, which is a test that depends on where in the current week
+    // today happens to fall: the fixture books the overlap ten weekdays out, so
+    // from a Thursday that is two weeks away and from a Monday it is not. It
+    // passed here for days on a database with older runs' data in it, and failed
+    // the first time it met a freshly seeded one — which is the only kind CI has.
+    const lanes = page.locator(".tg-event[class*='lane-'][class*='-of-2']");
+    const heading = page.locator(".cal-heading");
+    for (let week = 0; week < 6 && (await lanes.count()) === 0; week += 1) {
+      // Wait for the range to actually change before looking again. Clicking
+      // and then asserting the grid is visible proves nothing — the grid is
+      // always visible, so the count ran against the week that was already
+      // there, and five presses in a row advanced one week because the rest
+      // landed mid-navigation. The heading is the thing that says which week
+      // this is.
+      const showing = await heading.textContent();
       await page.getByRole("button", { name: "Next week" }).click();
+      await expect(heading).not.toHaveText(showing ?? "");
     }
-    await expect(
-      page.locator(".tg-event[class*='-of-2']").first(),
-      RUN_THE_FIXTURE,
-    ).toBeVisible();
+    await expect(lanes.first(), RUN_THE_FIXTURE).toBeVisible();
 
     // Side by side means different left edges, which is the thing a lane class
     // is for and the thing a test can see.
-    const boxes = await page.locator(".tg-event[class*='-of-2']").evaluateAll((nodes) =>
+    const boxes = await lanes.evaluateAll((nodes) =>
       nodes.slice(0, 2).map((node) => Math.round(node.getBoundingClientRect().left)),
     );
     expect(new Set(boxes).size, "two lanes should not share an edge").toBe(boxes.length);

@@ -68,8 +68,21 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `npm run build && npx next start -p ${PORT}`,
+    /*
+     * `npm start`, which serves the standalone bundle — the artifact a
+     * deployment actually runs — rather than `next start`, which serves out of
+     * `.next/` and is a different thing.
+     *
+     * It matters more than it sounds. `.next/standalone/` ships `server.js` and
+     * a trimmed `node_modules` and nothing else: no client chunks, no `public/`.
+     * Run as it comes out of the build it answers 200 for every page and 404s
+     * every stylesheet and script. This suite was green throughout, because it
+     * was testing something else. `scripts/serve.mjs` assembles the bundle and
+     * runs it, so what these tests drive is what a container would.
+     */
+    command: `npm run build && npm start`,
     url: BASE_URL,
+    env: { ...process.env, PORT },
     reuseExistingServer: false,
     timeout: 420_000,
   },

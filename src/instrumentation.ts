@@ -11,21 +11,20 @@
  *
  * Next calls `register()` once per server process, before any request is
  * handled, which is the only moment where refusing is cheaper than serving.
- * `process.exit(1)` rather than a thrown error: a throw here is caught and
- * logged by the framework, and the process goes on to serve traffic, which is
- * exactly the outcome the check exists to prevent.
  *
- * Outside production it prints nothing. The placeholder key is *for* development
+ * Node only, and behind a dynamic import. `register` is compiled for the edge
+ * runtime as well, where there is no `process.exit` — and there is nothing to
+ * gate there in any case: the secret is used by `node:crypto` on the Node side,
+ * and an edge worker refusing to start would take the middleware down while
+ * leaving the server that actually signs cookies running. The check belongs
+ * where it can be acted on.
+ *
+ * Outside production it does nothing. The placeholder key is *for* development,
  * and a warning nobody can act on is a warning people learn to scroll past.
  */
 
-import { startupChecks } from "@/lib/config";
-
-export function register(): void {
-  const problems = startupChecks();
-  if (problems.length === 0) return;
-
-  console.error("refusing to start:");
-  for (const problem of problems) console.error(`  - ${problem}`);
-  process.exit(1);
+export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { gate } = await import("@/lib/startupGate");
+  gate();
 }

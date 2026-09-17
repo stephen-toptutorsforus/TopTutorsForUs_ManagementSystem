@@ -1,0 +1,186 @@
+# Continuous integration.
+#
+# There was none. Three test suites, a typechecker and a linter, all of which
+# had only ever been run by hand on one machine — so "it passes" meant "it
+# passed for whoever last remembered to look". The suites are the specification
+# of a port; nothing was holding them to it.
+#
+# Three jobs, split the way the suites are split, and for the same reason: the
+# gate that needs nothing should not wait for the gate that needs Postgres and
+# a browser. `checks` answers in about a minute. The other two run beside it.
+
+name: CI
+
+on:
+  push:
+    branches: [main, "develop/**"]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first. The answer that matters is
+# about the newest commit, and two runs of a suite that books into a shared
+# database are two runs competing for the same slots.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Never the real placeholder: `startupChecks` refuses to start production with
+  # it, and a CI value that would pass that check keeps the two honest. Not a
+  # secret — it signs cookies for a database that is thrown away with the runner.
+  SECRET_KEY: ci-only-not-a-secret-but-long-enough-to-pass-the-startup-check
+  APP_ENV: development
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  # ---------------------------------------------------------------- fast gate
+  checks:
+    name: types, lint, pure tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # Caches `~/.npm`, keyed on the lockfile. Deliberately not
+          # `node_modules`: restoring that across a lockfile change is how a run
+          # ends up testing a tree nobody has on disk.
+          cache: npm
+
+      # `npm ci` and not `npm install`: it installs the lockfile exactly and
+      # fails if `package.json` and the lockfile disagree, which is a thing CI
+      # should refuse rather than quietly resolve. `postinstall` runs
+      # `prisma generate`, so the client exists after this.
+      - run: npm ci
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  # ------------------------------------------------------------ needs Postgres
+  database:
+    name: database-backed tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tutorops_ops_test
+        ports: ["5432:5432"]
+        # Without this the first connection races the server's own startup, and
+        # the failure reads as a migration error rather than as "not up yet".
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The suite rebuilds this one freely. Named to match `.env.example`, and
+      # never `tutorops_test`, which belongs to the Python reference service.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tutorops_ops_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tutorops_ops_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The suite migrates on its own — the first `testClient()` in each worker
+      # shells out to `prisma migrate deploy` — but doing it once here means the
+      # migrations are a step that can fail by itself, rather than a hook
+      # timeout inside an unrelated test file.
+      - run: npm run db:deploy
+
+      - run: npm run test:db
+
+  # ------------------------------------------------- needs Postgres and Chrome
+  browser:
+    name: browser tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tutorops_ops_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tutorops_ops_dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Browsers are ~400MB and unrelated to the lockfile's other contents, so
+      # they get their own cache keyed on the Playwright version alone. Keyed on
+      # the lockfile it would miss on every dependency bump; keyed on nothing it
+      # would restore a browser build the installed Playwright cannot drive.
+      - name: Resolve the Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # `--with-deps` on a miss for the system libraries Chromium needs; on a
+      # hit the browser is already there and only those libraries are installed,
+      # which is seconds rather than minutes.
+      - run: npx playwright install --with-deps chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.browsers.outputs.cache-hit == 'true'
+
+      # Next's own build cache. Keyed on the lockfile *and* the source, so a
+      # source change misses the exact key and falls back to the nearest build
+      # for the same dependencies — which is what makes it worth having, since
+      # a restored cache with changed source is exactly the case Next handles by
+      # rebuilding what changed.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'prisma/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - run: npm run db:deploy
+      - run: npm run db:seed
+      # The awkward cases: every session state, overlapping hours, a day that
+      # overflows a month cell. Several specs skip themselves without it, which
+      # is a green run that proved less than it looks.
+      - run: npm run db:scenarios
+
+      # This builds and serves the standalone bundle itself — see the webServer
+      # block in `playwright.config.ts`.
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
