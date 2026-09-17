@@ -39,7 +39,10 @@ const DEMO_PASSWORD = "TopTutorsForUsDemo!2026";
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 /** Invented people. Names chosen to be varied and clearly fictional. */
-const NORTHGATE_PEOPLE: [string, string, string, Role[]][] = [
+/** An account the seed creates: email, given name, surname, roles. */
+type PersonRow = [string, string, string, Role[]];
+
+const NORTHGATE_PEOPLE: PersonRow[] = [
   ["rowan.mercer@example.test", "Rowan", "Mercer", [Role.ADMIN]],
   ["noor.haddad@example.test", "Noor", "Haddad", [Role.REGIONAL_ADMIN]],
   ["imani.okafor@example.test", "Imani", "Okafor", [Role.INSTRUCTOR]],
@@ -52,7 +55,7 @@ const NORTHGATE_PEOPLE: [string, string, string, Role[]][] = [
   ["delphine.arceneaux@example.test", "Delphine", "Arceneaux", [Role.PARENT, Role.PAYER]],
 ];
 
-const HARBOUR_PEOPLE: [string, string, string, Role[]][] = [
+const HARBOUR_PEOPLE: PersonRow[] = [
   ["bo.fischer@example.test", "Bo", "Fischer", [Role.ADMIN]],
   ["lior.tamm@example.test", "Lior", "Tamm", [Role.INSTRUCTOR]],
   ["mira.dane@example.test", "Mira", "Dane", [Role.STUDENT]],
@@ -186,8 +189,8 @@ async function populate(
   // read-then-write: the unique index on the pair is what makes it idempotent,
   // and re-running the seed must not double them up.
   const [placedStudents, placedInstructors] = await Promise.all([
-    byRole(db, org.id, Role.STUDENT),
-    byRole(db, org.id, Role.INSTRUCTOR),
+    byRole(db, org.id, Role.STUDENT, people),
+    byRole(db, org.id, Role.INSTRUCTOR, people),
   ]);
   await db.userSchool.createMany({
     data: placedStudents.map((person) => ({
@@ -239,9 +242,9 @@ async function populate(
     }
   }
 
-  const instructors = await byRole(db, org.id, Role.INSTRUCTOR);
-  const students = await byRole(db, org.id, Role.STUDENT);
-  const parents = await byRole(db, org.id, Role.PARENT);
+  const instructors = await byRole(db, org.id, Role.INSTRUCTOR, people);
+  const students = await byRole(db, org.id, Role.STUDENT, people);
+  const parents = await byRole(db, org.id, Role.PARENT, people);
 
   for (const instructor of instructors) {
     for (const weekday of WEEKDAYS) {
@@ -376,9 +379,33 @@ async function ensureNamed(
   });
 }
 
-async function byRole(db: PrismaClient, organizationId: bigint, role: Role) {
+/**
+ * The seed's *own* people holding one role — never everybody in the tenant.
+ *
+ * It used to ask for every instructor in the organization, which is wrong the
+ * moment anything else has put one there. `prisma/scenarios.ts` creates Kofi
+ * Mensah with no availability at all, deliberately, as the case where the
+ * booking screen has to say so — and a later `npm run db:seed` handed him the
+ * same nine-to-seven it hands its own instructors and quietly took that
+ * scenario away. Found by `e2e/scenarios.spec.ts`, which failed with the
+ * booking grid cheerfully offering him from four o'clock.
+ *
+ * The same reach explains two smaller order-dependencies: the seeded assignments
+ * and guardian links could land on scenario students, and `bookExamples` chose
+ * its cast by whoever sorted first rather than by who it had created.
+ */
+async function byRole(
+  db: PrismaClient,
+  organizationId: bigint,
+  role: Role,
+  roster: readonly PersonRow[],
+) {
   return db.user.findMany({
-    where: { organizationId, roles: { some: { role } } },
+    where: {
+      organizationId,
+      email: { in: roster.map(([email]) => email) },
+      roles: { some: { role } },
+    },
     orderBy: { id: "asc" },
   });
 }
@@ -397,8 +424,8 @@ async function bookExamples(db: PrismaClient, org: BookingOrganization): Promise
     where: { organizationId: org.id, email: "rowan.mercer@example.test" },
   });
   const principal = await loadPrincipal(db, admin.id);
-  const instructors = await byRole(db, org.id, Role.INSTRUCTOR);
-  const students = await byRole(db, org.id, Role.STUDENT);
+  const instructors = await byRole(db, org.id, Role.INSTRUCTOR, NORTHGATE_PEOPLE);
+  const students = await byRole(db, org.id, Role.STUDENT, NORTHGATE_PEOPLE);
   if (instructors.length < 2 || students.length < 3) return;
 
   // Anchor on next Monday so the demo data always sits in the future.
