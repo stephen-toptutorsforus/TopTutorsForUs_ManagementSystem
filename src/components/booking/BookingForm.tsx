@@ -211,6 +211,21 @@ export function BookingForm({
   const [counted, setCounted] = useState(
     () => Number.parseInt(values.occurrence_count ?? "1", 10) || 1,
   );
+  /**
+   * Which delivery type is chosen, so the fields that do not belong to it can
+   * be put away.
+   *
+   * `data-when-delivery` has been on those three fields since the form was
+   * written and nothing has ever read it, so all four answers were asked for
+   * every time and only one of them was ever used. The action already ignores
+   * the ones that do not match the type, which is why this is a display
+   * decision and not a correctness one.
+   *
+   * Held in state and re-seeded from the echo, which is safe here in a way it
+   * is not for the day count: the server never clamps a delivery type, so an
+   * echo can only ever repeat what was sent.
+   */
+  const [delivery, setDelivery] = useState(() => values.delivery_type ?? "external_link");
   // The day count is re-seeded from whatever the action handed back, but only
   // where the server changed it — see `sentCount`. The chip list deliberately
   // is not re-seeded at all: the server only ever echoes the roster it was
@@ -223,6 +238,7 @@ export function BookingForm({
     setMatrixDays(state.context.matrixDays);
     const echoed = state.values.occurrence_count ?? "1";
     if (echoed !== sentCount) setCounted(Number.parseInt(echoed, 10) || 1);
+    setDelivery(state.values.delivery_type ?? "external_link");
     setSentCount(null);
   }
 
@@ -390,6 +406,7 @@ export function BookingForm({
                 name="delivery_type"
                 defaultValue={value("delivery_type", "external_link")}
                 key={`delivery-${value("delivery_type", "external_link")}`}
+                onChange={(event) => setDelivery(event.target.value)}
                 options={context.deliveryTypes}
               />
                         </Field>
@@ -418,11 +435,20 @@ export function BookingForm({
             <input type="hidden" name="billable_asked" value="1" />
           </div>
 
-          {/* Only some of these belong to the chosen type. All of them stay in
-              the form; the action reads only the ones that match the type, so a
+          {/* Only some of these belong to the chosen type, and now only those
+              are drawn. All of them stay in the form either way — hidden, not
+              unmounted, so switching to In person and back finds the link still
+              typed — and the action reads only the ones matching the type, so a
               stale value from a browser that filled several cannot reach the
-              session. */}
-          <Field id="meeting_url" label="Online Classroom link" data-when-delivery="external_link">
+              session. That is what makes the no-script fallback in
+              `public/no-script.css` safe: it shows all four again, because with
+              no script nothing re-renders when the select changes. */}
+          <Field
+            id="meeting_url"
+            label="Online Classroom link"
+            data-when-delivery="external_link"
+            className={delivery === "external_link" ? undefined : "field-off"}
+          >
             <input
               id="meeting_url"
               name="meeting_url"
@@ -438,7 +464,12 @@ export function BookingForm({
               carried nothing but the free text below could be booked into a
               room already in use — a rule the database was ready to enforce and
               was never given the chance to. */}
-          <Field id="location_ref" label="Location" data-when-delivery="in_person">
+          <Field
+            id="location_ref"
+            label="Location"
+            data-when-delivery="in_person"
+            className={delivery === "in_person" ? undefined : "field-off"}
+          >
             <OptionSelect
               id="location_ref"
               name="location_ref"
@@ -453,7 +484,12 @@ export function BookingForm({
             </Hint>
           </Field>
 
-          <Field id="location_detail" label="Directions" data-when-delivery="in_person">
+          <Field
+            id="location_detail"
+            label="Directions"
+            data-when-delivery="in_person"
+            className={delivery === "in_person" ? undefined : "field-off"}
+          >
             <input
               id="location_detail"
               name="location_detail"

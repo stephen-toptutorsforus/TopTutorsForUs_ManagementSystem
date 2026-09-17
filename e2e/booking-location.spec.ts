@@ -45,6 +45,60 @@ test.describe("where an in-person session is", () => {
     expect(options[0]).toBe("No specific room");
   });
 
+  test("shows the fields the chosen type actually uses", async ({ page }) => {
+    // `data-when-delivery` sat on these three fields unread for the life of the
+    // form, so every booking asked for an online link, a room and directions
+    // and used one of them. The action has always ignored the mismatched ones;
+    // this is about not asking the question in the first place.
+    await page.goto("/sessions/new");
+
+    const link = page.locator("#meeting_url");
+    const room = page.locator("#location_ref");
+    const directions = page.locator("#location_detail");
+
+    // The shipped default is an online session.
+    await expect(link).toBeVisible();
+    await expect(room).toBeHidden();
+    await expect(directions).toBeHidden();
+
+    await page.locator("#delivery_type").selectOption("in_person");
+    await expect(link).toBeHidden();
+    await expect(room).toBeVisible();
+    await expect(directions).toBeVisible();
+  });
+
+  test("keeps what was typed when the type changes and changes back", async ({ page }) => {
+    // Hidden rather than unmounted, so a mind changed twice does not cost
+    // somebody the link they had already pasted in.
+    await page.goto("/sessions/new");
+
+    const link = page.locator("#meeting_url");
+    await link.fill("https://meet.example.test/northgate/somewhere");
+    await page.locator("#delivery_type").selectOption("in_person");
+    await expect(link).toBeHidden();
+
+    await page.locator("#delivery_type").selectOption("external_link");
+    await expect(link).toBeVisible();
+    await expect(link).toHaveValue("https://meet.example.test/northgate/somewhere");
+  });
+
+  test.describe("with scripting off", () => {
+    test.use({ javaScriptEnabled: false });
+
+    test("offers every delivery field, because nothing can reveal them", async ({ page }) => {
+      // Hiding is a script-side courtesy. With no script the select changes
+      // nothing until the form is submitted, so somebody who picked In person
+      // would be looking at the online link field with no way to reach the two
+      // they need. `public/no-script.css` puts all four back — the same
+      // mechanism the navigation fallback uses, and for the same reason.
+      await page.goto("/sessions/new");
+
+      await expect(page.locator("#meeting_url")).toBeVisible();
+      await expect(page.locator("#location_ref")).toBeVisible();
+      await expect(page.locator("#location_detail")).toBeVisible();
+    });
+  });
+
   test("writes the room, not just the words", async ({ page }) => {
     await page.goto("/sessions/new");
 

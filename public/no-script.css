@@ -22,3 +22,16 @@
   }
   .topbar-menu, .drawer-close, .drawer-backdrop { display: none; }
 }
+
+/*
+ * Every delivery field on the booking form, back again.
+ *
+ * With scripting on, the form hides the fields that do not belong to the type
+ * currently chosen. With it off nothing re-renders when the select changes, so
+ * hiding them would leave somebody who picked In person looking at the online
+ * link field with no way to reach the two they need until they submitted.
+ *
+ * Showing all four is exactly what the form did before it was conditional, and
+ * it is still correct: the action reads only the fields matching the type.
+ */
+.field.field-off { display: block; }

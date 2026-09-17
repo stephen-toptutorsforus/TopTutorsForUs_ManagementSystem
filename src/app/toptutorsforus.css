@@ -758,6 +758,13 @@ details > form { margin-top: 0.8rem; }
 /* --- Forms --------------------------------------------------------------- */
 
 .field { margin-bottom: 1rem; }
+/* A field that does not belong to the delivery type currently chosen.
+   Hidden rather than unmounted, so switching to In person and back finds the
+   meeting link still typed in it. The server already ignores whatever does not
+   match the type, so this is about not asking for four answers when one is
+   wanted — and `public/no-script.css` puts them all back, because with no
+   script nothing re-renders when the type changes. */
+.field-off { display: none; }
 .field > label, .fieldset-legend {
   display: block; margin-bottom: 0.3rem;
   font-weight: 600; font-size: 0.88rem; color: var(--ink-700);
