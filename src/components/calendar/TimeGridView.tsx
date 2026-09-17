@@ -27,10 +27,26 @@ export function TimeGridView({
   grid,
   days,
   today,
+  zone,
 }: {
   grid: TimeGrid;
   days: readonly CivilDate[];
   today: CivilDate;
+  /**
+   * The reader's clock, which is the one this grid is drawn against.
+   *
+   * `lib/timegrid.ts` positions every block by it, and the gutter down the side
+   * is labelled from the same axis. Labelling a block in the session's own zone
+   * instead — which is what this did — put a block against a gridline that
+   * contradicted the time printed inside it: a 09:00 Chicago session sat on the
+   * 10 AM line of a New York reader's grid and still read "09:00".
+   *
+   * A calendar shows your clock; a record shows its own. The session's zone is
+   * still what the detail page, the series pages and the API render, and it is
+   * still named in this block's accessible name, so nothing is lost — only the
+   * two halves of one picture are made to agree.
+   */
+  zone: string;
 }) {
   return (
     <Card className="cal-grid-card">
@@ -116,8 +132,8 @@ export function TimeGridView({
               const meta = sessionStateMeta(session.status, session.scheduledEnd, {
                 attendanceRecorded: item.row.attendanceRecorded,
               });
-              const start = new Moment(session.scheduledStart, session.timezone);
-              const end = new Moment(session.scheduledEnd, session.timezone);
+              const start = new Moment(session.scheduledStart, zone);
+              const end = new Moment(session.scheduledEnd, zone);
               // Given names only when this chip is sharing its column: two
               // sessions in one hour halve the width, and a full name in half a
               // column is a name cut in the middle.

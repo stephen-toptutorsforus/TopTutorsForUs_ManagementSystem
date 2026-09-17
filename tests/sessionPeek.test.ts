@@ -79,8 +79,27 @@ function aRow(
 /** The calendar's own call, in one place so a test cannot drift from the page. */
 function peekAsAdmin(row: SessionRow) {
   const principal = anAdmin();
-  return peekOf(row, "Online", availableActions(principal, row.session, anOrganization()));
+  return peekOf(row, "Online", availableActions(principal, row.session, anOrganization()), NY);
 }
+
+describe("which clock the dialog reads in", () => {
+  it("uses the reader's zone, not the one the session was booked in", () => {
+    // The dialog opens from a chip on a grid that was laid out in the reader's
+    // zone, so it has to agree with the chip it came from — otherwise pressing
+    // a block drawn at ten o'clock opens a panel that says nine.
+    //
+    // The session's own zone is still what the record screens and the API
+    // render, and it still rides along in this label's zone abbreviation, so
+    // nothing is hidden: a calendar shows your clock, a record shows its own.
+    const row = aRow();
+    const chicago = peekOf(row, "Online", [], "America/Chicago");
+    const newYork = peekOf(row, "Online", [], NY);
+
+    expect(newYork.startLabel).not.toBe(chicago.startLabel);
+    expect(chicago.startLabel).toContain("CDT");
+    expect(newYork.startLabel).toContain("EDT");
+  });
+});
 
 describe("what the modal is told it may do", () => {
   it("carries this session's own answer, not the page's", () => {

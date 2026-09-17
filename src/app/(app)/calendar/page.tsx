@@ -101,7 +101,7 @@ function monthOf(day: CivilDate): string {
  * switch on a shared component is a decision somebody has to re-derive before
  * they can rule it out.)
  */
-function EventLink({ row }: { row: SessionRow }) {
+function EventLink({ row, zone }: { row: SessionRow; zone: string }) {
   const session = row.session;
   // What the session *is*, which for a scheduled one whose hour has gone by is
   // Incomplete rather than Scheduled. Nothing in the database changed to make
@@ -109,7 +109,10 @@ function EventLink({ row }: { row: SessionRow }) {
   const meta = sessionStateMeta(session.status, session.scheduledEnd, {
     attendanceRecorded: row.attendanceRecorded,
   });
-  const moment = new Moment(session.scheduledStart, session.timezone);
+  // The reader's clock, which is the one the cell this chip sits in was chosen
+  // by — `calendarRange` buckets on it. See `TimeGridView` for why the two have
+  // to be the same clock.
+  const moment = new Moment(session.scheduledStart, zone);
 
   return (
     <Link
@@ -222,6 +225,7 @@ export default async function CalendarPage() {
         row,
         deliveryMeta(row.session.deliveryType).label,
         availableActions(principal, row.session, organization),
+        zone,
       );
     }
   }
@@ -479,7 +483,7 @@ export default async function CalendarPage() {
                   {day === today && <VisuallyHidden>(today)</VisuallyHidden>}
                 </p>
                 {rows.slice(0, MONTH_CELL_LIMIT).map((row) => (
-                  <EventLink key={String(row.session.id)} row={row} />
+                  <EventLink key={String(row.session.id)} row={row} zone={zone} />
                 ))}
                 {rows.length > MONTH_CELL_LIMIT && (
                   <GoTo className="cal-more" date={day}>
@@ -498,6 +502,7 @@ export default async function CalendarPage() {
           grid={grid}
           days={window.days}
           today={today}
+          zone={zone}
         />
       )}
 
@@ -531,10 +536,7 @@ export default async function CalendarPage() {
                       {rows.map((row) => (
                         <tr key={String(row.session.id)}>
                           <td data-label="Time">
-                            <WhenTime
-                              instant={row.session.scheduledStart}
-                              zone={row.session.timezone}
-                            />
+                            <WhenTime instant={row.session.scheduledStart} zone={zone} />
                           </td>
                           <td data-label="Session">
                             <Link

@@ -74,9 +74,11 @@ export function peekOf(
   row: SessionRow,
   deliveryLabel: string,
   actions: readonly string[],
+  /** The reader's clock, so the dialog agrees with the chip it opened from. */
+  zone: string,
 ): PeekSession {
   const session = row.session;
-  const start = new Moment(session.scheduledStart, session.timezone);
+  const start = new Moment(session.scheduledStart, zone);
   const minutes = Math.round(
     (session.scheduledEnd.getTime() - session.scheduledStart.getTime()) / 60_000,
   );
