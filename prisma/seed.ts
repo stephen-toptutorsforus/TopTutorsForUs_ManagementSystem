@@ -282,16 +282,28 @@ async function populate(
     }
   }
 
-  if (parents.length > 0) {
-    for (const student of students.slice(0, 2)) {
+  // Two students each, in order, rather than both to whichever parent sorted
+  // first. That used to give every link to Sana Holm, who is also an
+  // instructor — so a test signing in as her could not tell guardian visibility
+  // from instructor visibility — and left Delphine Arceneaux, the only person
+  // here who is nothing but a parent, guarding nobody. Her calendar and her
+  // session list were empty, which is why the parent journey had never been
+  // walked end to end.
+  //
+  // The split is worth more than a tidier fixture. The recurring series below
+  // is a group of two, and this gives Delphine one of its students and not the
+  // other — so "a guardian sees their own child and not the child beside them"
+  // is a case the base seed can demonstrate, with no scenario fixture needed.
+  for (const [index, parent] of parents.entries()) {
+    for (const student of students.slice(index * 2, index * 2 + 2)) {
       const exists = await db.guardianStudent.findFirst({
-        where: { guardianId: parents[0]!.id, studentId: student.id },
+        where: { guardianId: parent.id, studentId: student.id },
       });
       if (!exists) {
         await db.guardianStudent.create({
           data: {
             organizationId: org.id,
-            guardianId: parents[0]!.id,
+            guardianId: parent.id,
             studentId: student.id,
             isPrimary: true,
           },

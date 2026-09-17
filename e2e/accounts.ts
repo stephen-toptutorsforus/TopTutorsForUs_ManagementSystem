@@ -13,6 +13,20 @@ export const ACCOUNTS = {
   admin: "rowan.mercer@example.test",
   /** Northgate student — the narrowest role that still has a dashboard. */
   student: "teo.vasquez@example.test",
+  /**
+   * Northgate parent, and nothing else.
+   *
+   * Deliberately not Sana Holm, who also holds `INSTRUCTOR`: a test signing in
+   * as her could not tell guardian visibility from instructor visibility, which
+   * is the confound this file exists to avoid. Deliberately not the scenario
+   * fixture's parent either — global setup mints every account before any spec
+   * runs, so an account that needs `db:scenarios` would fail the whole suite on
+   * a merely-seeded database rather than skipping one test.
+   *
+   * The seed gives her two of the four students, one of whom is in a group with
+   * a student she does not guard. That pairing is the point of her.
+   */
+  parent: "delphine.arceneaux@example.test",
   /** Harbour Point administrator — everything they ask of Northgate is 404. */
   otherTenant: "bo.fischer@example.test",
 } as const;

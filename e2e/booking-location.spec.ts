@@ -143,5 +143,27 @@ test.describe("where an in-person session is", () => {
     const main = page.locator("main");
     await expect(main).toContainText(ROOM);
     await expect(main).toContainText("Second floor, past the library");
+
+    // And the last step of the training guide, which nothing asserted: the
+    // staff member confirms the session they just booked is on the calendar.
+    // Both halves have been covered separately since the suite was written —
+    // booking behaves, and the calendar behaves — and separately is exactly how
+    // a session can be written and never drawn.
+    //
+    // Part of this test rather than one of its own, because it is the last step
+    // of the same journey and because a spec that books needs a weekday lane of
+    // its own: the third one lands the mobile project on a Saturday, which has
+    // no declared hours, and leaves a fourth permanent row in the shared
+    // database on every run.
+    const ref = new URL(page.url()).pathname.split("/").pop();
+    expect(ref).toMatch(/^ses_/);
+
+    // The day view, so nothing is truncated: a month cell hides everything past
+    // its limit behind "+N more", and below the breakpoint it collapses further
+    // still. The address seeds the screen's cookie and is redirected away, which
+    // is why the wait is on the bare path.
+    await page.goto(`/calendar?view=day&date=${when}`);
+    await page.waitForURL(/\/calendar$/);
+    await expect(page.locator(`[data-session-ref="${ref}"]`)).toBeVisible();
   });
 });
