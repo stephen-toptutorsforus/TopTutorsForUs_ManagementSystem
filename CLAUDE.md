@@ -186,6 +186,24 @@ and its own reset link; none of that reaches the component. The menu is a `<deta
 state and needs a hydrated page; Apply posts to a server action and Cancel is a
 button that closes it.
 
+**A control that offers a choice the query ignores is worse than no control.**
+The calendar calls the full `parseFilters`, so `instructor` has been read on
+that screen since it was written — and `queryString` never wrote it back to the
+cookie and `calendarRange` never applied it, so a value that reached the state
+narrowed nothing and was gone by the next render. Half a filter, twice over.
+`narrowByRefs` is now the one place the filters that *name* a record are
+applied, shared by the grid and the calendar, because one honoured on one screen
+and dropped on the other is worse than one that exists on neither.
+
+`studentRef` is single-valued for the same reason `instructorRef` is. The
+resting state of a tick list is every box ticked, `narrows` measures a selection
+against a fixed offered set, and a tenant's roster is not one — so a
+`FilterMenu` over students would be a misuse of that abstraction rather than a
+reuse of it. And `CalendarFilters` is a named type rather than an inline `Pick`
+at each use, because the function that counts the filters and the function that
+writes them down have to agree exactly: a key counted by one and not written by
+the other is a filter that lights the badge and does nothing.
+
 **A filter starts with every box ticked.** The resting state of a filter is
 everything shown, so that is what the control is drawn as rather than what a
 hint explains. Underneath, an empty selection still means no narrowing — every
@@ -320,6 +338,17 @@ wrong, both found in the booking form:
 
 `key` on the current value plus `defaultValue` fixes both, and is what every
 other field on that form already does.
+
+A third way to leave a field half-built: `data-when-delivery` sat on the online
+link, the room and the directions from the day the form was written and nothing
+ever read it, so every booking asked for all four answers and used one. The
+fields the chosen type does not use are hidden now — hidden rather than
+unmounted, so a mind changed twice does not cost somebody the link they had
+already pasted in, and the action goes on ignoring whatever does not match the
+type. With no script that would have been a regression rather than a tidy-up,
+because nothing re-renders when the select changes, so `public/no-script.css`
+shows all four again through the same `<noscript>` link the navigation fallback
+uses.
 
 One thing it does not fix, stated in the component: an edit made between a
 refresh being sent and its reply landing is still discarded by the reset. The
@@ -607,6 +636,47 @@ in-process limiter is explicitly not.
 `organizationId`, and every read goes through the scoping helper. Another
 tenant's record is **404, never 403** — a 403 confirms it exists.
 
+**Who may open a session and who may be named on it are two questions.**
+`visibleSessions` narrows which sessions in SQL and has been tested since it was
+written; nothing narrowed what was *inside* one. `decorate` took no principal at
+all, so a student holding nothing but `session.view_own` was served their
+classmates' names on the calendar, the dashboard, the grid, both record screens
+and the JSON API. `lib/policies/roster.ts` is the second question and the only
+copy of it, beside `sessions.ts` because `owns()` and `canView()` already live
+there. Staff and the session's own instructor see the register; everybody else
+sees themselves and the children they are guardian of.
+
+Counted, not dropped. Somebody in a group of three already knows there are three
+of them, so the number is not the disclosure — and a register showing one name
+beside a rate computed over three is a page that contradicts itself. So
+`SessionRow` carries `studentCount` beside the narrowed `studentNames`, and
+aggregates keep reading the whole set: `attendanceRate` is the same number for
+the student and for the coordinator, which is the point of it.
+
+The calendar chips needed no change, and that is a property rather than luck.
+`attendeesLabel` already counts rather than names from two students up, so
+feeding it the true total makes a chip byte-identical for both — a chip that
+narrowed visibly would announce on the calendar that something was being
+withheld. The surfaces that leaked were the ones that write names out, and
+`studentList` is what they share.
+
+`decorate` was not the whole of it: both record screens build their participant
+list straight from the rows, and `lib/web/participants.ts` is now the one place
+that happens. The editing screen was the worse of the two, because it is gated
+on having *an* action and `session.cancel_own` is one — so a student could open
+their own session there and read every classmate's attendance and minutes.
+
+**A calendar shows your clock; a record shows its own.** The week grid positions
+every block by the reader's zone and used to print the session's own zone inside
+it, so a 09:00 Chicago session sat against the 10 AM line of a New York reader's
+grid with "09:00" written on it. The whole calendar screen reads in
+`principal.timezone` now; the detail page, the edit screen, the series pages and
+the API still render the zone a session was booked in, which the detail page
+also names in a field of its own. Nothing in the product can produce the
+disagreement yet — no screen sets `user.timezone` and there is no organization
+settings screen — which is why no fixture made the two differ and why
+`tests/timegrid.test.ts` has to make them differ on purpose.
+
 **Configuration can only remove permissions, never add them.**
 `effective = codeDefault AND (override is not false)`.
 
@@ -702,6 +772,27 @@ installed Playwright cannot drive), and `.next/cache` on lockfile-plus-source
 with a lockfile-only fallback. Never `node_modules` — restoring that across a
 lockfile change is how a run ends up testing a tree nobody has on disk.
 
+**The seed may only touch the people it creates.** `byRole` asked for every
+instructor in the tenant, which is fine on an empty database and wrong the
+moment anything else has put somebody there — and `prisma/scenarios.ts` puts
+four people there on purpose. A `db:seed` after a `db:scenarios` handed the
+fixture's deliberately hours-free instructor a nine-to-seven and its
+deliberately unassigned student an instructor, taking away two of the cases the
+fixture exists to demonstrate. It is scoped to the roster constant it is already
+built from, which also settles two smaller order-dependencies that had never
+bitten: the seeded assignments and guardian links could land on scenario
+students, and `bookExamples` chose its cast by whoever sorted first.
+
+Guardian links go to every parent, two students each, rather than all to
+`parents[0]`. That one is Sana Holm, who also holds `INSTRUCTOR`, so the only
+account with children could not tell guardian visibility from instructor
+visibility — and Delphine Arceneaux, the only person in the seed who is nothing
+but a parent, guarded nobody and opened an empty calendar while the seed printed
+her as the demo parent. The split gives her one student of the seeded group of
+two and not the other, so "sees their own child, and is not told the name of the
+child beside them" is a case the base seed can demonstrate without the scenario
+fixture.
+
 The first thing rehearsing that workflow found was that **`npm run db:seed`
 failed on an empty database, and always had**. Its second example booking is a
 small group, two students with one instructor, and the assignments above it are
@@ -727,12 +818,12 @@ here: the schema and its four hand-written guarantees, `time`, `recurrence`,
 `availability`, `conflicts`, the policy layer, every service, authentication,
 all the screens, and the JSON API under `/api/v1`.
 
-564 tests — 306 pure, 258 database-backed — plus 454 browser tests and
+596 tests — 323 pure, 273 database-backed — plus 474 browser tests and
 differential runs of 29,200
 civil-time resolutions and 27,090 recurrence rules against the reference, both
 with zero mismatches.
 
-The counts have since crossed — 564 here against the reference's 509 — but the
+The counts have since crossed — 596 here against the reference's 509 — but the
 shape of the gap has not, and the raw number was never the point. The
 difference that remains is its HTML assertions: it tests rendered markup
 with `httpx` against Jinja output, and a good many of those cases are about
