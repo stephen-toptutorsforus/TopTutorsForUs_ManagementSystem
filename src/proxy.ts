@@ -106,7 +106,7 @@ const SCREENS = {
   },
   "/calendar": {
     cookie: "toptutorsforus_calendar_filter",
-    keys: ["view", "date", "q", "status"],
+    keys: ["view", "date", "q", "status", "instructor", "student"],
   },
 } as const;
 

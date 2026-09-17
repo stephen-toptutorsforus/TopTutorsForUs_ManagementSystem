@@ -77,6 +77,17 @@ export interface SessionFilters {
   dateTo: CivilDate | null;
   instructorRef: string | null;
   programRef: string | null;
+  /**
+   * One student, by ref.
+   *
+   * A single value rather than a tick list, because the resting state of a
+   * checkbox filter is "everything ticked" and a tenant's roster has no such
+   * state — `narrows` measures a selection against a fixed offered set, and
+   * there is no fixed set of students. So it mirrors `instructorRef` exactly:
+   * null means no narrowing, and a ref that resolves to nobody narrows to
+   * nothing rather than being ignored.
+   */
+  studentRef: string | null;
   page: number;
   columns: readonly string[];
 }
@@ -88,6 +99,7 @@ export const EMPTY_FILTERS: SessionFilters = {
   dateTo: null,
   instructorRef: null,
   programRef: null,
+  studentRef: null,
   page: 1,
   columns: DEFAULT_COLUMNS,
 };
@@ -134,6 +146,7 @@ export function parseFilters(params: URLSearchParams): SessionFilters {
     dateTo: parseDate(params.get("to")),
     instructorRef: (params.get("instructor") ?? "").trim() || null,
     programRef: (params.get("program") ?? "").trim() || null,
+    studentRef: (params.get("student") ?? "").trim() || null,
     page,
     columns: requested.length > 0 ? requested : DEFAULT_COLUMNS,
   };
@@ -161,6 +174,7 @@ export function activeSessionFilters(filters: SessionFilters): number {
     filters.dateTo !== null,
     filters.instructorRef !== null,
     filters.programRef !== null,
+    filters.studentRef !== null,
     !sameColumns(filters.columns, DEFAULT_COLUMNS),
   ].filter(Boolean).length;
 }
@@ -186,6 +200,7 @@ export function toQuery(
     to: filters.dateTo ?? "",
     instructor: filters.instructorRef ?? "",
     program: filters.programRef ?? "",
+    student: filters.studentRef ?? "",
     page: filters.page,
     columns:
       sameColumns(filters.columns, DEFAULT_COLUMNS) ? "" : filters.columns.join(","),
@@ -364,6 +379,59 @@ export function applyFilters(
   return narrowed;
 }
 
+/**
+ * Narrow by the filters that *name* a record rather than describe one.
+ *
+ * Separate from `applyFilters` because these need the database — a ref has to
+ * be resolved to an id before it can be compared — and shared between the grid
+ * and the calendar because a filter honoured on one screen and silently dropped
+ * on the other is worse than one that exists on neither. The calendar had been
+ * parsing `instructor` and discarding it for exactly that reason.
+ *
+ * A ref that resolves to nothing narrows to nothing rather than being ignored,
+ * or a mistyped link quietly widens the page to everybody.
+ */
+async function narrowByRefs(
+  db: Db,
+  principal: Principal,
+  where: Prisma.SessionOccurrenceWhereInput,
+  filters: SessionFilters,
+): Promise<Prisma.SessionOccurrenceWhereInput> {
+  let narrowed = where;
+
+  if (filters.instructorRef) {
+    const instructor = await db.user.findFirst({
+      where: { ...scoped(principal), ref: filters.instructorRef },
+      select: { id: true },
+    });
+    narrowed = { ...narrowed, instructorId: instructor ? instructor.id : -1n };
+  }
+  if (filters.programRef) {
+    const program = await db.program.findFirst({
+      where: { ...scoped(principal), ref: filters.programRef },
+      select: { id: true },
+    });
+    narrowed = { ...narrowed, programId: program ? program.id : -1n };
+  }
+  if (filters.studentRef) {
+    // A relation rather than a column, so no id lookup: an unknown ref matches
+    // no participant row and the session list comes back empty, which is the
+    // same answer the other two reach the long way round. Scoped to the tenant
+    // on the participant row as well, so the join cannot reach across.
+    narrowed = {
+      ...narrowed,
+      participants: {
+        some: {
+          organizationId: principal.organizationId,
+          role: ParticipantRole.STUDENT,
+          user: { ref: filters.studentRef },
+        },
+      },
+    };
+  }
+  return narrowed;
+}
+
 /** A page of grid rows, with the names each row needs already resolved. */
 export async function listSessions(
   db: Db,
@@ -371,24 +439,12 @@ export async function listSessions(
   filters: SessionFilters,
   options: { zone: string; limit?: number },
 ): Promise<SessionPage> {
-  let where = applyFilters(visibleSessions(principal), filters, options.zone);
-
-  if (filters.instructorRef) {
-    const instructor = await db.user.findFirst({
-      where: { ...scoped(principal), ref: filters.instructorRef },
-      select: { id: true },
-    });
-    // A ref that resolves to nothing must narrow to nothing rather than being
-    // ignored, or a mistyped link quietly widens the page to everybody.
-    where = { ...where, instructorId: instructor ? instructor.id : -1n };
-  }
-  if (filters.programRef) {
-    const program = await db.program.findFirst({
-      where: { ...scoped(principal), ref: filters.programRef },
-      select: { id: true },
-    });
-    where = { ...where, programId: program ? program.id : -1n };
-  }
+  const where = await narrowByRefs(
+    db,
+    principal,
+    applyFilters(visibleSessions(principal), filters, options.zone),
+    filters,
+  );
 
   const pageSize = options.limit ?? PAGE_SIZE;
   const [total, occurrences] = await Promise.all([
@@ -578,13 +634,19 @@ export async function calendarRange(
   const windowStart = resolveCivil(first, "00:00", zone).instant;
   const windowEnd = resolveCivil(addDays(last, 1), "00:00", zone).instant;
 
-  const where: Prisma.SessionOccurrenceWhereInput = {
+  let where: Prisma.SessionOccurrenceWhereInput = {
     ...visibleSessions(principal),
     scheduledStart: { gte: windowStart, lt: windowEnd },
   };
   if (filters !== null) {
     if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
     if (filters.statuses.length > 0) where.status = { in: [...filters.statuses] };
+    // The date bounds are the window, which the caller has already worked out
+    // from the view — so only the filters that name somebody are left, and they
+    // go through the same function the grid uses. This is the half that was
+    // missing: `parseFilters` has always read `instructor` here and the query
+    // never looked at it, so a value that reached the cookie narrowed nothing.
+    where = await narrowByRefs(db, principal, where, filters);
   }
 
   const occurrences = await db.sessionOccurrence.findMany({

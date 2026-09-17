@@ -14,7 +14,9 @@ import { describe, expect, it } from "vitest";
 
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
+  type CalendarFilters,
   CalendarView,
+  activeCalendarFilters,
   buildWindow,
   narrowsByStatus,
   parseAnchor,
@@ -120,14 +122,25 @@ describe("window arithmetic", () => {
   });
 });
 
+/**
+ * A calendar filter with only the part a case is about spelled out.
+ *
+ * The type gained `instructorRef` and `studentRef` when the calendar learned to
+ * filter by who; almost none of these cases are about that, and restating two
+ * nulls in every literal would bury what each one is actually checking.
+ */
+const only = (
+  filters: Partial<CalendarFilters> & Pick<CalendarFilters, "search" | "statuses">,
+): CalendarFilters => ({ instructorRef: null, studentRef: null, ...filters });
+
 describe("links", () => {
   it("carries the whole filter state", () => {
     // Switching view must not silently drop the search or the statuses.
     const query = queryString(
-      {
+      only({
         search: "algebra",
         statuses: [SessionStatus.SCHEDULED, SessionStatus.REQUESTED],
-      },
+      }),
       { view: CalendarView.WEEK, anchor: ANCHOR },
     );
 
@@ -140,7 +153,7 @@ describe("links", () => {
   it("falls back to the month for a view it does not recognise", () => {
     // The month is the default, and the default is spelled as nothing at all —
     // so the test worth writing is that the unknown name is not echoed back.
-    const query = queryString({ search: "", statuses: [] }, { view: "gantt" });
+    const query = queryString(only({ search: "", statuses: [] }), { view: "gantt" });
 
     expect(query).toBe("");
     expect(query).not.toContain("gantt");
@@ -151,7 +164,7 @@ describe("links", () => {
     // mean something hard to find.
     expect(
       queryString(
-        { search: "", statuses: Object.values(SessionStatus) },
+        only({ search: "", statuses: Object.values(SessionStatus) }),
         { view: CalendarView.MONTH, anchor: ANCHOR },
       ),
     ).toBe("date=2026-08-14");
@@ -159,7 +172,7 @@ describe("links", () => {
 
   it("keeps a status list that actually excludes something", () => {
     const query = queryString(
-      { search: "", statuses: [SessionStatus.CANCELLED] },
+      only({ search: "", statuses: [SessionStatus.CANCELLED] }),
       { view: CalendarView.MONTH },
     );
 
@@ -169,14 +182,14 @@ describe("links", () => {
   it("writes several statuses as one parameter", () => {
     expect(
       queryString(
-        { search: "", statuses: [SessionStatus.SCHEDULED, SessionStatus.MISSED] },
+        only({ search: "", statuses: [SessionStatus.SCHEDULED, SessionStatus.MISSED] }),
         { view: CalendarView.MONTH },
       ),
     ).toBe("status=scheduled,missed");
   });
 
   it("leaves the anchor out when it is the day an absent one would mean", () => {
-    const filters = { search: "", statuses: [] };
+    const filters = only({ search: "", statuses: [] });
 
     expect(queryString(filters, { view: CalendarView.WEEK, anchor: ANCHOR, today: ANCHOR })).toBe(
       "view=week",
@@ -209,16 +222,18 @@ describe("links", () => {
   it("writes nothing for a full menu of ticks, so the state stays empty", () => {
     expect(
       queryString(
-        { search: "", statuses: [...STATUS_FILTER_ORDER] },
+        only({ search: "", statuses: [...STATUS_FILTER_ORDER] }),
         { view: CalendarView.MONTH },
       ),
     ).toBe("");
   });
 
   it("writes nothing for the default screen, and only what differs otherwise", () => {
-    expect(queryString({ search: "", statuses: [] }, { view: CalendarView.MONTH })).toBe("");
+    expect(queryString(only({ search: "", statuses: [] }), { view: CalendarView.MONTH })).toBe(
+      "",
+    );
     expect(
-      queryString({ search: "algebra", statuses: [] }, { view: CalendarView.WEEK }),
+      queryString(only({ search: "algebra", statuses: [] }), { view: CalendarView.WEEK }),
     ).toBe("view=week&q=algebra");
   });
 });
@@ -257,9 +272,30 @@ describe("one spelling per state", () => {
       "status=cancelled",
       "q=algebra&status=missed",
       "status=cancelled,missed",
+      "instructor=usr_abc",
+      "student=usr_xyz",
+      "view=week&q=algebra&instructor=usr_abc&student=usr_xyz",
     ]) {
       expect(stored(stored(query)), query).toBe(stored(query));
     }
+  });
+
+  it("keeps who the calendar was narrowed to", () => {
+    // The whole defect: `parseFilters` has always read `instructor` on this
+    // screen, and `queryString` never wrote it — so a value could reach the
+    // cookie and be gone by the next render, and the drawer would show a
+    // selection that narrowed nothing.
+    expect(stored("instructor=usr_abc")).toBe("instructor=usr_abc");
+    expect(stored("student=usr_xyz")).toBe("student=usr_xyz");
+  });
+
+  it("counts each of them as one filter, and an unset one as none", () => {
+    const none = only({ search: "", statuses: [] });
+    expect(activeCalendarFilters(none)).toBe(0);
+    expect(activeCalendarFilters({ ...none, instructorRef: "usr_abc" })).toBe(1);
+    expect(
+      activeCalendarFilters({ ...none, instructorRef: "usr_abc", studentRef: "usr_xyz" }),
+    ).toBe(2);
   });
 
   it("reads a status list written either way to the same one string", () => {

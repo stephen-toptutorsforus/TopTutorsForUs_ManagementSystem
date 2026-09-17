@@ -11,6 +11,7 @@
 import Link from "next/link";
 
 import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
@@ -39,6 +40,7 @@ import {
 import { applySessionFilters, resetSessionFilters } from "@/app/actions/filters";
 import { StateFields } from "@/components/ui/StateFields";
 import { readScreenState } from "@/lib/web/filterState";
+import { personOptions } from "@/lib/web/options";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Sessions · TopTutorsForUs" };
@@ -129,12 +131,9 @@ export default async function SessionsPage() {
 
   const results = await listSessions(prisma, principal, filters, { zone });
 
-  const [instructors, programs] = await Promise.all([
-    prisma.user.findMany({
-      where: { ...scoped(principal), archivedAt: null, roles: { some: { role: "INSTRUCTOR" } } },
-      select: { ref: true, firstName: true, lastName: true },
-      orderBy: { lastName: "asc" },
-    }),
+  const [instructors, students, programs] = await Promise.all([
+    personOptions(prisma, principal, Role.INSTRUCTOR),
+    personOptions(prisma, principal, Role.STUDENT),
     prisma.program.findMany({
       where: { ...scoped(principal), archivedAt: null },
       select: { ref: true, name: true },
@@ -243,10 +242,16 @@ export default async function SessionsPage() {
                   name="instructor"
                   defaultValue={filters.instructorRef ?? ""}
                   placeholder="Anyone"
-                  options={instructors.map((person) => ({
-                    value: person.ref,
-                    label: `${person.firstName} ${person.lastName}`.trim(),
-                  }))}
+                  options={instructors}
+                />
+              </Field>
+              <Field id="filter-student" label="Student">
+                <OptionSelect
+                  id="filter-student"
+                  name="student"
+                  defaultValue={filters.studentRef ?? ""}
+                  placeholder="Anyone"
+                  options={students}
                 />
               </Field>
               <Field id="filter-program" label="Program">

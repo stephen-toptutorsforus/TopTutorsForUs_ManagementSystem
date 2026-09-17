@@ -280,6 +280,23 @@ export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
 }
 
 /**
+ * The part of the grid's filter the calendar also has.
+ *
+ * Named rather than spelled inline at each use, because the two functions below
+ * have to agree about it exactly: one decides whether the badge lights and the
+ * other decides what is written down, and a key counted in one and not written
+ * by the other is a filter that lights up and does nothing.
+ *
+ * Deliberately not the whole of `SessionFilters`. Paging and the column list
+ * belong to a table, and the date bounds belong to a range the calendar already
+ * decides with its view and anchor.
+ */
+export type CalendarFilters = Pick<
+  SessionFilters,
+  "search" | "statuses" | "instructorRef" | "studentRef"
+>;
+
+/**
  * How many filters are set.
  *
  * The view and the date are not among them. They decide which range is drawn,
@@ -287,10 +304,13 @@ export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
  * secondary row rather than in its toolbar, and the reason resetting the filter
  * leaves you on the week you were reading.
  */
-export function activeCalendarFilters(
-  filters: Pick<SessionFilters, "search" | "statuses">,
-): number {
-  return [filters.search !== "", narrowsByStatus(filters.statuses)].filter(Boolean).length;
+export function activeCalendarFilters(filters: CalendarFilters): number {
+  return [
+    filters.search !== "",
+    narrowsByStatus(filters.statuses),
+    filters.instructorRef !== null,
+    filters.studentRef !== null,
+  ].filter(Boolean).length;
 }
 
 /**
@@ -306,7 +326,7 @@ export function activeCalendarFilters(
  * of a render.
  */
 export function queryString(
-  filters: Pick<SessionFilters, "search" | "statuses">,
+  filters: CalendarFilters,
   options: {
     view: CalendarView | string;
     anchor?: CivilDate | null;
@@ -324,5 +344,9 @@ export function queryString(
   if (narrowsByStatus(filters.statuses)) {
     params.append("status", writeStatuses(filters.statuses));
   }
+  // Who, after what. Written only when set, like everything else here — an
+  // empty value is what the address already means when it says nothing.
+  if (filters.instructorRef) params.append("instructor", filters.instructorRef);
+  if (filters.studentRef) params.append("student", filters.studentRef);
   return readableQuery(params);
 }

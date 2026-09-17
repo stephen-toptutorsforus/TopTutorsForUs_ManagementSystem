@@ -25,7 +25,7 @@ import {
   directoryQuery,
   parseDirectoryFilters,
 } from "@/lib/services/peopleQuery";
-import { parseFilters, toQuery } from "@/lib/services/sessionQuery";
+import { EMPTY_FILTERS, parseFilters, toQuery } from "@/lib/services/sessionQuery";
 import { civilDate } from "@/lib/time";
 import {
   SCREEN_PATH,
@@ -102,8 +102,9 @@ export async function resetCalendarFilters(form: FormData): Promise<void> {
   const view = parseView(params.get("view"));
   const anchor = parseAnchor(params.get("date"), today);
 
-  await apply(
-    "calendar",
-    queryString({ search: "", statuses: [] }, { view, anchor, today }),
-  );
+  // `EMPTY_FILTERS` rather than a literal of the two keys that existed when this
+  // was written: a reset that names the fields it clears silently stops
+  // clearing the next one somebody adds, which is how `instructor` came to be
+  // parsed by this screen and never written by it.
+  await apply("calendar", queryString(EMPTY_FILTERS, { view, anchor, today }));
 }

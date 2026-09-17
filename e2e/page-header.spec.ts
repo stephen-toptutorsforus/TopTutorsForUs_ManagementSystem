@@ -187,6 +187,37 @@ test.describe("as an administrator", () => {
     await expect(page.locator(".filterdrawer #filter-from")).toHaveValue("2026-09-01");
   });
 
+  test("the calendar narrows by instructor, and remembers who", async ({ page }) => {
+    // The troubleshooting question the SOP asks staff — "whose session is
+    // missing" — which this screen could not be asked until now. `instructor`
+    // was parsed here from the day the calendar was written and thrown away
+    // twice over: never written to the cookie, never applied to the query.
+    await page.goto("/calendar");
+    const chips = page.locator("[data-session-ref]");
+    const everyone = await chips.count();
+    expect(everyone).toBeGreaterThan(0);
+
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
+    const select = page.locator(".filterdrawer #filter-instructor");
+    const chosen = (await select.locator("option").nth(1).getAttribute("value")) ?? "";
+    expect(chosen).not.toBe("");
+    await select.selectOption(chosen);
+    await page.locator(".filterdrawer").getByRole("button", { name: "Apply" }).click();
+    await page.waitForLoadState("networkidle");
+
+    // Narrowed, said so, and without putting anybody's ref in the address.
+    expect(new URL(page.url()).search).toBe("");
+    await expect(page.locator(".filteractions-count")).toHaveText("1");
+    expect(await chips.count()).toBeLessThan(everyone);
+
+    // Read back from where it is stored, which is what tells a filter that
+    // narrows from one that only looked like it did.
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
+    await expect(page.locator(".filterdrawer #filter-instructor")).toHaveValue(chosen);
+  });
+
   test("booking gets a header and no list filters", async ({ page }) => {
     await page.goto("/sessions/new");
 

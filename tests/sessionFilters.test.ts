@@ -109,7 +109,7 @@ describe("what the grid stores", () => {
 
   it("drops the empty fields the filter form submits", () => {
     // Filtering on nothing at all submits all five as empty strings.
-    expect(tidy("q=&from=&to=&instructor=&program=")).toBe("");
+    expect(tidy("q=&from=&to=&instructor=&program=&student=")).toBe("");
     expect(tidy("q=&page=1")).toBe("");
   });
 
@@ -136,7 +136,8 @@ describe("what the grid stores", () => {
       "status=scheduled",
       "columns=title,status",
       "status=scheduled,missed",
-      "q=algebra&status=missed&from=2026-04-01&instructor=abc&page=2",
+      "student=usr_xyz",
+      "q=algebra&status=missed&from=2026-04-01&instructor=abc&student=xyz&page=2",
     ]) {
       expect(tidy(tidy(query)), query).toBe(tidy(query));
     }

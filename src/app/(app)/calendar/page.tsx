@@ -15,7 +15,8 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { SessionPeek } from "@/components/calendar/SessionPeek";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Role } from "@/generated/prisma/enums";
 import {
   CalendarView,
   MONTH_CELL_LIMIT,
@@ -31,6 +32,7 @@ import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters"
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
 import { StateFields } from "@/components/ui/StateFields";
 import { readScreenState } from "@/lib/web/filterState";
+import { personOptions } from "@/lib/web/options";
 import {
   attendeesLabel,
   deliveryMeta,
@@ -184,12 +186,19 @@ export default async function CalendarPage() {
     </>
   );
 
-  const buckets = await calendarRange(prisma, principal, {
-    first: window.first,
-    last: window.last,
-    zone,
-    filters,
-  });
+  // Fetched with the range rather than after it: three statements in parallel
+  // rather than one waiting on another, and the drawer needs them on the first
+  // paint because it is server-rendered markup.
+  const [buckets, instructors, students] = await Promise.all([
+    calendarRange(prisma, principal, {
+      first: window.first,
+      last: window.last,
+      zone,
+      filters,
+    }),
+    personOptions(prisma, principal, Role.INSTRUCTOR),
+    personOptions(prisma, principal, Role.STUDENT),
+  ]);
   const total = [...buckets.values()].reduce((sum, rows) => sum + rows.length, 0);
 
 
@@ -288,6 +297,36 @@ export default async function CalendarPage() {
                   />
                 ))}
               </ChoiceGroup>
+            </FilterSection>
+
+            {/* The troubleshooting question is "whose session is missing", and
+                until now this screen could only be asked about titles and
+                statuses. Two single-value selects rather than tick lists: the
+                resting state of a checkbox filter is every box ticked, and a
+                tenant's roster has no such state to draw — `narrows` measures a
+                selection against a fixed offered set and there is no fixed set
+                of people. Drawer-only, like the grid's, because the toolbar
+                holds what is worth a permanent row and this is not it. */}
+            <FilterSection legend="Who">
+              <Field id="filter-instructor" label="Instructor">
+                <OptionSelect
+                  id="filter-instructor"
+                  name="instructor"
+                  defaultValue={filters.instructorRef ?? ""}
+                  placeholder="Anyone"
+                  options={instructors}
+                />
+              </Field>
+
+              <Field id="filter-student" label="Student">
+                <OptionSelect
+                  id="filter-student"
+                  name="student"
+                  defaultValue={filters.studentRef ?? ""}
+                  placeholder="Anyone"
+                  options={students}
+                />
+              </Field>
             </FilterSection>
               </FilterControl>
             }
