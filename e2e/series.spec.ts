@@ -20,6 +20,20 @@ import { statePath } from "./accounts";
 const sidebar = (page: import("@playwright/test").Page) =>
   page.getByRole("navigation", { name: "Primary" });
 
+/**
+ * The sidebar is a column above the breakpoint and a drawer below it, so every
+ * assertion about what it *contains* belongs to the wide view; the drawer has
+ * its own suite in `navigation.spec.ts`.
+ *
+ * The other thing worth writing down: a section is a `<details>`, and a closed
+ * one takes its children out of the accessibility tree. `getByRole` therefore
+ * finds nothing inside a collapsed group, which is why each test below opens a
+ * page that lives in the section it is asking about — the same reason the
+ * navigation suite reaches "Groups" from `/people`.
+ */
+const wideOnly = (viewport: { width: number; height: number } | null) =>
+  test.skip((viewport?.width ?? 0) <= 720, "the sidebar is a drawer below 720px");
+
 test.describe("as a parent", () => {
   test.use({ storageState: statePath("parent") });
 
@@ -37,7 +51,8 @@ test.describe("as a parent", () => {
 test.describe("as an instructor", () => {
   test.use({ storageState: statePath("instructor") });
 
-  test("reaches their own hours from the sidebar", async ({ page }) => {
+  test("reaches their own hours from the sidebar", async ({ page, viewport }) => {
+    wideOnly(viewport);
     await page.goto("/");
     const link = sidebar(page).getByRole("link", { name: "My Availability" });
     await expect(link).toBeVisible();
@@ -49,14 +64,20 @@ test.describe("as an instructor", () => {
   });
 
   test("is not offered the roster view, or the audit trail", async ({ page }) => {
+    // By href rather than by role: an absence must be asserted against the
+    // markup, since a closed section would report zero for the wrong reason.
     await page.goto("/");
-    await expect(
-      sidebar(page).getByRole("link", { name: "Instructor Availability" }),
-    ).toHaveCount(0);
-    await expect(sidebar(page).getByRole("link", { name: "Audit trail" })).toHaveCount(0);
+    await expect(sidebar(page).locator('a[href="/audit"]')).toHaveCount(0);
+    await expect(sidebar(page).locator("a", { hasText: "Instructor Availability" })).toHaveCount(
+      0,
+    );
   });
 
-  test("sees the series they are teaching", async ({ page }) => {
+  test("can open the series list", async ({ page }) => {
+    // Only that it opens. Which runs this particular instructor is on is a fact
+    // about the seed rather than about the rule, and a spec that asserted a row
+    // here would be reciting the fixture — the seeded recurring series is
+    // somebody else's, and that is allowed to change.
     await page.goto("/series");
     await expect(page.getByRole("heading", { name: "Series", level: 1 })).toBeVisible();
   });
@@ -65,21 +86,26 @@ test.describe("as an instructor", () => {
 test.describe("as an administrator", () => {
   test.use({ storageState: statePath("admin") });
 
-  test("is offered the roster view, and exactly one availability entry", async ({ page }) => {
+  test("is offered the roster view, and exactly one availability entry", async ({
+    page,
+    viewport,
+  }) => {
     // An administrator holds every permission in the catalogue, so a gate that
     // only said "who may" would list this one page twice under two names.
-    await page.goto("/");
+    wideOnly(viewport);
+    await page.goto("/availability");
     await expect(
       sidebar(page).getByRole("link", { name: "Instructor Availability" }),
     ).toBeVisible();
     await expect(sidebar(page).locator('a[href="/availability"]')).toHaveCount(1);
   });
 
-  test("finds the audit trail under Administration", async ({ page }) => {
-    await page.goto("/");
+  test("finds the audit trail under Administration", async ({ page, viewport }) => {
+    wideOnly(viewport);
+    await page.goto("/audit");
     const group = sidebar(page)
       .locator(".nav-group")
-      .filter({ has: page.locator("summary", { hasText: "Administration" }) });
+      .filter({ hasText: "Administration" });
     await expect(group.getByRole("link", { name: "Audit trail" })).toHaveCount(1);
   });
 
