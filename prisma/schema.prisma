@@ -138,8 +138,30 @@ enum AuditCategory {
   AVAILABILITY @map("availability")
   CREDIT       @map("credit")
   EXPORT       @map("export")
+  IMPORT       @map("import")
 
   @@map("audit_category")
+}
+
+/// Whether an import has only been looked at, or actually written.
+///
+/// A preview is a real row rather than a scratch variable: it holds the
+/// uploaded text between the two requests, and it is what the second request
+/// names when it commits. Nothing about what a preview reported can differ from
+/// what a commit writes, because both read the same stored bytes.
+enum ImportStatus {
+  PREVIEWED @map("previewed")
+  COMMITTED @map("committed")
+
+  @@map("import_status")
+}
+
+enum ImportKind {
+  PERSON  @map("person")
+  SESSION @map("session")
+  SERIES  @map("series")
+
+  @@map("import_kind")
 }
 
 // --- Tenant root ------------------------------------------------------------
@@ -190,6 +212,8 @@ model Organization {
   sessions               SessionOccurrence[]
   participants           SessionParticipant[]
   auditEvents            AuditEvent[]
+  importBatches          ImportBatch[]
+  importRecords          ImportRecord[]
 
   @@map("organization")
 }
@@ -281,6 +305,7 @@ model User {
   sessionsCancelled  SessionOccurrence[]  @relation("SessionCancelledBy")
   participations     SessionParticipant[] @relation("ParticipantUser")
   attendanceMarked   SessionParticipant[] @relation("AttendanceMarkedBy")
+  importsStarted     ImportBatch[]        @relation("ImportCreatedBy")
 
   @@index([organizationId])
   @@index([organizationId, status], map: "ix_user_org_status")
@@ -1020,4 +1045,83 @@ model AuditEvent {
   @@index([organizationId, actorId, occurredAt], map: "ix_audit_actor")
   @@index([actorId])
   @@map("audit_event")
+}
+
+// --- Import -----------------------------------------------------------------
+
+/// One run of the import screen.
+///
+/// It exists for three reasons, and the first is the one that made it
+/// necessary. **A Pearl export carries no identifier of any kind** — not for a
+/// person, not for a session, not for a series — so "have I already imported
+/// this row" cannot be answered from the file. It is answered from here
+/// instead: every row written records the key it came from, and a second run
+/// matches rather than duplicates.
+///
+/// Second, it holds the uploaded text between the preview and the confirmation,
+/// so what somebody is shown is by construction what gets written — the rule
+/// `plan()` and `createFromPlan()` already follow for booking.
+///
+/// Third, it is the answer to "what did that import do", months later, from a
+/// report that names counts and reasons and never a person.
+///
+/// The source columns are cleared on commit. By then the rows are written, and
+/// a second copy of somebody's children sitting in a staging column is a
+/// liability with nothing left to justify it.
+model ImportBatch {
+  id             BigInt       @id @default(autoincrement())
+  ref            String       @unique @db.VarChar(24)
+  organizationId BigInt       @map("organization_id")
+  createdById    BigInt?      @map("created_by_id")
+  status         ImportStatus
+  /// SHA-256 of each uploaded file, so an exact re-upload is recognisable even
+  /// before a single row is read.
+  peopleDigest   String?      @map("people_digest") @db.VarChar(64)
+  sessionsDigest String?      @map("sessions_digest") @db.VarChar(64)
+  seriesDigest   String?      @map("series_digest") @db.VarChar(64)
+  sourcePeople   String?      @map("source_people")
+  sourceSessions String?      @map("source_sessions")
+  sourceSeries   String?      @map("source_series")
+  /// Counts and reasons. Never a name, an address or a row.
+  report         Json         @db.JsonB
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  committedAt    DateTime?    @map("committed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy    User?        @relation("ImportCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  records      ImportRecord[]
+
+  @@index([organizationId, createdAt], map: "ix_import_batch_org_created")
+  @@index([createdById])
+  @@map("import_batch")
+}
+
+/// What one imported row became.
+///
+/// `sourceKey` is derived from the row's own content, because the export gives
+/// nothing else to derive it from — and for sessions it includes the row's
+/// ordinal within the group of rows it is indistinguishable from, since 1,198
+/// of one real export's 2,229 sessions share their instructor, start and title
+/// with another row. That ordinal is the whole of what makes a second import of
+/// the same file match rather than duplicate.
+///
+/// `entityId` is deliberately not a foreign key. These rows outlive what they
+/// point at — a session deleted after an import should not take the record of
+/// the import with it, and a referential action would either do that or block
+/// the delete.
+model ImportRecord {
+  id             BigInt     @id @default(autoincrement())
+  organizationId BigInt     @map("organization_id")
+  batchId        BigInt     @map("batch_id")
+  kind           ImportKind
+  sourceKey      String     @map("source_key") @db.VarChar(64)
+  entityId       BigInt     @map("entity_id")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  batch        ImportBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind, sourceKey], map: "uq_import_record")
+  @@index([batchId])
+  @@map("import_record")
 }

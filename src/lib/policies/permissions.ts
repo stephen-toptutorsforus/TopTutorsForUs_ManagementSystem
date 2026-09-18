@@ -60,9 +60,19 @@ export enum Permission {
   ATTENDANCE_MARK_ANY = "attendance.mark_any",
   ATTENDANCE_CORRECT_ACTUALS = "attendance.correct_actuals",
 
-  // Audit and export
+  // Audit, export and import
   AUDIT_VIEW = "audit.view",
   EXPORT_SESSIONS = "export.sessions",
+  /**
+   * Loading another system's records into this tenant.
+   *
+   * Administrators only, and that falls out of the table below rather than
+   * being stated twice: `ADMIN` is granted `ALL_PERMISSIONS`, and every other
+   * role's grants are listed one by one — so a new member of this enum reaches
+   * administrators and nobody else. It is deliberately absent from
+   * `ROLE_LIST_SETTINGS`, so no tenant setting can hand it to another role.
+   */
+  DATA_IMPORT = "data.import",
 
   // Configuration
   ORG_CONFIGURE = "org.configure",

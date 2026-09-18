@@ -40,12 +40,23 @@ import {
   AttendanceStatus,
   DeliveryType,
   ParticipantRole,
-  Role,
-  SessionStatus,
   UserStatus,
 } from "@/generated/prisma/enums";
+import { type CsvRow, parseTable } from "@/lib/csv";
 import { clientFor } from "@/lib/db";
-import { resolveCivil } from "@/lib/time";
+import {
+  ACCOUNT,
+  ATTENDANCE,
+  STATUS,
+  deliveryOf,
+  emailOf,
+  minutesOf,
+  namesOf,
+  rolesOf,
+  splitName,
+  startOf,
+} from "@/lib/services/import/pearl";
+import { REFUSALS, Tally, refusalFor } from "@/lib/services/import/refusals";
 
 config();
 
@@ -54,133 +65,23 @@ const ZONE = "America/Chicago";
 
 // --- reading ----------------------------------------------------------------
 
-/** Quoted fields, doubled quotes, and commas inside them — all three occur. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i]!;
-    if (quoted) {
-      if (c === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 1;
-        } else quoted = false;
-      } else field += c;
-      continue;
-    }
-    if (c === '"') quoted = true;
-    else if (c === ",") {
-      row.push(field);
-      field = "";
-    } else if (c === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else if (c !== "\r") field += c;
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows.filter((r) => r.some((v) => v !== ""));
-}
-
-type Row = Record<string, string>;
-
-function read(dir: string, file: string): Row[] {
-  const rows = parseCsv(fs.readFileSync(path.join(dir, file), "utf8"));
-  const head = rows[0]!;
-  return rows
-    .slice(1)
-    .map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""])) as Row);
-}
-
-// --- mapping ----------------------------------------------------------------
-
-const ROLES: Record<string, Role> = {
-  Admin: Role.ADMIN,
-  Instructor: Role.INSTRUCTOR,
-  Student: Role.STUDENT,
-  Parent: Role.PARENT,
-};
-
-const ACCOUNT: Record<string, UserStatus> = {
-  Active: UserStatus.ACTIVE,
-  Invited: UserStatus.INVITED,
-  "Invite Bounced": UserStatus.BOUNCED,
-  "Pending Invite": UserStatus.PENDING_INVITE,
-};
+type Row = CsvRow;
 
 /**
- * `Lobby` and `Lesson` are the live-classroom states, which this schema spells
- * as one: `IN_PROGRESS`. Nothing here sets it yet — the Phase 4 classroom will —
- * so an import is the only writer of it, which is worth knowing when four
- * sessions turn up in a state the product cannot currently produce.
- */
-const STATUS: Record<string, SessionStatus> = {
-  Scheduled: SessionStatus.SCHEDULED,
-  Rescheduled: SessionStatus.RESCHEDULED,
-  Completed: SessionStatus.COMPLETED,
-  Cancelled: SessionStatus.CANCELLED,
-  Missed: SessionStatus.MISSED,
-  Lobby: SessionStatus.IN_PROGRESS,
-  Lesson: SessionStatus.IN_PROGRESS,
-};
-
-/**
- * Pearl records attendance once for the session; this schema records it per
- * participant, which is strictly more information and cannot be recovered from
- * less. So a rollup is spread across everybody on the session, and the two that
- * genuinely differ are kept apart: a session the *instructor* missed leaves its
- * students excused rather than absent, because an authorised absence is not a
- * mark against them and `attendanceRate` counts it that way.
+ * One file from disk.
  *
- * "Incomplete" is not a mark at all. Every Pearl row carrying it is a scheduled
- * session whose time has passed, which is this codebase's derived `Incomplete`
- * state rather than anything stored — so it maps to `UNMARKED`, and the
- * calendar works the state out again for itself.
+ * The parsing, the mappings and the refusal classifier all live in `src/lib`
+ * now, shared with the import screen: the two must agree about what "Missed By
+ * Instructor" means, and two tables that start identical do not stay that way.
+ * What is left here is the half that is genuinely a command line — a directory,
+ * a connection string, and somewhere to print to.
  */
-const ATTENDANCE: Record<string, AttendanceStatus> = {
-  "": AttendanceStatus.UNMARKED,
-  Incomplete: AttendanceStatus.UNMARKED,
-  Attended: AttendanceStatus.PRESENT,
-  "Partially Attended": AttendanceStatus.LATE,
-  Missed: AttendanceStatus.ABSENT,
-  "Missed By Students": AttendanceStatus.ABSENT,
-  "Missed By Instructor": AttendanceStatus.EXCUSED,
-};
-
-/** Pearl's own classroom, by the name it exports. */
-const PEARL_CLASSROOM = "Pearl Advanced Class";
-
-function deliveryOf(location: string): DeliveryType {
-  if (location.startsWith("http")) return DeliveryType.EXTERNAL_LINK;
-  if (location === PEARL_CLASSROOM) return DeliveryType.ADVANCED_CLASSROOM;
-  return DeliveryType.IN_PERSON;
-}
-
-/** `1 hour 30 minutes`, `54 minutes`, `3 hours` — and `0:32` in the series file. */
-function minutesOf(text: string): number {
-  const clock = /^(\d+):(\d\d)$/.exec(text);
-  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
-  const hours = /(\d+)\s+hours?/.exec(text);
-  const mins = /(\d+)\s+minutes?/.exec(text);
-  return (hours ? Number(hours[1]) * 60 : 0) + (mins ? Number(mins[1]) : 0);
-}
-
-/** `09/10/2026 9:00:00 PM` in the tenant's zone, to an instant. */
-function startOf(text: string): Date | null {
-  const m = /^(\d\d)\/(\d\d)\/(\d{4}) (\d+):(\d\d):\d\d (AM|PM)$/.exec(text);
-  if (!m) return null;
-  let hour = Number(m[4]) % 12;
-  if (m[6] === "PM") hour += 12;
-  const civil = `${m[3]}-${m[1]}-${m[2]}`;
-  const clock = `${String(hour).padStart(2, "0")}:${m[5]}`;
-  return resolveCivil(civil as never, clock, ZONE).instant;
+function read(dir: string, file: string): Row[] {
+  const table = parseTable(fs.readFileSync(path.join(dir, file), "utf8"));
+  if (table.ragged.length > 0) {
+    console.log(`${file}: ${table.ragged.length} rows had the wrong number of cells, skipped`);
+  }
+  return [...table.rows];
 }
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -192,73 +93,16 @@ function newRef(prefix: string): string {
   return `${prefix}_${body}`;
 }
 
-/**
- * Split a display name into two fields.
- *
- * Everything before the last word is the given name, which is wrong for some of
- * these and right for most, and there is no more information in the export to
- * do better with. Suffixes are kept on the surname rather than becoming one.
- */
-const SUFFIX = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv"]);
-function splitName(full: string): [string, string] {
-  const parts = full.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return ["Unknown", "Unknown"];
-  if (parts.length === 1) return [parts[0]!, ""];
-  let cut = parts.length - 1;
-  if (SUFFIX.has(parts[cut]!.toLowerCase()) && cut > 1) cut -= 1;
-  return [parts.slice(0, cut).join(" "), parts.slice(cut).join(" ")];
-}
-
 // --- the tally --------------------------------------------------------------
 
-class Reasons {
-  private readonly counts = new Map<string, number>();
-  add(reason: string): void {
-    this.counts.set(reason, (this.counts.get(reason) ?? 0) + 1);
+/** `Tally` counts by reason code; this prints one. */
+function report(tally: Tally, label: string): void {
+  if (tally.total === 0) return;
+  console.log(`
+${label}: ${tally.total}`);
+  for (const { message, count } of tally.entries()) {
+    console.log(`  ${String(count).padStart(5)}  ${message}`);
   }
-  get total(): number {
-    return [...this.counts.values()].reduce((a, b) => a + b, 0);
-  }
-  report(label: string): void {
-    if (this.counts.size === 0) return;
-    console.log(`\n${label}: ${this.total}`);
-    for (const [reason, n] of [...this.counts.entries()].sort((a, b) => b[1] - a[1])) {
-      console.log(`  ${String(n).padStart(5)}  ${reason}`);
-    }
-  }
-}
-
-/**
- * What a database refusal was about, without quoting the row it was about.
- *
- * The message carries a table name and a constraint name and nothing else; the
- * detail Postgres appends to an exclusion violation contains the conflicting
- * values, which here would be somebody's session.
- */
-function why(error: unknown): string {
-  const err = error as {
-    code?: string;
-    meta?: { driverAdapterError?: { cause?: { code?: string; originalMessage?: string } } };
-  };
-
-  // Prisma wraps a Postgres exclusion violation as P2039 and keeps the real
-  // SQLSTATE underneath. Deliberately reading `originalMessage`, which names the
-  // constraint, and never `detail`, which spells out the conflicting row.
-  const cause = err.meta?.driverAdapterError?.cause;
-  const named = cause?.originalMessage ?? "";
-  if (cause?.code === "23P01" || named.includes("exclusion constraint")) {
-    if (named.includes("ex_session_instructor_overlap")) {
-      return "instructor is already teaching then — ex_session_instructor_overlap";
-    }
-    if (named.includes("ex_session_location_overlap")) {
-      return "room is already in use then — ex_session_location_overlap";
-    }
-    return "an exclusion constraint refused it";
-  }
-  if (err.code === "P2002") return "duplicate of a row already written";
-  if (err.code === "P2003") return "refers to something that was not imported";
-  if (cause?.code) return `refused by Postgres ${cause.code}`;
-  return `refused: ${String(err.code ?? "unclassified")}`;
 }
 
 // --- the import -------------------------------------------------------------
@@ -296,18 +140,15 @@ async function main(): Promise<void> {
     // ------------------------------------------------------------ people ---
     const people = read(dir, "people.csv");
     const byName = new Map<string, bigint>();
-    const peopleSkipped = new Reasons();
+    const peopleSkipped = new Tally();
     let written = 0;
 
     for (const person of people) {
-      const roles = person.Roles!.split(",")
-        .map((r) => ROLES[r.trim()])
-        .filter((r): r is Role => r !== undefined);
+      const roles = rolesOf(person.Roles!);
       if (roles.length === 0) {
-        peopleSkipped.add("no role this schema recognises");
+        peopleSkipped.add(REFUSALS.NO_ROLE);
         continue;
       }
-      const handle = person["Email / Username"]!.trim();
       const [firstName, lastName] = splitName(person.Name!);
       try {
         const user = await db.user.create({
@@ -317,7 +158,7 @@ async function main(): Promise<void> {
             // A bare username is not an email, and the partial unique index is
             // over the rows that have one — so it is left null rather than
             // written as something that would fail a format check later.
-            email: handle.includes("@") ? handle.toLowerCase() : null,
+            email: emailOf(person["Email / Username"]!),
             firstName,
             lastName,
             status: ACCOUNT[person.Status!.trim()] ?? UserStatus.INVITED,
@@ -330,18 +171,18 @@ async function main(): Promise<void> {
         // the key an import has to join on. Where two people share one, the
         // first wins and the collision is counted rather than guessed at.
         if (!byName.has(person.Name!)) byName.set(person.Name!, user.id);
-        else peopleSkipped.add("shares a display name with somebody already imported");
+        else peopleSkipped.add(REFUSALS.SHARED_NAME);
       } catch (error) {
-        peopleSkipped.add(why(error));
+        peopleSkipped.add(refusalFor(error));
       }
     }
     console.log(`people written: ${written} of ${people.length}`);
-    peopleSkipped.report("people not written, or ambiguous");
+    report(peopleSkipped, "people not written, or ambiguous");
 
     // ---------------------------------------------------- relationships ---
     let guardianLinks = 0;
     let instructorLinks = 0;
-    const linkSkipped = new Reasons();
+    const linkSkipped = new Tally();
     for (const person of people) {
       const selfId = byName.get(person.Name!);
       if (selfId === undefined) continue;
@@ -354,7 +195,7 @@ async function main(): Promise<void> {
         if (!kind || !other) continue;
         const otherId = byName.get(other);
         if (otherId === undefined) {
-          linkSkipped.add(`names somebody not in the export (${kind.trim()})`);
+          linkSkipped.add(REFUSALS.UNKNOWN_PERSON);
           continue;
         }
         try {
@@ -370,35 +211,35 @@ async function main(): Promise<void> {
             guardianLinks += 1;
           }
         } catch {
-          linkSkipped.add("already linked, or links a person to themselves");
+          linkSkipped.add(REFUSALS.ALREADY_PRESENT);
         }
       }
     }
     console.log(`\ninstructor assignments: ${instructorLinks}`);
     console.log(`guardian links: ${guardianLinks}`);
-    linkSkipped.report("relationships not written");
+    report(linkSkipped, "relationships not written");
 
     // ---------------------------------------------------------- sessions ---
     const sessions = read(dir, "sessions.csv");
-    const sessionSkipped = new Reasons();
+    const sessionSkipped = new Tally();
     let sessionsWritten = 0;
     let participantsWritten = 0;
     let orphanStudents = 0;
 
     for (const row of sessions) {
-      const start = startOf(row["Scheduled Start"]!);
+      const start = startOf(row["Scheduled Start"]!, ZONE);
       if (start === null) {
-        sessionSkipped.add("start time could not be read");
+        sessionSkipped.add(REFUSALS.UNREADABLE_START);
         continue;
       }
       const minutes = minutesOf(row["Scheduled Duration"]!);
       if (minutes <= 0) {
-        sessionSkipped.add("duration could not be read");
+        sessionSkipped.add(REFUSALS.UNREADABLE_DURATION);
         continue;
       }
       const status = STATUS[row.Status!.trim()];
       if (status === undefined) {
-        sessionSkipped.add(`status has no equivalent here (${row.Status})`);
+        sessionSkipped.add(REFUSALS.UNKNOWN_STATUS);
         continue;
       }
       const instructorId = byName.get(row.Instructor!.trim()) ?? null;
@@ -428,7 +269,7 @@ async function main(): Promise<void> {
         sessionsWritten += 1;
 
         const mark = ATTENDANCE[row.Attendance!.trim()] ?? AttendanceStatus.UNMARKED;
-        for (const name of row.Students!.split(",").map((s) => s.trim()).filter(Boolean)) {
+        for (const name of namesOf(row.Students!)) {
           const studentId = byName.get(name);
           if (studentId === undefined) {
             orphanStudents += 1;
@@ -450,14 +291,14 @@ async function main(): Promise<void> {
           }
         }
       } catch (error) {
-        sessionSkipped.add(why(error));
+        sessionSkipped.add(refusalFor(error));
       }
     }
 
     console.log(`\nsessions written: ${sessionsWritten} of ${sessions.length}`);
     console.log(`participants written: ${participantsWritten}`);
     console.log(`student names on a session that matched nobody: ${orphanStudents}`);
-    sessionSkipped.report("sessions the schema would not take");
+    report(sessionSkipped, "sessions the schema would not take");
 
     const counts = await db.sessionOccurrence.groupBy({
       by: ["status"],
