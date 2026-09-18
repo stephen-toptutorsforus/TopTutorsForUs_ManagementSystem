@@ -27,6 +27,7 @@ import { FilterMenu } from "@/components/FilterMenu";
 import {
   AVAILABLE_COLUMNS,
   activeSessionFilters,
+  columnsFor,
   firstIndex,
   hasNext,
   hasPrevious,
@@ -115,7 +116,7 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
  * the same state, and the two would disagree the moment anybody typed one.
  */
 export default async function SessionsPage() {
-  const { principal } = await requireContext();
+  const { principal, organization } = await requireContext();
   const zone = principal.timezone;
   // From the screen's cookie, not the address.
   const filters = parseFilters(await readScreenState("sessions"));
@@ -141,7 +142,13 @@ export default async function SessionsPage() {
     }),
   ]);
 
-  const columns = filters.columns;
+  // Billable, Payment and Invoice are only worth a column where the tenant
+  // charges for something, and `booking.billable_enabled` ships off. They stay
+  // in the catalogue so an older `columns=` still parses; what narrows here is
+  // what is offered and what is drawn, in step, because a header with no
+  // meaning behind it is the same defect as a filter the query ignores.
+  const offered = columnsFor(organization);
+  const columns = filters.columns.filter((key) => key in offered);
   const canExport = principal.has(Permission.EXPORT_SESSIONS);
   const canBook = principal.has(Permission.SESSION_BOOK);
 
@@ -282,7 +289,7 @@ export default async function SessionsPage() {
                   </p>
                 }
               >
-                {Object.entries(AVAILABLE_COLUMNS).map(([key, label]) => (
+                {Object.entries(offered).map(([key, label]) => (
                   <Choice
                     key={key}
                     type="checkbox"

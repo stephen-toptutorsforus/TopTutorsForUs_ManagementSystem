@@ -19,6 +19,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { AttendanceStatus, ParticipantRole, SessionStatus } from "@/generated/prisma/enums";
 import { narrowsByStatus } from "@/lib/calendar";
 import type { Db } from "@/lib/db";
+import { type ConfigurableOrganization, billingEnabled } from "@/lib/organization";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { rosterFor } from "@/lib/policies/roster";
@@ -59,6 +60,27 @@ export const AVAILABLE_COLUMNS: Record<string, string> = {
   subject: "Subject",
   grade: "Grade",
 };
+
+/**
+ * The columns that only mean something where the tenant charges for something.
+ *
+ * They stay in the catalogue above so that a cookie or an older link naming one
+ * still parses — dropping a key there would make `parseFilters` fall back to
+ * the defaults and quietly lose the rest of somebody's column choice. What
+ * `columnsFor` does instead is stop offering them and stop rendering them, so a
+ * stored `columns=billable` simply shows one column fewer.
+ */
+export const MONEY_COLUMNS: readonly string[] = ["billable", "payment", "invoice"];
+
+/** The columns this tenant may be shown — see `booking.billable_enabled`. */
+export function columnsFor(
+  organization: ConfigurableOrganization | null | undefined,
+): Record<string, string> {
+  if (billingEnabled(organization)) return AVAILABLE_COLUMNS;
+  return Object.fromEntries(
+    Object.entries(AVAILABLE_COLUMNS).filter(([key]) => !MONEY_COLUMNS.includes(key)),
+  );
+}
 
 export const DEFAULT_COLUMNS: readonly string[] = [
   "title",

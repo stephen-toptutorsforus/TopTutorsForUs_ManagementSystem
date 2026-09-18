@@ -27,6 +27,7 @@ import { busyIntervals } from "@/lib/conflicts";
 import type { Db } from "@/lib/db";
 import {
   MAX_OCCURRENCES_PER_SERIES,
+  billingEnabled,
   deliveryAvailable,
   settingBoolean,
   settingNumber,
@@ -244,9 +245,15 @@ export interface BookingContext extends AvailabilityBlock {
   deliveryTypes: { value: string; label: string }[];
   canOverride: boolean;
   /**
-   * What the Billable box starts as. The screen used to force it on with a
-   * hidden field, so this ships `true` and a tenant that configures nothing
-   * books exactly as before.
+   * Whether there is a Billable box at all. `booking.billable_enabled` ships
+   * off, because this product charges for nothing — so on a tenant that has
+   * configured nothing the field below is never read.
+   */
+  billableEnabled: boolean;
+  /**
+   * What the Billable box starts as, where there is one. The screen used to
+   * force it on with a hidden field, so this ships `true` and a tenant that
+   * turns billing on and configures nothing else books exactly as before.
    */
   billableDefault: boolean;
 }
@@ -620,6 +627,7 @@ export async function bookingContext(
       { value: "external_link", label: deliveryMeta(DeliveryType.EXTERNAL_LINK).choice },
     ],
     canOverride: principal.has(Permission.SESSION_OVERRIDE_CONFLICT),
+    billableEnabled: billingEnabled(organization),
     billableDefault: settingBoolean(reader, ["booking", "billable_default"], true),
   };
 }

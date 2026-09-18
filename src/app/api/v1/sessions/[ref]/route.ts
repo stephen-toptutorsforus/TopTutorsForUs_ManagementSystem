@@ -59,6 +59,7 @@ export async function GET(
       toSessionOut(row!, {
         seriesRef: series?.ref ?? null,
         actions: availableActions(principal, occurrence, organization),
+        organization,
       }),
     );
   } catch (error) {

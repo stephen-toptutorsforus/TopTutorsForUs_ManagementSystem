@@ -50,11 +50,27 @@ export const DEFAULT_SETTINGS: JsonObject = {
     max_future_days: 180,
     cancellation_window_hours: 24,
     billable_cancellation_charges: true,
-    // What the booking form's Billable box starts as. `true` is what the screen
-    // used to force with a hidden field, so a tenant that configures nothing
-    // books exactly as it did before; a tenant that charges for nothing sets it
-    // false and every new session is free, with the box still there for the
-    // exception.
+    // Whether money is part of this tenant's vocabulary at all.
+    //
+    // It ships `false`, because this product runs every session free. A
+    // Billable box, a Payment column and an Invoice column are then three
+    // controls asking a question nobody may answer and nothing reads — worse
+    // than no control, by the rule the filters already follow. Off, none of
+    // them is drawn on the booking form, the edit panel, the session's own
+    // page, the grid, the export or the JSON API, and every session is written
+    // not billable whatever a form sends: a screen that hides a control and a
+    // handler that honours it anyway are the same bug seen from two sides.
+    //
+    // The column, `billable_cancellation_charges` and the payment and invoice
+    // fields all stay in the schema. They are the seam Phase 3's invoicing
+    // fills, and a tenant that ever charges turns this on rather than waiting
+    // for a migration.
+    billable_enabled: false,
+    // What the booking form's Billable box starts as, when there is one. `true`
+    // is what the screen used to force with a hidden field, so a tenant that
+    // turns billing on and configures nothing else books exactly as it did
+    // before; one that charges for nothing sets it false and every new session
+    // is free, with the box still there for the exception.
     billable_default: true,
     // When true, a student or parent booking arrives as a request for an
     // instructor or administrator to decide.
@@ -176,6 +192,21 @@ export function deliveryAvailable(
   if (list.length > 0 && !list.includes(wire)) return false;
   const needed = DELIVERY_FEATURES[wire];
   return needed === undefined || feature(organization, needed);
+}
+
+/**
+ * Is money part of this tenant's vocabulary?
+ *
+ * One function rather than a `settingBoolean` call at each of the nine places
+ * that ask, because a rule spelled out nine times is one that gets a different
+ * fallback in the tenth — and the difference between a screen that hides the
+ * Billable box and a handler that still honours `billable=on` is exactly that
+ * kind of drift. It ships off; see `booking.billable_enabled` above.
+ */
+export function billingEnabled(
+  organization: ConfigurableOrganization | null | undefined,
+): boolean {
+  return Boolean(setting(organization, ["booking", "billable_enabled"], false));
 }
 
 export function feature(

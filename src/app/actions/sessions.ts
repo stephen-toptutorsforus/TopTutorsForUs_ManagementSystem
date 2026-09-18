@@ -111,14 +111,18 @@ export async function editSession(
 ): Promise<FormResult> {
   return run(ref, async () => {
     await verifyCsrf(form);
-    const { principal, occurrence } = await loadSession(ref);
+    const { principal, organization, occurrence } = await loadSession(ref);
     const scope = readScope(form.get("scope"));
 
     await sessionOps.editDetails(prisma, principal, occurrence, {
       scope,
       title: String(form.get("title") ?? ""),
       description: String(form.get("description") ?? "") || null,
+      // Read either way and discarded by the service on a tenant that charges
+      // for nothing — the panel does not draw the box there, and a hidden
+      // control is a courtesy rather than the check.
       billable: form.get("billable") === "on",
+      organization,
       requestMeta: await requestMeta(),
     });
     return scopeNotice(scope, "updated");

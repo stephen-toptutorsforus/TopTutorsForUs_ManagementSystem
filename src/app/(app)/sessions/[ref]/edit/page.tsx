@@ -22,7 +22,7 @@ import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard } from "@/components/session/AttendanceCard";
 import { Card, CardSection, Fact, LinkButton, PageHeader, StatusBadge } from "@/components/ui";
 import { prisma } from "@/lib/db";
-import { settingStrings, settingsReader } from "@/lib/organization";
+import { billingEnabled, settingStrings, settingsReader } from "@/lib/organization";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
@@ -152,6 +152,7 @@ export default async function EditSessionPage({
         title={session.title}
         description={session.description}
         billable={session.billable}
+        billableEnabled={billingEnabled(organization)}
         startDate={start.isoDate}
         startTime={start.time}
         durationMinutes={scheduled}

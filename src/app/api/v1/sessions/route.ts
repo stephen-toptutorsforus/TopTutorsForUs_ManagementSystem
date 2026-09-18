@@ -16,20 +16,23 @@ import {
 } from "@/lib/services/sessionQuery";
 import { toSessionOut } from "@/lib/web/api";
 import { NO_STORE_HEADERS } from "@/lib/web/caching";
-import { requirePrincipal } from "@/lib/web/session";
+import { requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
   try {
-    const principal = await requirePrincipal();
+    // The organization as well as the principal, because whether this tenant
+    // charges for anything decides whether `billable` is in the response at
+    // all — the same question the grid asks before drawing the column.
+    const { principal, organization } = await requireContext();
     const filters = parseFilters(new URL(request.url).searchParams);
     const results = await listSessions(prisma, principal, filters, {
       zone: principal.timezone,
     });
 
     return Response.json({
-      results: results.rows.map((row) => toSessionOut(row)),
+      results: results.rows.map((row) => toSessionOut(row, { organization })),
       total: results.total,
       page: results.page,
       pages: pageCount(results),

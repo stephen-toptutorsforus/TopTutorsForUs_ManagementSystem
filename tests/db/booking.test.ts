@@ -1159,4 +1159,70 @@ describeDb("booking", () => {
 
     expect(civilTime(moved!.scheduledStart, NY)).toBe("18:00");
   });
+  // --- Billable, on a product that charges for nothing ----------------------
+  //
+  // `booking.billable_enabled` ships off, so the booking form draws no Billable
+  // box and the edit panel draws none either. A hidden control is a courtesy;
+  // these are the checks that say so — every one of them sends `billable: true`
+  // the way a crafted post or an older client would, and expects the write to
+  // ignore it.
+
+  it("books a free session however loudly the request asks to charge", async () => {
+    const { created } = await book(booking(instructor, student, { billable: true }));
+    expect(created[0]!.billable).toBe(false);
+  });
+
+  it("writes the series template free as well, not only the occurrences", async () => {
+    // The series row is a template. One left billable would hand every
+    // occurrence generated from it later the answer this rule just refused.
+    const { series, created } = await book(
+      booking(instructor, student, {
+        billable: true,
+        repeat: true,
+        weekdays: ["mon"],
+        occurrenceCount: 3,
+      }),
+    );
+    expect(series!.billable).toBe(false);
+    expect(created.map((row) => row.billable)).toEqual([false, false, false]);
+  });
+
+  it("honours the request once the tenant says it charges for something", async () => {
+    // The setting is the whole rule, so this is the case that proves the rule
+    // is the setting rather than a hard-coded `false` with a comment on it.
+    await configure({ booking: { billable_enabled: true } });
+    const { created } = await book(booking(instructor, student, { billable: true }));
+    expect(created[0]!.billable).toBe(true);
+
+    const free = await book(
+      booking(instructor, student, { billable: false, startTime: "18:00" }),
+    );
+    expect(free.created[0]!.billable).toBe(false);
+  });
+
+  it("ignores an edit that tries to make a session billable", async () => {
+    await configure({ booking: { billable_enabled: true } });
+    const { created } = await book(booking(instructor, student, { billable: true }));
+    await configure({ booking: { billable_enabled: false } });
+
+    // Everything else in the same edit still lands: the field is dropped, not
+    // the request.
+    const [edited] = await sessionOps.editDetails(db, admin, created[0]!, {
+      title: "Corrected title",
+      billable: true,
+      organization: org,
+    });
+    expect(edited!.title).toBe("Corrected title");
+    expect(edited!.billable).toBe(true);
+
+    const [stripped] = await sessionOps.editDetails(db, admin, edited!, {
+      billable: false,
+      organization: org,
+    });
+    // Nothing changed at all, so nothing was written — `editDetails` skips a
+    // target whose snapshot is unmoved, which is what keeps the audit trail
+    // free of entries recording no change.
+    expect(stripped).toBeUndefined();
+    expect((await reload(created[0]!.id)).billable).toBe(true);
+  });
 });

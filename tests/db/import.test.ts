@@ -16,7 +16,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { Role, SessionStatus, UserStatus } from "@/generated/prisma/enums";
 import { Forbidden, NotFound } from "@/lib/errors";
 import { loadPrincipal } from "@/lib/policies/principal";
@@ -62,8 +62,10 @@ const SERIES = [
 
 describeDb("importing another system's records", () => {
   let db: PrismaClient;
-  let org: { id: bigint; timezone: string };
-  let elsewhere: { id: bigint; timezone: string };
+  // `settings` as well as the two the importer reads: the session writer asks
+  // `booking.billable_enabled` before it believes the file's Billable column.
+  let org: { id: bigint; timezone: string; settings: Prisma.JsonValue };
+  let elsewhere: { id: bigint; timezone: string; settings: Prisma.JsonValue };
   let admin: { id: bigint };
   let regional: { id: bigint };
   let student: { id: bigint };
@@ -132,6 +134,57 @@ describeDb("importing another system's records", () => {
       await expect(previewImport(db, org, await asAdmin(), {})).rejects.toThrow(
         /at least one file/,
       );
+    });
+  });
+
+  describe("what the file says about money", () => {
+    it("writes every session free, whatever the Billable column claims", async () => {
+      // Both fixture rows say Yes. `booking.billable_enabled` ships off, so an
+      // import must not be the one writer on the product that marks a thousand
+      // sessions chargeable — and the column defaults to `true`, so this is a
+      // value that has to be written rather than one that can be left out.
+      const preview = await previewImport(db, org, await asAdmin(), {
+        people: PEOPLE,
+        sessions: SESSIONS,
+        series: SERIES,
+      });
+      await commitImport(db, org, await asAdmin(), preview.batchRef);
+
+      const sessions = await db.sessionOccurrence.findMany({
+        where: { organizationId: org.id },
+        select: { billable: true },
+      });
+      expect(sessions.length).toBeGreaterThan(0);
+      expect(sessions.every((row) => row.billable === false)).toBe(true);
+
+      // The series file has no Billable column at all, which is the quieter
+      // half: a template left at the schema's default hands `true` to every
+      // occurrence generated from it afterwards.
+      const series = await db.sessionSeries.findMany({
+        where: { organizationId: org.id },
+        select: { billable: true },
+      });
+      expect(series.length).toBeGreaterThan(0);
+      expect(series.every((row) => row.billable === false)).toBe(true);
+    });
+
+    it("believes the file once the tenant says it charges for something", async () => {
+      org = await db.organization.update({
+        where: { id: org.id },
+        data: { settings: { booking: { billable_enabled: true } } },
+      });
+      const preview = await previewImport(db, org, await asAdmin(), {
+        people: PEOPLE,
+        sessions: SESSIONS,
+      });
+      await commitImport(db, org, await asAdmin(), preview.batchRef);
+
+      const sessions = await db.sessionOccurrence.findMany({
+        where: { organizationId: org.id },
+        select: { billable: true },
+      });
+      expect(sessions.length).toBeGreaterThan(0);
+      expect(sessions.every((row) => row.billable === true)).toBe(true);
     });
   });
 

@@ -122,19 +122,48 @@ whose days differ is already expressible. The series row keeps the pattern's
 first day as its default — it is a template, not a second copy of the
 schedule.
 
-**Billable is asked, not decided.** It was a hidden field forced on, so every
-session booked on that screen was billable and could only be changed afterwards
-— a financially significant field nobody could answer at the moment they were
-answering everything else. The box now starts from
-`booking.billable_default`, which ships `true`, so a tenant that configures
-nothing books exactly as before and a tenant that charges for nothing sets it
-false once. No new permission: anyone who may book may say, and the change is
-already in the audited field list.
+**Billable is not asked at all, because nothing here is charged for.** It began
+as a hidden field forced on, so every session booked on that screen was billable
+and could only be changed afterwards — a financially significant field nobody
+could answer at the moment they were answering everything else. Making it a
+control fixed the wrong half: this product runs every session free, so the
+honest answer is that the question is not asked.
 
-Its hidden companion `billable_asked` is not decoration. An unticked checkbox
-sends nothing, so its absence from the echo cannot otherwise be told from a
-first paint, and the tenant default would silently retick the box somebody had
-just cleared.
+`booking.billable_enabled` ships `false`, and `billingEnabled()` in
+`lib/organization.ts` is the only copy of it. Off, the Billable box leaves the
+booking form and the edit panel, the Billable field leaves the session's page,
+Billable, Payment and Invoice leave the column picker, the grid and the export,
+and `billable` leaves the JSON API — omitted rather than sent as a constant
+`false`, because a field that is always one value is one a client eventually
+builds a column out of. A tenant that ever charges turns it on and every one of
+them comes back, starting from `booking.billable_default`, which still ships
+`true`.
+
+**Hiding a control is the courtesy; the service is the rule.** `createFromPlan`
+writes a free session whatever the request carries, so an older client, a
+crafted post or a service caller gains nothing by sending `billable: true` —
+and the series row goes with it, since a template left billable would hand the
+answer back to every occurrence generated from it later. `editDetails` takes the
+organization for the same reason and drops the field rather than the request, so
+the title in the same edit still lands.
+
+The money columns stay in `AVAILABLE_COLUMNS` even where they are not offered.
+`parseFilters` validates against it, so a key removed from there would make a
+stored `columns=billable,title` fall back to the defaults — losing the rest of
+somebody's choice rather than one column of it. `columnsFor` narrows what is
+offered and what is drawn, in step, because a header with no meaning behind it
+is the same defect as a filter the query ignores.
+
+The `billable` column, `booking.billable_cancellation_charges` and the payment
+and invoice fields all stay in the schema. They are the seam Phase 3's invoicing
+fills, and a tenant that charges turns a setting on rather than waiting for a
+migration.
+
+Its hidden companion `billable_asked` goes with the box and is not decoration
+when there is one. An unticked checkbox sends nothing, so its absence from the
+echo cannot otherwise be told from a first paint, and the tenant default would
+silently retick the box somebody had just cleared. With no box there is no
+question, and a lone marker saying one was asked is a lie the echo then acts on.
 
 **A room is a record, not a sentence.** The booking screen sends `locationId`
 for an in-person session, and the free text beside it is directions — a floor, an

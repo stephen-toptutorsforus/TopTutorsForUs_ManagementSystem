@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { DeliveryType, SessionStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
+import { billingEnabled } from "@/lib/organization";
 import { Permission } from "@/lib/policies/permissions";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
@@ -111,6 +112,7 @@ export default async function SessionDetailPage({
     ]);
 
   const actions = availableActions(principal, session, organization);
+  const billing = billingEnabled(organization);
   const scheduled = scheduledDurationMinutes(session);
   const actual = actualDurationMinutes(session);
   const delta = actual === null ? null : actual - scheduled;
@@ -302,7 +304,11 @@ export default async function SessionDetailPage({
           </Fact>
           <div className="form-row">
             <Fact label="Group">{group?.name}</Fact>
-            <Fact label="Billable">{session.billable ? "Yes" : "No"}</Fact>
+            {/* Only where the tenant charges for something. Off — which is what
+                `booking.billable_enabled` ships as — this reads "No" on every
+                session ever booked, which is a fact about the product rather
+                than about the session. */}
+            {billing && <Fact label="Billable">{session.billable ? "Yes" : "No"}</Fact>}
             <Fact label="Reference">
               <code>{session.ref}</code>
             </Fact>

@@ -410,29 +410,38 @@ export function BookingForm({
                 options={context.deliveryTypes}
               />
                         </Field>
-            {/* Asked, rather than decided. This was a hidden field forced on,
-                so every session booked here was billable and could only be
-                changed afterwards — a financially significant field nobody
-                could answer at the point they were answering everything else.
+            {/* Asked, rather than decided — and only where there is anything
+                to charge. This was a hidden field forced on, so every session
+                booked here was billable and could only be changed afterwards:
+                a financially significant field nobody could answer at the point
+                they were answering everything else.
 
-                It starts from the tenant's own default rather than from `true`,
-                which is what lets an organization that charges for nothing book
-                free sessions without unticking a box each time. The default
-                ships as `true`, so a tenant that configures nothing books
-                exactly as it did before.
+                `booking.billable_enabled` ships off, because this product runs
+                every session free, so ordinarily nothing below renders and the
+                row holds the Type select alone. A tenant that charges turns it
+                on and the box comes back, starting from that tenant's own
+                default rather than from `true`.
+
+                Not drawn is not the same as not enforced: `createFromPlan`
+                writes a free session whatever the request says, so a post that
+                puts `billable=on` back by hand gains nothing.
 
                 Keyed on its own value for the same reason every other field
                 here is: `useActionState` resets the form after each action, and
                 a checkbox restored to a stale `defaultChecked` would flip back
                 under whoever had just changed it. */}
-            <Choice
-              type="checkbox"
-              name="billable"
-              label="Billable"
-              defaultChecked={billable}
-              key={`billable-${billable}`}
-            />
-            <input type="hidden" name="billable_asked" value="1" />
+            {context.billableEnabled && (
+              <>
+                <Choice
+                  type="checkbox"
+                  name="billable"
+                  label="Billable"
+                  defaultChecked={billable}
+                  key={`billable-${billable}`}
+                />
+                <input type="hidden" name="billable_asked" value="1" />
+              </>
+            )}
           </div>
 
           {/* Only some of these belong to the chosen type, and now only those

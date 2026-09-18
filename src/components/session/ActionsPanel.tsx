@@ -34,6 +34,13 @@ export interface ActionsPanelProps {
   title: string;
   description: string | null;
   billable: boolean;
+  /**
+   * Whether the Billable box is drawn. `booking.billable_enabled` ships off,
+   * because this product charges for nothing — and `editDetails` ignores the
+   * field on a tenant with billing off regardless, so hiding it here is the
+   * courtesy and the service is the rule.
+   */
+  billableEnabled: boolean;
   startDate: string;
   startTime: string;
   durationMinutes: number;
@@ -151,12 +158,14 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 defaultValue={props.description ?? ""}
               />
                         </Field>
-            <Choice
-              type="checkbox"
-              name="billable"
-              defaultChecked={props.billable}
-              label="Billable"
-            />
+            {props.billableEnabled && (
+              <Choice
+                type="checkbox"
+                name="billable"
+                defaultChecked={props.billable}
+                label="Billable"
+              />
+            )}
             <ScopeChoice series={series} defaultValue={defaultScope} />
             <Button variant="primary" type="submit">
               Save changes

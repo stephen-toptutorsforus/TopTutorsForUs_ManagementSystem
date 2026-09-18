@@ -11,6 +11,7 @@
  * Every `ref`, never a database id.
  */
 
+import { type ConfigurableOrganization, billingEnabled } from "@/lib/organization";
 import { Moment } from "@/lib/rendering";
 import {
   actualDurationMinutes,
@@ -43,7 +44,14 @@ export interface SessionOut {
   title: string;
   status: string;
   delivery_type: string;
-  billable: boolean;
+  /**
+   * Absent where the tenant charges for nothing, which is what
+   * `booking.billable_enabled` ships as. Omitted rather than sent as a constant
+   * `false`, because a field that is always one value is one a client will
+   * eventually build a column out of — and the HTML transport does not show it
+   * either. A tenant that turns billing on gets it back.
+   */
+  billable?: boolean;
   timezone: string;
   scheduled_start: MomentOut;
   scheduled_end: MomentOut;
@@ -63,7 +71,12 @@ export interface SessionOut {
 
 export function toSessionOut(
   row: SessionRow,
-  options: { seriesRef?: string | null; actions?: string[] } = {},
+  options: {
+    seriesRef?: string | null;
+    actions?: string[];
+    /** The tenant, so the money field can be left out where there is none. */
+    organization?: ConfigurableOrganization | null;
+  } = {},
 ): SessionOut {
   const occurrence = row.session;
   const zone = occurrence.timezone;
@@ -72,7 +85,7 @@ export function toSessionOut(
     title: occurrence.title,
     status: occurrence.status.toLowerCase(),
     delivery_type: occurrence.deliveryType.toLowerCase(),
-    billable: occurrence.billable,
+    ...(billingEnabled(options.organization) ? { billable: occurrence.billable } : {}),
     timezone: zone,
     scheduled_start: outMoment(occurrence.scheduledStart, zone)!,
     scheduled_end: outMoment(occurrence.scheduledEnd, zone)!,

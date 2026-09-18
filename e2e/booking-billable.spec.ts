@@ -1,15 +1,18 @@
 /**
- * Whether a new session is billable, asked rather than decided.
+ * Money, on a product that charges for nothing.
  *
- * The form used to send `billable=on` from a hidden field, so every session
- * booked here was billable and could only be changed afterwards — a
- * financially significant field nobody could answer at the point they were
- * answering everything else.
+ * The booking form's Billable box used to be a hidden field forced on, then
+ * became a control asked at the point everything else was asked. It is now
+ * neither, because `booking.billable_enabled` ships `false`: a tenant that
+ * charges for nothing should not be asked a financial question on every
+ * booking, and a Payment column of "unpaid" and an Invoice column of "—" are
+ * two more controls offering an answer nothing reads.
  *
- * The box now starts from the tenant's `booking.billable_default`, which ships
- * `true`, so a tenant that configures nothing books exactly as it did before.
- * These check both halves: that the default is honoured, and that unticking it
- * actually reaches the record rather than being overwritten by a form reset.
+ * This file checks the four places somebody would meet it — the booking form,
+ * the column picker, the record, and the edit panel — because hiding it on one
+ * screen and leaving it on the next is exactly how the field survived being
+ * "removed" the first time. That the *write* refuses it regardless, whatever a
+ * crafted post sends, is `tests/db/booking.test.ts`; this is the courtesy half.
  */
 
 import { expect, test, type Page } from "@playwright/test";
@@ -30,30 +33,34 @@ async function settled(page: Page): Promise<void> {
 }
 
 test.describe("billable", () => {
-  test("is a control, and starts at the tenant's default", async ({ page }) => {
+  test("is not on the booking form at all", async ({ page }) => {
     await page.goto("/sessions/new");
+    await expect(page.locator("#title")).toBeVisible();
 
-    const box = page.locator('input[name="billable"]');
-    await expect(box).toBeVisible();
-    // The shipped default, and what the hidden field used to force.
-    await expect(box).toBeChecked();
+    await expect(page.locator('input[name="billable"]')).toHaveCount(0);
+    // Its hidden companion goes with it. `billable_asked` exists so that an
+    // unticked box can be told from a first paint; with no box there is no
+    // question, and a lone marker saying one was asked would be a lie the echo
+    // then acts on.
+    await expect(page.locator('input[name="billable_asked"]')).toHaveCount(0);
   });
 
-  test("survives the refresh that follows every change", async ({ page }) => {
-    await page.goto("/sessions/new");
+  test("is not among the columns the session grid offers", async ({ page }) => {
+    await page.goto("/sessions");
+    await page.locator(".filteractions > summary").click();
+    await page.getByRole("button", { name: "Edit filter" }).click();
 
-    await page.locator('input[name="billable"]').uncheck();
-    // Any change refreshes the block, and `useActionState` resets the form when
-    // the reply lands. A checkbox restored to a stale attribute would tick
-    // itself again here — which is precisely how the "Number of sessions" field
-    // used to lose what had been typed into it.
-    await page.locator("#student_picker").selectOption({ label: STUDENT });
-    await settled(page);
-
-    await expect(page.locator('input[name="billable"]')).not.toBeChecked();
+    const columns = page.getByRole("group", { name: "Show these columns" });
+    await expect(columns).toBeVisible();
+    // Present, so this is a real reading of the list rather than a drawer that
+    // failed to open.
+    await expect(columns.getByLabel("Instructor")).toHaveCount(1);
+    for (const label of ["Billable", "Payment", "Invoice"]) {
+      await expect(columns.getByLabel(label), label).toHaveCount(0);
+    }
   });
 
-  test("books a session that is not billable when it is unticked", async ({ page }) => {
+  test("books a session whose page and edit panel say nothing about money", async ({ page }) => {
     await page.goto("/sessions/new");
 
     // Not simply tomorrow: this test books, the suite shares one database with
@@ -84,15 +91,25 @@ test.describe("billable", () => {
     await pickFreeTime(page);
     await settled(page);
 
-    // Last, so the refresh that follows picking a time cannot reset it — the
-    // very thing the case above this one is about.
-    await page.locator('input[name="billable"]').uncheck();
-
     await previewAndBook(page);
 
-    // The record, not the form: the field's own value, found through the label
-    // beside it rather than by looking for "No" anywhere on the page.
-    const field = page.locator(".field", { has: page.locator(".fact-label", { hasText: /^Billable$/ }) });
-    await expect(field.locator(".fact-value")).toHaveText("No");
+    // The record the booking produced. The form no longer asks, so the page no
+    // longer answers — and this also proves the booking still completes with
+    // the field gone, which is the half a unit test cannot see.
+    await expect(page.locator(".fact-label", { hasText: /^Billable$/ })).toHaveCount(0);
+    await expect(page.locator(".fact-label", { hasText: /^Reference$/ })).toHaveCount(1);
+
+    // And the editing screen, reached from this record rather than from the
+    // first row of the grid: a session that has just been booked is one this
+    // administrator can certainly edit, where the first row of a grid full of
+    // cancelled and completed sessions offers no control at all — which is how
+    // two earlier specs came to assert nothing while reporting a pass.
+    await page.getByRole("link", { name: "Edit session" }).click();
+    // The panels are `<details>`, and a closed one keeps its children in the
+    // DOM — so a count taken here without opening it would pass whether the box
+    // were there or not. Open it, prove it opened, then look.
+    await page.getByText("Edit details", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
+    await expect(page.locator('input[name="billable"]')).toHaveCount(0);
   });
 });

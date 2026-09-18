@@ -30,7 +30,12 @@ import { SESSION_FIELDS, record, snapshot } from "@/lib/audit";
 import { blocking, check } from "@/lib/conflicts";
 import type { Db } from "@/lib/db";
 import { ConflictError, Forbidden, ValidationError } from "@/lib/errors";
-import { type ConfigurableOrganization, settingStrings, settingsReader } from "@/lib/organization";
+import {
+  type ConfigurableOrganization,
+  billingEnabled,
+  settingStrings,
+  settingsReader,
+} from "@/lib/organization";
 import { ACTIONS_BY_STATUS } from "@/lib/policies/sessions";
 import {
   canCancel,
@@ -210,6 +215,17 @@ export async function editDetails(
     title?: string | null;
     description?: string | null;
     billable?: boolean | null;
+    /**
+     * The tenant, so that `billable` can be ignored where money is not part of
+     * its vocabulary. The edit panel does not draw the box when
+     * `booking.billable_enabled` is off; this is what makes that a rule rather
+     * than a styling decision, because an unticked checkbox and a hidden one
+     * send the same nothing and a crafted post sends `on`.
+     *
+     * Optional, and absent means "do not apply the rule" rather than "assume
+     * off": the two callers that omit it never pass `billable` either.
+     */
+    organization?: ConfigurableOrganization | null;
     requestMeta?: RequestMeta;
   } = {},
 ): Promise<Occurrence[]> {
@@ -217,7 +233,13 @@ export async function editDetails(
   requireDecision(canEdit(principal, occurrence));
   if (scope !== EditScope.THIS) requireDecision(canEditSeries(principal, occurrence));
 
-  const { title, description, billable } = options;
+  const { title, description } = options;
+  const billable =
+    options.organization !== undefined &&
+    options.organization !== null &&
+    !billingEnabled(options.organization)
+      ? undefined
+      : options.billable;
   if (title !== undefined && title !== null && !title.trim()) {
     throw new ValidationError("a session needs a title");
   }

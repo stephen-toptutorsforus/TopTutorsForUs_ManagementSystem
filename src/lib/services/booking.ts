@@ -42,6 +42,7 @@ import {
   type ConfigurableOrganization,
   MAX_OCCURRENCES_PER_SERIES,
   MAX_SERIES_HORIZON_DAYS,
+  billingEnabled,
   deliveryAvailable,
   settingNumber,
   settingsReader,
@@ -345,6 +346,11 @@ export async function createFromPlan(
   requestMeta: RequestMeta = {},
 ): Promise<{ series: CreatedSeries | null; created: CreatedOccurrence[] }> {
   const request = bookingPlan.request;
+  // Asked on the form only where the tenant charges for anything. Where it does
+  // not, the box is not drawn — and this is what makes that a rule rather than
+  // a styling decision: a request carrying `billable: true` from an older
+  // client, a crafted post or a service caller still writes a free session.
+  const billing = billingEnabled(organization);
 
   if (bookingPlan.selfOverlaps.length > 0) {
     const [first, second] = bookingPlan.selfOverlaps[0]!;
@@ -418,7 +424,7 @@ export async function createFromPlan(
         locationId: request.locationId ?? null,
         locationDetail: request.locationDetail ?? null,
         meetingUrl: request.meetingUrl ?? null,
-        billable: request.billable ?? true,
+        billable: billing ? (request.billable ?? true) : false,
         classroomConfig: {},
         createdById: principal.userId,
       },
@@ -459,7 +465,7 @@ export async function createFromPlan(
           programId: request.programId ?? null,
           subjectId: request.subjectId ?? null,
           gradeId: request.gradeId ?? null,
-          billable: request.billable ?? true,
+          billable: billing ? (request.billable ?? true) : false,
           conflictOverridden: Boolean(
             hasConflicts(planned) && request.overrideConflicts,
           ),

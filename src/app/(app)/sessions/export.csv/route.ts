@@ -11,16 +11,16 @@ import { record } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { payloadFor, statusFor } from "@/lib/errors";
 import { Permission } from "@/lib/policies/permissions";
-import { listSessions, parseFilters, toCsv } from "@/lib/services/sessionQuery";
+import { columnsFor, listSessions, parseFilters, toCsv } from "@/lib/services/sessionQuery";
 import { civilDate } from "@/lib/time";
 import { NO_STORE } from "@/lib/web/caching";
-import { requestMeta, requirePrincipal } from "@/lib/web/session";
+import { requestMeta, requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
   try {
-    const principal = await requirePrincipal();
+    const { principal, organization } = await requireContext();
     principal.require(Permission.EXPORT_SESSIONS);
 
     const zone = principal.timezone;
@@ -38,7 +38,12 @@ export async function GET(request: Request): Promise<Response> {
     });
 
     const stamp = civilDate(new Date(), zone);
-    return new Response(toCsv(results.rows, filters.columns, zone), {
+    // The same narrowing the grid does, for the same reason: a tenant that
+    // charges for nothing should not be handed a Billable column of "no".
+    const offered = columnsFor(organization);
+    const columns = filters.columns.filter((key) => key in offered);
+
+    return new Response(toCsv(results.rows, columns, zone), {
       headers: {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition": `attachment; filename="sessions-${stamp}.csv"`,
