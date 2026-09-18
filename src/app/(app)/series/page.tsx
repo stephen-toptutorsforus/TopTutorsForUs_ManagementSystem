@@ -14,7 +14,6 @@ import { prisma } from "@/lib/db";
 import { WEEKDAY_LABELS, durationLabel } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import { listSeries } from "@/lib/services/sessionQuery";
-import { timeFromDb } from "@/lib/time";
 import { requireContext } from "@/lib/web/session";
 
 export const metadata = { title: "Series · TopTutorsForUs" };
@@ -22,15 +21,11 @@ export const dynamic = "force-dynamic";
 
 export default async function SeriesPage() {
   const { principal } = await requireContext();
-  const zone = principal.timezone;
   const rows = await listSeries(prisma, principal);
 
   return (
     <>
-      <PageHeader
-        title="Series"
-        
-      />
+      <PageHeader title="Series" />
 
       {rows.length > 0 ? (
         <TableWrap caption="Recurring session series">
@@ -53,7 +48,11 @@ export default async function SeriesPage() {
           <tbody>
             {rows.map((row) => {
               const series = row.series;
-              const weekdays = (series.weekdays as string[] | null) ?? [];
+              // From the occurrences, not from `series.weekdays` and the two
+              // columns beside it: the series row is the template the run was
+              // generated from, and it holds one start time and one length
+              // however many weekdays the run actually carries.
+              const { weekdays, startTimes, durations } = row.schedule;
               return (
                 <tr key={String(series.id)}>
                   <td data-label="Title">
@@ -76,9 +75,14 @@ export default async function SeriesPage() {
                       : "—"}
                   </td>
                   <td data-label="Start time">
-                    {timeFromDb(series.startTime)} <Tag>{series.timezone}</Tag>
+                    {startTimes.length > 0 ? startTimes.join(", ") : "—"}{" "}
+                    <Tag>{series.timezone}</Tag>
                   </td>
-                  <td data-label="Length">{durationLabel(series.defaultDurationMinutes)}</td>
+                  <td data-label="Length">
+                    {durations.length > 0
+                      ? durations.map((minutes) => durationLabel(minutes)).join(", ")
+                      : "—"}
+                  </td>
                   <td data-label="Total" className="numeric">{row.total}</td>
                   <td data-label="Scheduled" className="numeric">{row.scheduled}</td>
                   <td data-label="Completed" className="numeric">{row.completed}</td>
@@ -94,7 +98,7 @@ export default async function SeriesPage() {
         <Card>
           <EmptyState
             heading="No series yet"
-            message="Book a session with Repeat ticked and it will appear here."
+            message="Book a session and ask for more than one, and the run will appear here."
             glyph="⟳"
           />
         </Card>

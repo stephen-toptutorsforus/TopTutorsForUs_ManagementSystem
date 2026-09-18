@@ -19,8 +19,8 @@ import { prisma } from "@/lib/db";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS, durationLabel, percent } from "@/lib/presentation";
 import { actualDurationMinutes } from "@/lib/services/sessionOps";
-import { decorate, visibleSessions } from "@/lib/services/sessionQuery";
-import { dateFromDb, timeFromDb } from "@/lib/time";
+import { decorate, scheduleOf, visibleSessions } from "@/lib/services/sessionQuery";
+import { dateFromDb } from "@/lib/time";
 import { requireContext } from "@/lib/web/session";
 
 export const dynamic = "force-dynamic";
@@ -47,12 +47,15 @@ export default async function SeriesDetailPage({
   if (occurrences.length === 0) notFound();
 
   const rows = await decorate(prisma, principal, occurrences);
-  const weekdays = (series.weekdays as string[] | null) ?? [];
+  // What the run actually does, rather than what its template says. The
+  // template can only hold one start time and one length, so a series whose
+  // weekdays carry their own is described by nothing but its occurrences —
+  // and this is the screen with room to say it a weekday at a time.
+  const schedule = scheduleOf(occurrences, series.timezone);
 
   return (
     <>
-      <PageHeader title={series.title} 
- />
+      <PageHeader title={series.title} />
 
       <Card>
         <h2>Rule</h2>
@@ -61,6 +64,20 @@ export default async function SeriesDetailPage({
           <dd>
             {series.frequency.charAt(0) + series.frequency.slice(1).toLowerCase()}
             {series.intervalN > 1 && <>, every {series.intervalN}</>}
+          </dd>
+          <dt>Runs</dt>
+          <dd>
+            {schedule.byWeekday.length === 0
+              ? "—"
+              : schedule.byWeekday
+                  .map(
+                    (day) =>
+                      `${WEEKDAY_LABELS[day.weekday] ?? day.weekday} ` +
+                      `${day.startTimes.join(", ")} for ` +
+                      `${day.durations.map((minutes) => durationLabel(minutes)).join(", ")}`,
+                  )
+                  .join(" · ")}{" "}
+            <Tag>{series.timezone}</Tag>
           </dd>
           <dt>Ends</dt>
           <dd>
@@ -76,8 +93,9 @@ export default async function SeriesDetailPage({
           </dd>
         </dl>
         <p className="hint">
-          The rule holds the defaults this series was generated from. Each session below
-          owns its own schedule — editing one does not change the others.
+          The rule holds the defaults this series was generated from; Runs is read back
+          from the sessions themselves. Each session below owns its own schedule —
+          editing one does not change the others, and neither changes the rule.
         </p>
       </Card>
 

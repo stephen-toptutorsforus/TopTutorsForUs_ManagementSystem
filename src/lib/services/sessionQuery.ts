@@ -23,10 +23,11 @@ import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
+import { weekdayOf } from "@/lib/presentation";
 import { readableQuery } from "@/lib/urlState";
 import { Moment } from "@/lib/rendering";
 import { PRESENT_STATES, actualDurationMinutes, scheduledDurationMinutes } from "@/lib/services/sessionOps";
-import { type CivilDate, addDays, civilDate, resolveCivil } from "@/lib/time";
+import { type CivilDate, addDays, civilDate, civilTime, resolveCivil } from "@/lib/time";
 
 export const PAGE_SIZE = 25;
 
@@ -667,18 +668,98 @@ export async function calendarRange(
 
 export type SeriesRecord = Prisma.SessionSeriesGetPayload<object>;
 
-/** A series with the occurrence counts the list is expected to show. */
+/**
+ * When a series actually runs, read from its occurrences.
+ *
+ * Not from the series row, which is a *template*: it holds one `startTime` and
+ * one `defaultDurationMinutes` however many weekdays the run carries, because
+ * `perWeekday` is consumed when the occurrences are generated and never stored
+ * (see `booking.ts`). So a series booked "Mondays at four for an hour,
+ * Wednesdays at half five for thirty minutes" has a template describing only
+ * its Mondays, and a screen reading the template is wrong about every
+ * Wednesday of the run.
+ *
+ * Reading the occurrences is also what makes it stay true. They own their own
+ * schedule — that is the whole point of materialising them — so an occurrence
+ * moved on its own changes when the series runs, and nothing rewrites the
+ * template to say so.
+ *
+ * Each list is distinct and sorted: weekdays in week order, times and lengths
+ * ascending. `byWeekday` is the same facts grouped, for the screen that has
+ * room to explain rather than summarise.
+ */
+export interface SeriesSchedule {
+  weekdays: string[];
+  /** `HH:MM`, in the series' own zone. */
+  startTimes: string[];
+  /** Minutes. */
+  durations: number[];
+  byWeekday: { weekday: string; startTimes: string[]; durations: number[] }[];
+}
+
+/** A series with the occurrence counts and the schedule the list must show. */
 export interface SeriesRow {
   series: SeriesRecord;
   instructorName: string | null;
   firstDate: Date | null;
   lastDate: Date | null;
+  schedule: SeriesSchedule;
   total: number;
   scheduled: number;
   completed: number;
   missed: number;
   cancelled: number;
   late: number;
+}
+
+/** Week order, so "Mon, Wed" never renders as "Wed, Mon". */
+const WEEK_ORDER: readonly string[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+const sortedNumbers = (values: Iterable<number>): number[] =>
+  [...new Set(values)].sort((a, b) => a - b);
+
+const sortedTimes = (values: Iterable<string>): string[] => [...new Set(values)].sort();
+
+/**
+ * Fold one series' occurrences into what the screens ask about its schedule.
+ *
+ * Exported because the detail page has already loaded the occurrences it needs
+ * and must reach the same answer as the list — two implementations of "when
+ * does this run" would eventually disagree, and the screen that summarised it
+ * would stop matching the screen that explained it.
+ */
+export function scheduleOf(
+  occurrences: readonly { scheduledStart: Date; scheduledEnd: Date }[],
+  zone: string,
+): SeriesSchedule {
+  const byWeekday = new Map<string, { startTimes: string[]; durations: number[] }>();
+  const startTimes: string[] = [];
+  const durations: number[] = [];
+
+  for (const occurrence of occurrences) {
+    const weekday = weekdayOf(civilDate(occurrence.scheduledStart, zone));
+    const time = civilTime(occurrence.scheduledStart, zone);
+    const minutes = Math.round(
+      (occurrence.scheduledEnd.getTime() - occurrence.scheduledStart.getTime()) / 60_000,
+    );
+    if (!byWeekday.has(weekday)) byWeekday.set(weekday, { startTimes: [], durations: [] });
+    const node = byWeekday.get(weekday)!;
+    node.startTimes.push(time);
+    node.durations.push(minutes);
+    startTimes.push(time);
+    durations.push(minutes);
+  }
+
+  return {
+    weekdays: WEEK_ORDER.filter((weekday) => byWeekday.has(weekday)),
+    startTimes: sortedTimes(startTimes),
+    durations: sortedNumbers(durations),
+    byWeekday: WEEK_ORDER.filter((weekday) => byWeekday.has(weekday)).map((weekday) => ({
+      weekday,
+      startTimes: sortedTimes(byWeekday.get(weekday)!.startTimes),
+      durations: sortedNumbers(byWeekday.get(weekday)!.durations),
+    })),
+  };
 }
 
 /**
@@ -694,38 +775,74 @@ export async function listSeries(db: Db, principal: Principal): Promise<SeriesRo
     principal.require(P.SESSION_VIEW_ANY);
   }
 
-  const where: Prisma.SessionSeriesWhereInput = { ...scoped(principal), archivedAt: null };
-  if (!principal.has(P.SESSION_VIEW_ANY)) {
-    where.defaultInstructorId = principal.userId;
-  }
+  // One visibility rule, and it is the one every other session surface uses.
+  //
+  // This used to narrow anyone without `SESSION_VIEW_ANY` to the series they
+  // were the *default instructor* of, which is a fact about the template rather
+  // than about who is in the room. It made the screen structurally empty for
+  // every student and every guardian — a page the sidebar offered them that
+  // could not have had a row in it — and it hid a run from an instructor
+  // covering its sessions. Meanwhile `/series/[ref]` admitted all three through
+  // `visibleSessions`, so the list and the record it links to disagreed.
+  //
+  // Applied for everybody rather than in a branch: for somebody holding
+  // `SESSION_VIEW_ANY` it reads "has at least one live occurrence", which is
+  // the other half of the same agreement — the detail page 404s a series with
+  // nothing left on it, so listing one was offering a link to a refusal.
+  const where: Prisma.SessionSeriesWhereInput = {
+    ...scoped(principal),
+    archivedAt: null,
+    occurrences: { some: visibleSessions(principal) },
+  };
 
   const allSeries = await db.sessionSeries.findMany({ where, orderBy: { id: "desc" } });
   if (allSeries.length === 0) return [];
 
   const ids = allSeries.map((series) => series.id);
 
-  const counts = await db.sessionOccurrence.groupBy({
-    by: ["seriesId", "status"],
-    where: { seriesId: { in: ids }, archivedAt: null },
-    _count: { _all: true },
-    _min: { scheduledStart: true },
-    _max: { scheduledStart: true },
-  });
+  const [counts, lateSessions, spans] = await Promise.all([
+    db.sessionOccurrence.groupBy({
+      by: ["seriesId", "status"],
+      where: { seriesId: { in: ids }, archivedAt: null },
+      _count: { _all: true },
+      _min: { scheduledStart: true },
+      _max: { scheduledStart: true },
+    }),
+    // Sessions with at least one late participant, counted once each. Prisma has
+    // no COUNT(DISTINCT) in groupBy, so the distinct ids are gathered and tallied
+    // here — the set is one series' worth of sessions, not a scan.
+    //
+    // `archivedAt` is filtered here as it is everywhere else in this function.
+    // It was not, so a deleted session went on inflating the Late column beside
+    // five other tallies that had stopped counting it.
+    db.sessionOccurrence.findMany({
+      where: {
+        seriesId: { in: ids },
+        archivedAt: null,
+        participants: { some: { attendance: AttendanceStatus.LATE } },
+      },
+      select: { id: true, seriesId: true },
+    }),
+    // When each run actually happens. One statement for the whole page, and the
+    // narrowest possible row: this is the only way to tell a reader the truth
+    // about a series whose weekdays carry their own times.
+    db.sessionOccurrence.findMany({
+      where: { seriesId: { in: ids }, archivedAt: null },
+      select: { seriesId: true, scheduledStart: true, scheduledEnd: true },
+    }),
+  ]);
 
-  // Sessions with at least one late participant, counted once each. Prisma has
-  // no COUNT(DISTINCT) in groupBy, so the distinct ids are gathered and tallied
-  // here — the set is one series' worth of sessions, not a scan.
-  const lateSessions = await db.sessionOccurrence.findMany({
-    where: {
-      seriesId: { in: ids },
-      participants: { some: { attendance: AttendanceStatus.LATE } },
-    },
-    select: { id: true, seriesId: true },
-  });
   const lateCounts = new Map<bigint, number>();
   for (const row of lateSessions) {
     if (row.seriesId === null) continue;
     lateCounts.set(row.seriesId, (lateCounts.get(row.seriesId) ?? 0) + 1);
+  }
+
+  const occurrencesBySeries = new Map<bigint, { scheduledStart: Date; scheduledEnd: Date }[]>();
+  for (const row of spans) {
+    if (row.seriesId === null) continue;
+    if (!occurrencesBySeries.has(row.seriesId)) occurrencesBySeries.set(row.seriesId, []);
+    occurrencesBySeries.get(row.seriesId)!.push(row);
   }
 
   interface Tally {
@@ -771,6 +888,7 @@ export async function listSeries(db: Db, principal: Principal): Promise<SeriesRo
           : (instructors.get(series.defaultInstructorId) ?? null),
       firstDate: node?.first ?? null,
       lastDate: node?.last ?? null,
+      schedule: scheduleOf(occurrencesBySeries.get(series.id) ?? [], series.timezone),
       total: node?.total ?? 0,
       scheduled: byStatus.get(SessionStatus.SCHEDULED) ?? 0,
       completed: byStatus.get(SessionStatus.COMPLETED) ?? 0,
