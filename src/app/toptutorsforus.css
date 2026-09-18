@@ -784,6 +784,27 @@ select, textarea {
   font: inherit;
 }
 textarea { min-height: 96px; resize: vertical; }
+
+/* A file input, which is the one control this product had never had.
+   Given the same box as every other field so a row of three lines up, but not
+   the same padding: the button a browser draws inside it is its own control
+   with its own metrics, and padding it as though it were text leaves the button
+   floating off the baseline. */
+input[type="file"] {
+  width: 100%; min-height: 44px;
+  padding: 0.45rem 0.5rem;
+  border: 1px dashed var(--ink-400);
+  border-radius: var(--radius);
+  background: var(--ink-050); color: var(--ink-900);
+  font: inherit; font-size: 0.88rem;
+}
+input[type="file"]::file-selector-button {
+  margin-right: 0.6rem; padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ink-400); border-radius: var(--radius);
+  background: var(--paper); color: var(--ink-900);
+  font: inherit; font-size: 0.85rem; cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--ink-050); }
 input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bad-text); border-width: 2px; }
 
 fieldset { border: 1px solid var(--ink-200); border-radius: var(--radius); padding: 0.85rem 1rem; margin: 0 0 1rem; }
@@ -2357,3 +2378,18 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
   .shell { grid-template-columns: 1fr; }
   .card { box-shadow: none; }
 }
+
+/* --- Import ---------------------------------------------------------------
+   One block per file in the report. The heading carries the count and the
+   paragraph under it carries the sentence, so a reader gets the shape of the
+   answer before the breakdown — and the breakdown is a table, because "how
+   many rows, and why" is two columns and pretending otherwise costs a reader
+   the alignment. */
+.import-file { margin-top: 1.25rem; }
+.import-file:first-of-type { margin-top: 0.5rem; }
+.import-file h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0 0 0.25rem; font-size: 1rem;
+}
+.import-file .hint { margin: 0 0 0.6rem; }
+.import-file .table-wrap { margin-top: 0.6rem; }

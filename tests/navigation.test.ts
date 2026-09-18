@@ -108,10 +108,28 @@ describe("what the sidebar offers", () => {
   });
 
   it("files the audit trail under Administration, and shows it to nobody else", () => {
-    expect(section(navFor(Role.ADMIN), "Administration")).toEqual(["Audit trail"]);
+    expect(section(navFor(Role.ADMIN), "Administration")).toEqual(["Audit trail", "Import"]);
     for (const role of [Role.INSTRUCTOR, Role.STUDENT, Role.PARENT, Role.PAYER]) {
       expect(labels(navFor(role)), role).not.toContain("Audit trail");
     }
+  });
+
+  it("offers an import to administrators and to nobody else at all", () => {
+    // Including a regional administrator, who holds the widest grant of any
+    // role that is listed permission by permission — `DATA_IMPORT` reaches
+    // `ADMIN` only because `ADMIN` is granted the whole catalogue, so this is
+    // the assertion that nothing quietly widened it.
+    expect(labels(navFor(Role.ADMIN))).toContain("Import");
+    for (const role of [
+      Role.REGIONAL_ADMIN,
+      Role.INSTRUCTOR,
+      Role.STUDENT,
+      Role.PARENT,
+      Role.PAYER,
+    ]) {
+      expect(labels(navFor(role)), role).not.toContain("Import");
+    }
+    expect(section(navFor(Role.REGIONAL_ADMIN), "Administration")).toEqual(["Audit trail"]);
   });
 
   it("drops a section with nothing openable in it", () => {

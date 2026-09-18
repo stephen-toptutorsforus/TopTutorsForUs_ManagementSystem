@@ -792,7 +792,18 @@ export async function listSeries(db: Db, principal: Principal): Promise<SeriesRo
   const where: Prisma.SessionSeriesWhereInput = {
     ...scoped(principal),
     archivedAt: null,
-    occurrences: { some: visibleSessions(principal) },
+    OR: [
+      { occurrences: { some: visibleSessions(principal) } },
+      // A series with no occurrences at all, for staff only.
+      //
+      // An import writes these: a Pearl export carries no reference from a
+      // session back to the series that produced it, so an imported series
+      // arrives with nothing attached and would otherwise be written into a
+      // place nobody could look at. Staff-only keeps the rule the clause above
+      // exists for — a student still cannot see a series they are not on, and
+      // an empty one tells them nothing either way.
+      ...(principal.has(P.SESSION_VIEW_ANY) ? [{ occurrences: { none: {} } }] : []),
+    ],
   };
 
   const allSeries = await db.sessionSeries.findMany({ where, orderBy: { id: "desc" } });

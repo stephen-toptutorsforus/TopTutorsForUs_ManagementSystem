@@ -421,6 +421,22 @@ describeDb("the series list", () => {
       expect(row!.schedule.durations).toEqual([60, 90]);
     });
 
+    it("shows staff a series that never had an occurrence, and nobody else", async () => {
+      // An import writes these: a Pearl export carries no reference from a
+      // session back to the series that produced it, so an imported series
+      // arrives with nothing attached. Without this it would be written into a
+      // place nobody could look at.
+      //
+      // Staff only, which keeps the rule the visibility clause exists for — a
+      // student still cannot tell an empty series from one they are not on.
+      await makeSeries(org.id, { title: "Imported, nothing attached", instructorId: owner.id });
+
+      expect(await titlesFor(admin)).toContain("Imported, nothing attached");
+      expect(await titlesFor(ada)).not.toContain("Imported, nothing attached");
+      expect(await titlesFor(guardian)).not.toContain("Imported, nothing attached");
+      expect(await titlesFor(owner)).not.toContain("Imported, nothing attached");
+    });
+
     it("says nothing rather than guessing when every occurrence is archived", async () => {
       const series = await makeSeries(org.id, { instructorId: owner.id });
       await makeOccurrence(org.id, series, {
@@ -431,7 +447,10 @@ describeDb("the series list", () => {
       });
 
       const rows = await listSeries(db, await loadPrincipal(db, admin.id));
-      // Not listed at all: with no live occurrence there is nothing to open.
+      // Still not listed, and the distinction is deliberate: this series *has*
+      // occurrence rows, they are archived. `{ occurrences: { none: {} } }`
+      // admits only a series that never had one, so an archived-out run does
+      // not come back through the door opened for imports.
       expect(rows).toEqual([]);
     });
   });

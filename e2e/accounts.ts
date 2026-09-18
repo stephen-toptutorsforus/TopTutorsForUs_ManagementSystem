@@ -75,6 +75,7 @@ export const ADMIN_ONLY_ROUTES = [
   "/groups",
   "/locations",
   "/audit",
+  "/import",
 ] as const;
 
 export const ALL_ADMIN_ROUTES = [...SHARED_ROUTES, ...ADMIN_ONLY_ROUTES];

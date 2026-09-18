@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 
 import { Card, EmptyState, LinkButton, PageHeader, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { prisma } from "@/lib/db";
+import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS, durationLabel, percent } from "@/lib/presentation";
 import { actualDurationMinutes } from "@/lib/services/sessionOps";
@@ -44,7 +45,19 @@ export default async function SeriesDetailPage({
   });
   // 404 rather than 403: a refusal that distinguishes "not yours" from "no such
   // series" confirms the series exists, which is the disclosure this prevents.
-  if (occurrences.length === 0) notFound();
+  //
+  // Except for staff looking at a series that has *no* occurrences at all,
+  // which is a different fact from "none you may see". An import writes those —
+  // a Pearl export carries no reference from a session back to the series that
+  // produced it — and refusing them here would list a record on the previous
+  // screen that answers 404 when opened. Everybody else is unchanged: a student
+  // still cannot tell an empty series from one they are simply not on.
+  const staff = principal.has(Permission.SESSION_VIEW_ANY);
+  const everHad =
+    occurrences.length > 0
+      ? 1
+      : await prisma.sessionOccurrence.count({ where: { seriesId: series.id } });
+  if (occurrences.length === 0 && (!staff || everHad > 0)) notFound();
 
   const rows = await decorate(prisma, principal, occurrences);
   // What the run actually does, rather than what its template says. The
@@ -149,7 +162,11 @@ export default async function SeriesDetailPage({
         ) : (
           <EmptyState
             heading="No sessions in this series"
-            message="Every occurrence has been archived."
+            message={
+              everHad > 0
+                ? "Every occurrence has been archived."
+                : "None were generated from this rule. An imported series arrives this way: the export it came from carries no link from a session back to the series that produced it."
+            }
             glyph="⟳"
           />
         )}

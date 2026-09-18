@@ -31,6 +31,7 @@ import {
 } from "./harness";
 
 const describeDb = TEST_DATABASE_URL ? describe : describe.skip;
+const NEWLINE = "\n";
 const CHICAGO = "America/Chicago";
 
 /** Two people, one of whom teaches the other. */
@@ -295,6 +296,36 @@ describeDb("importing another system's records", () => {
       expect(report.files[0]!.counts.alreadyHere).toBe(1);
       expect(report.files[0]!.counts.written).toBe(1);
       expect(await db.user.count({ where: { organizationId: org.id } })).toBe(before + 1);
+    });
+  });
+
+  describe("a preview and a commit agree", () => {
+    it("counts a clash between two rows the same import creates", async () => {
+      // The case that makes this hard, and the one the browser found. During a
+      // preview nobody has been written, so a session naming its instructor
+      // cannot look them up — and a preview that resolves them to nobody skips
+      // the clash check and promises rows the commit then refuses.
+      const clashing = [
+        "Title,Instructor,Students,Location,Billable,Status,Attendance,Scheduled Start,Scheduled Duration",
+        "One,Marguerite Okonjo,Ada Fenwick,Room 2B,Yes,Scheduled,Incomplete,09/10/2026 9:00:00 AM,1 hour",
+        "Two,Marguerite Okonjo,Ada Fenwick,Room 2B,Yes,Scheduled,Incomplete,09/10/2026 9:30:00 AM,1 hour",
+      ].join(NEWLINE);
+
+      const preview = await previewImport(db, org, await asAdmin(), {
+        people: PEOPLE,
+        sessions: clashing,
+      });
+      const forecast = preview.files.find((file) => file.kind === "sessions")!;
+      expect(forecast.counts.written).toBe(1);
+      expect(forecast.counts.refused).toBe(1);
+
+      const report = await commitImport(db, org, await asAdmin(), preview.batchRef);
+      const actual = report.files.find((file) => file.kind === "sessions")!;
+
+      // Stated as an equality rather than as two numbers that happen to match:
+      // this is the property the whole two-step shape rests on.
+      expect(actual.counts).toEqual(forecast.counts);
+      expect(actual.reasons).toEqual(forecast.reasons);
     });
   });
 

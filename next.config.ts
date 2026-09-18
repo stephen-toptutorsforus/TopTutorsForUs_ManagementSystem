@@ -105,6 +105,17 @@ const nextConfig: NextConfig = {
      * and the wrong story — "something broke" rather than "you may not".
      */
     authInterrupts: true,
+
+    /**
+     * The import screen posts whole CSV files, and the default is 1MB.
+     *
+     * Raised a little past the limit the import action enforces for itself, so
+     * an oversized upload is refused by this product with a sentence naming the
+     * file and the size, rather than by the framework with one that names
+     * neither. The ceiling that matters is the one in `actions/imports.ts`;
+     * this only keeps Next from getting there first.
+     */
+    serverActions: { bodySizeLimit: "10mb" },
   },
 };
 

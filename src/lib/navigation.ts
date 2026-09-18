@@ -154,6 +154,13 @@ const NAV_MAIN: readonly NavSpec[] = [
         icon: "◫",
         permissions: [P.AUDIT_VIEW],
       },
+      {
+        kind: "item",
+        label: "Import",
+        href: "/import",
+        icon: "↥",
+        permissions: [P.DATA_IMPORT],
+      },
     ],
   },
 ];

@@ -70,3 +70,15 @@ export function summarise(file: ImportFileReport, committed: boolean): string {
   if (refused > 0) parts.push(`${refused} not written`);
   return parts.join(", ");
 }
+
+/**
+ * What the import form holds between submissions.
+ *
+ * Shaped like `FormResult` — an error, or something to show — but carrying a
+ * whole report rather than a sentence, because the interesting half of an
+ * import is the breakdown and not the headline.
+ */
+export interface ImportFormState {
+  error?: string;
+  report?: ImportReport;
+}
