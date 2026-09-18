@@ -186,6 +186,7 @@ async function main(): Promise<void> {
   await theEdgesOfTheDay(context);
   await theDeliveryTypes(context);
   await aSeriesWithHistory(context);
+  await aSeriesWithTwoTimetables(context);
   await theAwkwardAvailability(context);
 
   const total = await db.sessionOccurrence.count({
@@ -858,6 +859,40 @@ async function aSeriesWithHistory(context: Context): Promise<void> {
   if (fifth) {
     await cancel(db, org, principal, fifth, { reason: "instructor_unavailable" });
   }
+}
+
+// --- Case: a series whose weekdays keep their own time ------------------------
+
+/**
+ * "Mondays at half eleven for an hour, Wednesdays at a quarter to four for
+ * forty-five minutes" — one series, two timetables.
+ *
+ * Nothing anywhere produced one of these, which is why the series grid spent
+ * its whole life describing them wrongly and nobody saw it. `perWeekday` is
+ * read when the occurrences are generated and then thrown away: the series row
+ * can hold exactly one start time and one length, so the template here says
+ * Mondays at 11:30 for an hour and is silent about every Wednesday of the run.
+ *
+ * The screens read the occurrences now, and this is the fixture that shows
+ * they do. Booked early enough in the calendar to clear the dated exceptions
+ * and the time off below, and at hours no other case uses, so a failure here
+ * is about this case rather than about somebody else's slot.
+ */
+async function aSeriesWithTwoTimetables(context: Context): Promise<void> {
+  await book(context, {
+    ...base(context, "Series: two timetables in one run", weekdayFrom(context.today, 2), "11:30"),
+    instructorId: context.instructors[0]!.id,
+    studentIds: [context.students[0]!.id],
+    repeat: true,
+    frequency: "weekly",
+    weekdays: ["mon", "wed"],
+    perWeekday: {
+      mon: { startTime: "11:30", durationMinutes: 60 },
+      wed: { startTime: "15:45", durationMinutes: 45 },
+    },
+    endMode: "count",
+    occurrenceCount: 4,
+  });
 }
 
 // --- Case: the awkward shapes of availability --------------------------------
