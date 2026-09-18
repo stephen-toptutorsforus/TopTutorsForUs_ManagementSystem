@@ -22,6 +22,19 @@ interface NavItemSpec {
   icon: string;
   /** Any one of these is enough; empty means always. */
   permissions?: readonly Permission[];
+  /**
+   * Any one of these hides the entry, whatever `permissions` says.
+   *
+   * For the case where one route is worth two different entries — "My
+   * availability" for somebody looking at their own hours, "Instructor
+   * availability" for somebody looking at everybody's. A permission list alone
+   * cannot separate them, because `ADMIN` is granted *every* permission, so an
+   * administrator would match both and be shown the same page twice under two
+   * names. It is also what keeps `titleFor` deterministic: two entries sharing
+   * an `href` have equal length, and the tie-break below takes whichever was
+   * declared first rather than whichever this person can actually open.
+   */
+  unless?: readonly Permission[];
   /** Set when the entry belongs to a phase that is not built. Renders inert. */
   pending?: string;
 }
@@ -59,7 +72,22 @@ const NAV_MAIN: readonly NavSpec[] = [
     icon: "＋",
     permissions: [P.SESSION_BOOK],
   },
+  // An instructor's own hours are a daily destination rather than a record to
+  // look up, so they sit beside Calendar and Booking. The same route appears
+  // under People & Organization for whoever manages everybody's — see `unless`.
+  {
+    kind: "item",
+    label: "My Availability",
+    href: "/availability",
+    icon: "◷",
+    permissions: [P.AVAILABILITY_EDIT_OWN],
+    unless: [P.AVAILABILITY_EDIT_ANY],
+  },
   { kind: "divider" },
+  // Two entries, because a session and a series are the two things this
+  // section is about. Availability and the audit trail were here as well and
+  // are neither: when an instructor works is a fact about the instructor, and
+  // who changed what is a compliance record rather than an operational list.
   {
     kind: "group",
     label: "Session Management",
@@ -78,20 +106,6 @@ const NAV_MAIN: readonly NavSpec[] = [
         href: "/series",
         icon: "⟳",
         permissions: [P.SESSION_VIEW_ANY, P.SESSION_VIEW_OWN],
-      },
-      {
-        kind: "item",
-        label: "Availability",
-        href: "/availability",
-        icon: "◷",
-        permissions: [P.AVAILABILITY_VIEW_OWN, P.AVAILABILITY_VIEW_ANY],
-      },
-      {
-        kind: "item",
-        label: "Audit trail",
-        href: "/audit",
-        icon: "◫",
-        permissions: [P.AUDIT_VIEW],
       },
     ],
   },
@@ -115,7 +129,31 @@ const NAV_MAIN: readonly NavSpec[] = [
         icon: "⌂",
         permissions: [P.STRUCTURE_VIEW],
       },
+      // Availability belongs to the person being scheduled, so for anybody who
+      // may edit everybody's it is filed with the people rather than with the
+      // sessions.
+      {
+        kind: "item",
+        label: "Instructor Availability",
+        href: "/availability",
+        icon: "◷",
+        permissions: [P.AVAILABILITY_EDIT_ANY],
+      },
       { kind: "item", label: "Subscription", href: "", icon: "◎", pending: "Phase 4" },
+    ],
+  },
+  {
+    kind: "group",
+    label: "Administration",
+    icon: "◫",
+    items: [
+      {
+        kind: "item",
+        label: "Audit trail",
+        href: "/audit",
+        icon: "◫",
+        permissions: [P.AUDIT_VIEW],
+      },
     ],
   },
 ];
@@ -168,6 +206,7 @@ export interface Navigation {
 
 /** Whether this person can open the item at all. */
 function visible(item: NavItemSpec, principal: Principal): boolean {
+  if (item.unless && item.unless.length > 0 && principal.hasAny(...item.unless)) return false;
   if (!item.permissions || item.permissions.length === 0) return true;
   return principal.hasAny(...item.permissions);
 }

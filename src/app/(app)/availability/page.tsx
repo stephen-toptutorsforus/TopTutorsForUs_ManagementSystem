@@ -88,6 +88,14 @@ export default async function AvailabilityPage({
   });
 
   const displayName = `${instructor.firstName} ${instructor.lastName}`.trim() || instructor.ref;
+  // Whose hours these are, said in the heading rather than only in the picker.
+  //
+  // `displayName` was computed here from the day this page was written and
+  // never rendered, so the page announced the bare word "Availability" while
+  // showing one particular person's — and the navigation now reaches it under
+  // two different names, which makes a heading that distinguishes neither the
+  // page nor the person worse than it already was.
+  const isSelf = instructor.id === principal.userId;
   // Nothing to edit when the tenant has no instructors yet: the form would have
   // no valid target, and the action refuses one.
   const canEdit =
@@ -98,7 +106,7 @@ export default async function AvailabilityPage({
   return (
     <>
       <PageHeader
-        title="Availability"
+        title={isSelf ? "My availability" : `${displayName}'s availability`}
         toolbar={
           roster.length > 1 ? (
             <PageToolbar

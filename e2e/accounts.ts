@@ -1,9 +1,11 @@
 /**
  * The seeded accounts these tests sign in as, and where their cookies land.
  *
- * Three, because two tenants are what make an isolation bug visible: a suite
+ * Two tenants, because that is what makes an isolation bug visible: a suite
  * that only ever signs in as one organization's administrator cannot tell
- * tenant scoping from no scoping at all.
+ * tenant scoping from no scoping at all. And one account per *distinct*
+ * permission shape within the tenant, because a role that shares nobody's
+ * gates is a role no test can speak for.
  */
 
 import path from "node:path";
@@ -27,6 +29,16 @@ export const ACCOUNTS = {
    * a student she does not guard. That pairing is the point of her.
    */
   parent: "delphine.arceneaux@example.test",
+  /**
+   * Northgate instructor, and nothing else.
+   *
+   * The only role holding `availability.edit_own` without `edit_any`, which is
+   * what the sidebar now separates "My Availability" from "Instructor
+   * Availability" by — so without an account here that gate had nothing to
+   * test it. Deliberately not Sana Holm, who also holds `PARENT`, for the same
+   * reason she is not the parent above.
+   */
+  instructor: "imani.okafor@example.test",
   /** Harbour Point administrator — everything they ask of Northgate is 404. */
   otherTenant: "bo.fischer@example.test",
 } as const;
