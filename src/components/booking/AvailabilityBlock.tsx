@@ -28,6 +28,8 @@ import {
 } from "@/lib/web/eligibilityCopy";
 import type { AvailabilityBlock as Block } from "@/lib/web/booking";
 
+import { ScrollToChosen } from "./ScrollToChosen";
+
 const DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS_SHORT = [
   "Jan",
@@ -166,7 +168,11 @@ export function AvailabilityBlock({
               {selectedInstructor?.displayName} &middot; {block.zone}
             </span>
           </h3>
-          <div className="daygrid-scroll">
+          {/* Opened at the time already chosen rather than at midnight — see
+              `ScrollToChosen`. The axis stays the whole day; only where the
+              pane starts moves. */}
+          <ScrollToChosen />
+          <div className="daygrid-scroll" data-scroll-to-chosen="">
             <table className="daygrid daygrid-suggest daygrid-week" aria-labelledby="weekplan-heading">
               <caption className="visually-hidden">
                 One row per weekday the run repeats on, every hour of the day across
@@ -316,7 +322,12 @@ export function AvailabilityBlock({
                     Date
                   </th>
                   {suggestions.columns.map((column) => (
-                    <th scope="col" key={column.value}>
+                    <th
+                      scope="col"
+                      key={column.value}
+                      className={column.value === block.chosenTime ? "is-chosen-col" : undefined}
+                      aria-current={column.value === block.chosenTime ? "true" : undefined}
+                    >
                       {column.label}
                     </th>
                   ))}
@@ -334,9 +345,15 @@ export function AvailabilityBlock({
                       // saying differently: another time fixes the first, and
                       // another instructor the second.
                       const taken = row.taken[index] === true;
+                      const here = column.value === block.chosenTime;
                       return (
                         <td
-                          className={open ? "is-free" : taken ? "is-taken" : ""}
+                          className={[
+                            open ? "is-free" : taken ? "is-taken" : "",
+                            here ? "is-chosen-col" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                           key={column.value}
                         >
                           {open ? (
@@ -403,8 +420,18 @@ export function AvailabilityBlock({
                   <th scope="col" className="daygrid-who">
                     {grid.dayLabel}
                   </th>
+                  {/* The column for the time already in the form is marked, so
+                      "who is free at four" is read down one column rather than
+                      by counting across eight headings. The cells below carry
+                      the same class; it is the *column* that is chosen, not any
+                      one instructor's answer in it. */}
                   {grid.columns.map((column) => (
-                    <th scope="col" key={column.value}>
+                    <th
+                      scope="col"
+                      key={column.value}
+                      className={column.value === block.chosenTime ? "is-chosen-col" : undefined}
+                      aria-current={column.value === block.chosenTime ? "true" : undefined}
+                    >
                       {column.label}
                     </th>
                   ))}
@@ -434,10 +461,17 @@ export function AvailabilityBlock({
                     </th>
                     {row.free.map((open, index) => {
                       const taken = row.taken[index] === true;
+                      const column = grid.columns[index]!;
+                      const here = column.value === block.chosenTime;
                       return (
                         <td
-                          className={open ? "is-free" : taken ? "is-taken" : ""}
-                          key={grid.columns[index]!.value}
+                          className={[
+                            open ? "is-free" : taken ? "is-taken" : "",
+                            here ? "is-chosen-col" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          key={column.value}
                         >
                           {/* A glyph as well as the fill, so the answer does not
                               depend on being able to tell the colours apart —

@@ -1579,6 +1579,22 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
    another time. Its own ground rather than a shade of the empty one, and a
    glyph beside it, so the distinction does not rest on colour. */
 .daygrid tbody td.is-taken { background: var(--warn-surface); color: var(--warn-text); }
+/* The column for the time already in the form. A rule down each side rather
+   than a fill, because the fill is how the cell says free, taken or neither —
+   and a second fill on top of that would be two answers in one square. So
+   "who is free at four" is read down one marked column instead of by counting
+   across eight headings. */
+.daygrid thead th.is-chosen-col,
+.daygrid tbody td.is-chosen-col {
+  border-left-color: var(--brand-600);
+  border-right-color: var(--brand-600);
+}
+.daygrid thead th.is-chosen-col {
+  border-top-color: var(--brand-600);
+  color: var(--brand-700);
+  background: var(--brand-100);
+}
+.daygrid tbody tr:last-child td.is-chosen-col { border-bottom-color: var(--brand-600); }
 
 
 /* --- The live availability region -----------------------------------------

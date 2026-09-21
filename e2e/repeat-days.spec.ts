@@ -332,6 +332,32 @@ test.describe("the chosen tutor's availability, a row per day", () => {
     await expect(headings.last()).toHaveText("11 PM");
   });
 
+  test("opens at the time already chosen, not at midnight", async ({ page }) => {
+    // The axis is the whole day and stays put — that is the test above. What
+    // moves is where the pane *starts*: a run at four in the afternoon had its
+    // answer sixteen hours off the left-hand edge, reachable only by dragging a
+    // scrollbar the width of the card.
+    await twoDayRun(page);
+
+    const pane = page.locator("[data-scroll-to-chosen]");
+    const chosen = pane.locator(".is-chosen").first();
+    await expect(chosen).toBeAttached();
+
+    // Below the table's card breakpoint each hour becomes its own row, so there
+    // are no columns to be short of and nothing to scroll — `scrollLeft` is 0
+    // and right to be. The assertion either way is the one that matters: the
+    // quarter this run is set to is inside the visible box.
+    const scrolls = await pane.evaluate((node) => node.scrollWidth > node.clientWidth + 1);
+    if (scrolls) {
+      await expect.poll(() => pane.evaluate((node) => node.scrollLeft)).toBeGreaterThan(0);
+    }
+
+    const box = await pane.boundingBox();
+    const cell = await chosen.boundingBox();
+    expect(cell!.x).toBeGreaterThanOrEqual(box!.x - 1);
+    expect(cell!.x + cell!.width).toBeLessThanOrEqual(box!.x + box!.width + 1);
+  });
+
   test("divides each hour into the quarters a session can start at", async ({ page }) => {
     // An hour a column is what makes a whole day readable; a quarter is what
     // the length and time controls above actually offer. Both, or the table
