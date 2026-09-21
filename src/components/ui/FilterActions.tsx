@@ -62,15 +62,28 @@ export function FilterActions({
 
   return (
     <details className="filteractions" ref={menu}>
+      {/* A funnel, the word, the count, and then the chevron — in that order,
+          because the order is what it is: what this control is, what it is
+          doing, and that it opens something. It used to be a bare chevron in a
+          44px box: an unlabelled glyph that happened to be the first control on
+          four screens, and read as an icon somebody had not finished. The name
+          was only ever in the `aria-label`, so the one group of people who
+          could tell what it was were the ones who could not see it. */}
       <summary aria-label={active > 0 ? `${label}, ${active} set` : label}>
         <span className="glyph" aria-hidden="true">
-          <ChevronIcon />
+          <FunnelIcon />
+        </span>
+        <span className="filteractions-label" aria-hidden="true">
+          {label}
         </span>
         {active > 0 && (
           <span className="filteractions-count" aria-hidden="true">
             {active}
           </span>
         )}
+        <span className="filteractions-chevron" aria-hidden="true">
+          <ChevronIcon />
+        </span>
       </summary>
 
       <div className="filteractions-menu">

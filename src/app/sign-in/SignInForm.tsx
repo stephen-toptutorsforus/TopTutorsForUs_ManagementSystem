@@ -21,7 +21,8 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
 
   return (
     <div className="auth-shell">
-      <Card className="auth-card">
+      <div className="auth-panel">
+        <Card className="auth-card">
         <p className="brand">
                     {/* A plain `img`, not `next/image`.
               `next/image` writes `style="color:transparent"` onto the tag to
@@ -45,6 +46,9 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
           />
         </p>
         <h1>Sign in</h1>
+        {/* What this is, for somebody who has arrived at an address and does not
+            yet know. It says the product's job rather than greeting them. */}
+        <p className="auth-lede">Scheduling and attendance for tutoring teams.</p>
 
         {state.error && (
           <p className="notice notice-bad" role="alert">
@@ -86,7 +90,16 @@ export function SignInForm({ csrfToken }: { csrfToken: string }) {
             {pending ? "Signing in…" : "Sign in"}
           </Button>
         </form>
-      </Card>
+        </Card>
+        {/* Deliberately not a "forgot your password" link: there is no reset
+            flow, and a link to one that does not exist is worse than the
+            sentence that says who to ask. An administrator sets a password from
+            the person's own record — see `services/personAdmin.ts`. */}
+        <p className="auth-foot">
+          Locked out? An administrator at your organization can set a new
+          password for you.
+        </p>
+      </div>
     </div>
   );
 }

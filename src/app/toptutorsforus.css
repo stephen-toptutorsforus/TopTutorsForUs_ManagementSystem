@@ -466,15 +466,40 @@ body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
    a whole, and giving them one name is how they would end up with one shape. */
 .page-toolbar-menu { flex: none; }
 .filteractions { position: relative; flex: none; }
+/* Drawn as a button, because it is one — the same height, border, radius and
+   weight as the controls beside it. It was a 44px box holding a bare chevron,
+   with the word only in its `aria-label`: an unlabelled glyph, first in the
+   toolbar on four screens, that read as something half-built. Nothing about the
+   menu changed; it is the trigger that was saying nothing. */
 .filteractions > summary {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
-  min-height: 44px; min-width: 44px; padding: 0 0.55rem;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  min-height: 44px; padding: 0 0.7rem;
   border: 1px solid var(--ink-400); border-radius: var(--radius);
   background: var(--paper); color: var(--ink-700);
-  cursor: pointer; list-style: none;
+  font-weight: 600; font-size: 0.9rem;
+  cursor: pointer; list-style: none; white-space: nowrap;
 }
 .filteractions > summary::-webkit-details-marker { display: none; }
-.filteractions[open] > summary { border-color: var(--brand-600); color: var(--brand-700); }
+.filteractions > summary:hover { background: var(--ink-050); color: var(--ink-900); }
+.filteractions > summary .glyph { display: inline-flex; color: var(--ink-500); }
+.filteractions[open] > summary,
+.filteractions > summary:has(.filteractions-count) {
+  border-color: var(--brand-600); color: var(--brand-700);
+}
+.filteractions[open] > summary .glyph,
+.filteractions > summary:has(.filteractions-count) .glyph { color: var(--brand-600); }
+/* Points down, and up once the menu is open — the one part of this control that
+   is about the menu rather than about the filter. */
+.filteractions-chevron { display: inline-flex; color: var(--ink-400); transition: transform 0.12s ease; }
+.filteractions[open] .filteractions-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .filteractions-chevron { transition: none; } }
+/* Below the toolbar's narrowest useful width the word goes and the funnel
+   stays, which is the ordinary shape of a toolbar button on a phone — and the
+   accessible name is on the `summary` itself, so nothing is lost with it. */
+@media (max-width: 30rem) {
+  .filteractions-label { display: none; }
+  .filteractions > summary { padding: 0 0.55rem; }
+}
 /* How many filters are set, on the button that opens them — so a narrowed list
    says so even when the toolbar has scrolled away. A number, not a dot. */
 .filteractions-count {
@@ -2512,14 +2537,52 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
 /* Sign-in and the error page do not use `.shell`, so they need their own way
    to scroll: the document no longer does it for them, and a card taller than a
    short window would otherwise be cut off with no way to reach the rest. */
+/* --- Sign in ---------------------------------------------------------------
+ *
+ * The one screen somebody sees before they are anybody, so it is the one that
+ * has to look finished. It was the application's card component dropped onto a
+ * flat background, which made the first page of the product the least
+ * considered one.
+ *
+ * The ground is a quiet wash in the brand hue rather than a flat panel colour,
+ * and the card sits on it rather than in it. `radial-gradient` and not an
+ * image: no request, no asset to keep, and it costs the CSP nothing.
+ */
 .auth-shell {
   display: grid; place-items: center;
-  height: 100%; overflow-y: auto;
+  min-height: 100%; overflow-y: auto;
   padding: 1.5rem;
+  background:
+    radial-gradient(70rem 40rem at 15% -10%, var(--brand-100), transparent 60%),
+    radial-gradient(50rem 34rem at 100% 110%, var(--brand-100), transparent 55%),
+    var(--canvas);
 }
-.auth-card { width: min(400px, 100%); }
-.auth-card .brand { align-items: center; margin-bottom: 1.25rem; }
-.auth-card .brand-logo { max-width: 168px; }
+.auth-panel { width: min(26rem, 100%); }
+.auth-card { width: 100%; padding: 1.75rem; border-radius: var(--radius-lg); }
+/* Centred, and without the sidebar's rule underneath it: there is no navigation
+   below this one to be separated from. */
+.auth-card .brand {
+  align-items: center; gap: 0;
+  padding: 0; margin: 0 0 1.5rem;
+  border-bottom: 0;
+}
+.auth-card .brand-logo { max-width: 190px; }
+.auth-card h1 { margin: 0 0 0.25rem; font-size: 1.5rem; text-align: center; }
+.auth-lede {
+  margin: 0 0 1.5rem;
+  color: var(--ink-500); font-size: 0.92rem; text-align: center;
+}
+/* More room between the two fields and the button than a form inside the
+   application gets: there are two of them and nothing else to read, so the
+   density that suits a booking screen reads as cramped here. */
+.auth-card .field { margin-bottom: 1.1rem; }
+.auth-card .btn-block { margin-top: 0.4rem; min-height: 46px; font-size: 0.98rem; }
+/* Under the card rather than in it: it is about the product, not about the
+   form, and inside the card it competed with the button. */
+.auth-foot {
+  margin: 1.1rem 0 0;
+  color: var(--ink-500); font-size: 0.82rem; text-align: center;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
