@@ -34,6 +34,7 @@ import { noEligibleInstructors } from "@/lib/web/eligibilityCopy";
 import {
   WEEKDAY_CHOICES,
   clockDuration,
+  CLOCK_STEP_MINUTES,
   clockTimes,
   durationWords,
   maxRepeatDays,
@@ -60,7 +61,6 @@ const REFRESH_DELAY_MS = 200;
  * three sessions cannot usefully name more than three weekdays either, so the
  * ceiling is the smaller of the two.
  */
-const CLOCK_STEP_MINUTES = 15;
 const TIME_OPTIONS = clockTimes(CLOCK_STEP_MINUTES);
 
 /** One row of the repeat panel: a weekday, and what it runs at. */

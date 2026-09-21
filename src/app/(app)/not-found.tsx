@@ -23,14 +23,19 @@ export const metadata = { title: "Not found · TopTutorsForUs" };
 
 export default function NotFound() {
   return (
-    <Card as="section" className="card-padded refusal">
-      <h1>Not found</h1>
-      <p>There is nothing here, or nothing here that belongs to your organization.</p>
-      <p>
-        <LinkButton variant="primary" href="/">
-          Back to the dashboard
-        </LinkButton>
-      </p>
-    </Card>
+    <div className="refusal-page">
+      <Card as="section" className="card-padded refusal">
+        <span className="refusal-glyph" aria-hidden="true">
+          ?
+        </span>
+        <h1>Not found</h1>
+        <p>There is nothing here, or nothing here that belongs to your organization.</p>
+        <p>
+          <LinkButton variant="primary" href="/">
+            Back to the dashboard
+          </LinkButton>
+        </p>
+      </Card>
+    </div>
   );
 }

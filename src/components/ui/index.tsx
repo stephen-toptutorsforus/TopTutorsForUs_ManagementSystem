@@ -18,6 +18,8 @@ export { Choice, ChoiceGroup, Field, Hint, OptionSelect, VisuallyHidden } from "
 export { CardSection } from "./CardSection";
 export { Fact } from "./Fact";
 export { FilterActions } from "./FilterActions";
+export { FlashProvider, useFlash, useSettled } from "./Flash";
+export type { FlashTone } from "./Flash";
 export { FilterControl } from "./FilterControl";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";
 export { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon, SearchIcon, ShareIcon, TrashIcon } from "./icons";

@@ -79,7 +79,10 @@ test.describe("getting back", () => {
       .locator('a[href^="/sessions/ses"]')
       .first()
       .getAttribute("href");
-    await page.goto(href!);
+    // Without the `from` the calendar puts on its chips: this case is somebody
+    // who typed the address or opened a new tab, and a direct navigation sends
+    // no `Referer` either, so nothing at all says where they came from.
+    await page.goto(href!.split("?")[0]!);
 
     await expect(backLink(page)).toHaveText("Back");
     await expect(backLink(page)).toHaveAttribute("href", "/sessions");

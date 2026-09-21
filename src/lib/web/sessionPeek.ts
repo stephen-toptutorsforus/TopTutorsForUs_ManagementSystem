@@ -58,6 +58,15 @@ export interface PeekSession {
   /** `6 of 15`, or null for a session that stands alone. */
   seriesPosition: string | null;
   /**
+   * Whether it belongs to a run at all.
+   *
+   * Not `seriesPosition !== null`: that is a *label*, and it is null for a
+   * session that has a series and no index. The cancel panel asks "this one, or
+   * the rest of them too", and asking it of a session that stands alone would
+   * be offering a choice with one answer.
+   */
+  inSeries: boolean;
+  /**
    * What this person may do to *this* session, in this state — the answer
    * `availableActions` gives, carried per session rather than decided once for
    * the page.
@@ -87,6 +96,7 @@ export function peekOf(
   return {
     ref: session.ref,
     title: session.title,
+    inSeries: session.seriesId !== null,
     description: session.description,
     deliveryLabel,
     state: sessionStateMeta(session.status, session.scheduledEnd, {

@@ -26,6 +26,7 @@
 import { useCallback, useState } from "react";
 
 import { Sidebar } from "@/components/Sidebar";
+import { FlashProvider } from "@/components/ui";
 import { TopBar } from "@/components/TopBar";
 import type { Navigation } from "@/lib/navigation";
 
@@ -80,7 +81,11 @@ export function AppShell({
       {/* The children are server-rendered and pass straight through. Being
           inside a client component does not make them one. */}
       <main className="main" id="main">
-        {children}
+        {/* Above the page's own heading, because it reports what has just
+            happened and the next thing somebody does is read the page under
+            it. The provider wraps the children as well as the region: every
+            dialog under the shell announces through the same one. */}
+        <FlashProvider>{children}</FlashProvider>
       </main>
     </div>
   );

@@ -22,7 +22,12 @@ import { ActionsPanel } from "@/components/session/ActionsPanel";
 import { AttendanceCard } from "@/components/session/AttendanceCard";
 import { Card, CardSection, Fact, LinkButton, PageHeader, StatusBadge } from "@/components/ui";
 import { prisma } from "@/lib/db";
-import { billingEnabled, settingStrings, settingsReader } from "@/lib/organization";
+import {
+  billingEnabled,
+  selectableDurations,
+  settingStrings,
+  settingsReader,
+} from "@/lib/organization";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
@@ -167,6 +172,7 @@ export default async function EditSessionPage({
         durationMinutes={scheduled}
         actualStartLocal={localInput(session.actualStart)}
         actualEndLocal={localInput(session.actualEnd)}
+        durations={selectableDurations(reader)}
         cancellationReasons={settingStrings(reader, ["reason_codes", "cancellation"]) ?? []}
         missedReasons={settingStrings(reader, ["reason_codes", "missed"]) ?? []}
         defaultScope={scope}

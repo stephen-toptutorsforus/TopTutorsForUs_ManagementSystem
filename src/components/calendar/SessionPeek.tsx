@@ -15,10 +15,15 @@
  * component never owns. Modified clicks — a new tab, a middle button — are
  * left alone, because somebody asking for a new tab is asking for the page.
  *
- * **What it does not do is act.** Cancelling needs a reason the tenant
- * configured, and editing is a screen of its own; both are reached from here
- * rather than performed here, so that the one function that writes a change is
- * still the one the audit trail records.
+ * **Cancelling happens here.** It used to send somebody to the editing screen
+ * with a panel pre-opened, so the shortest way to call off one session was:
+ * press the chip, read the dialog, press Cancel, wait for a page, find the
+ * panel, choose a reason, press Cancel again, then walk back to the calendar.
+ * Six steps and two screens for one decision already made. The reason and the
+ * scope are asked in the dialog now and posted to `cancelSession` — the same
+ * action the editing screen calls, so the same policy check and the same audit
+ * entry. Editing is still a screen of its own, because it is a form rather than
+ * a decision.
  *
  * **Nor does it decide what may be done.** Each session arrives with the
  * `availableActions` answer for itself, computed on the server, and the buttons
@@ -28,10 +33,100 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
-import { Badge, Button, LinkButton, Modal, Tag } from "@/components/ui";
+import { cancelSession } from "@/app/actions/sessions";
+import {
+  Badge,
+  Button,
+  ButtonRow,
+  Field,
+  Hint,
+  LinkButton,
+  Modal,
+  OptionSelect,
+  ScopeChoice,
+  Tag,
+  useSettled,
+} from "@/components/ui";
+import { CSRF_FIELD } from "@/lib/names";
 import type { PeekSession } from "@/lib/web/sessionPeek";
+
+function sentenceCase(value: string): string {
+  const words = value.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * Calling off a session, without leaving the month it is drawn on.
+ *
+ * A component of its own because the action has to be bound to one ref, and
+ * because it is keyed on that ref by its caller: opening a second session must
+ * not inherit the reason chosen for the first.
+ *
+ * It is a *second* press rather than a confirm dialog on top of a dialog. The
+ * panel names what will happen and asks for the reason the tenant configured,
+ * which is a better confirmation than "are you sure?" — somebody who opened it
+ * by accident closes it, and somebody who meant it has answered the question
+ * the record needs anyway.
+ */
+function PeekCancel({
+  session,
+  csrfToken,
+  reasons,
+  onDone,
+}: {
+  session: PeekSession;
+  csrfToken: string;
+  reasons: string[];
+  onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, submit, pending] = useActionState(cancelSession.bind(null, session.ref), {});
+  // Cancelled: the dialog goes and the calendar behind it says so. A failure
+  // keeps the panel exactly where it is, because the reason that was refused is
+  // in it.
+  useSettled(state, onDone);
+
+  if (!open) {
+    return (
+      <Button variant="danger" type="button" onClick={() => setOpen(true)}>
+        Cancel session
+      </Button>
+    );
+  }
+
+  return (
+    <form action={submit} className="peek-cancel">
+      <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
+      {state.error && (
+        <p className="notice notice-bad" role="alert">
+          <span aria-hidden="true">!</span> <span>{state.error}</span>
+        </p>
+      )}
+      <Field id="peek-cancel-reason" label="Reason">
+        <OptionSelect
+          id="peek-cancel-reason"
+          name="reason"
+          required
+          options={reasons.map((reason) => ({ value: reason, label: sentenceCase(reason) }))}
+        />
+      </Field>
+      {session.inSeries && <ScopeChoice series legend="Cancel" />}
+      <Hint>
+        Participants keep the record that it was booked. Nothing is deleted.
+      </Hint>
+      <ButtonRow>
+        <Button type="button" onClick={() => setOpen(false)}>
+          Keep it
+        </Button>
+        <Button variant="danger" type="submit" disabled={pending}>
+          {pending ? "Cancelling…" : "Cancel session"}
+        </Button>
+      </ButtonRow>
+    </form>
+  );
+}
 
 /** A click that means "open this in a new tab", not "tell me about it". */
 function isModified(event: MouseEvent): boolean {
@@ -40,10 +135,16 @@ function isModified(event: MouseEvent): boolean {
 
 export function SessionPeek({
   sessions,
+  csrfToken,
+  cancellationReasons,
   children,
 }: {
   /** Every session drawn in `children`, by ref. */
   sessions: Record<string, PeekSession>;
+  /** For the cancel panel, which posts from inside the dialog. */
+  csrfToken: string;
+  /** The tenant's own list. An empty one means nothing here may cancel. */
+  cancellationReasons: string[];
   children: React.ReactNode;
 }) {
   const [openRef, setOpenRef] = useState<string | null>(null);
@@ -173,13 +274,14 @@ export function SessionPeek({
                 Close
               </Button>
               <div className="peek-actions-doing">
-                {session.actions.includes("cancel") && (
-                  <LinkButton
-                    variant="danger"
-                    href={`/sessions/${session.ref}/edit?do=cancel&from=%2Fcalendar`}
-                  >
-                    Cancel session
-                  </LinkButton>
+                {session.actions.includes("cancel") && cancellationReasons.length > 0 && (
+                  <PeekCancel
+                    key={session.ref}
+                    session={session}
+                    csrfToken={csrfToken}
+                    reasons={cancellationReasons}
+                    onDone={close}
+                  />
                 )}
                 {session.actions.includes("edit_series") && (
                   <LinkButton

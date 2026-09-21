@@ -20,7 +20,7 @@
 import { useActionState, useRef } from "react";
 
 import { assignStudentAction } from "@/app/actions/people";
-import { Button, Field, Modal, OptionSelect } from "@/components/ui";
+import { Button, Field, Modal, OptionSelect, useSettled } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 
 import type { AssignTarget } from "./PeopleOverlays";
@@ -42,6 +42,8 @@ export function AssignModal({
 }) {
   const [state, submit, pending] = useActionState(assignStudentAction, {});
   const firstField = useRef<HTMLSelectElement>(null);
+  // Assigned: the dialog closes and the page says so. See `useSettled`.
+  useSettled(state, () => onOpenChange(false));
 
   const chosenStudent = students.some((student) => student.ref === target?.ref)
     ? target?.ref
@@ -60,11 +62,6 @@ export function AssignModal({
       {state.error && (
         <p className="notice notice-bad" role="alert">
           <span aria-hidden="true">!</span> <span>{state.error}</span>
-        </p>
-      )}
-      {state.notice && (
-        <p className="notice notice-good">
-          <span aria-hidden="true">✓</span> <span>{state.notice}</span>
         </p>
       )}
 

@@ -46,7 +46,8 @@ import { calendarRange, parseFilters, type SessionRow } from "@/lib/services/ses
 import { build } from "@/lib/timegrid";
 import { type CivilDate, civilDate, isoWeekday } from "@/lib/time";
 import { type PeekSession, peekOf } from "@/lib/web/sessionPeek";
-import { requireContext } from "@/lib/web/session";
+import { settingStrings, settingsReader } from "@/lib/organization";
+import { csrfToken, requireContext } from "@/lib/web/session";
 
 
 export const metadata = { title: "Calendar · TopTutorsForUs" };
@@ -163,6 +164,13 @@ export default async function CalendarPage() {
   const { principal, organization } = await requireContext();
   const zone = principal.timezone;
   const today = civilDate(new Date(), zone);
+  // Cancelling happens in the dialog rather than on a second screen, so the
+  // tenant's own reason list and a token have to reach it. An empty list is
+  // meaningful: `cancel` refuses a reason that is not configured, so a tenant
+  // that has configured none is one where nothing may be cancelled, and the
+  // dialog draws no control rather than one that is always refused.
+  const cancellationReasons =
+    settingStrings(settingsReader(organization), ["reason_codes", "cancellation"]) ?? [];
 
   // The whole screen's state — view, date, search, statuses — from the cookie
   // rather than the address. A bare `/calendar` therefore shows what somebody
@@ -233,7 +241,11 @@ export default async function CalendarPage() {
   }
 
   return (
-    <SessionPeek sessions={peeks}>
+    <SessionPeek
+      sessions={peeks}
+      csrfToken={await csrfToken()}
+      cancellationReasons={cancellationReasons}
+    >
       {/* The one form every control on this screen submits into: the arrows,
           the view switcher, Today, each day number and each "+N more". It
           carries the state they are changing *from*; a button adds the one

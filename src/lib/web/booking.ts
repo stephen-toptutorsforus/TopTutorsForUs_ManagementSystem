@@ -29,6 +29,7 @@ import {
   MAX_OCCURRENCES_PER_SERIES,
   billingEnabled,
   deliveryAvailable,
+  selectableDurations,
   settingBoolean,
   settingNumber,
   settingsReader,
@@ -548,11 +549,7 @@ export async function bookingContext(
   const zone = principal.timezone;
   const reader = settingsReader(organization);
 
-  const durationsSetting = reader.setting(["booking", "selectable_durations_minutes"], [60]);
-  const durations =
-    Array.isArray(durationsSetting) && durationsSetting.length > 0
-      ? durationsSetting.map(Number)
-      : [60];
+  const durations = selectableDurations(reader);
 
   const durationMinutes = chosen.durationMinutes ?? Math.min(...durations);
 

@@ -529,6 +529,17 @@ export function clockTime(value: string): string {
  * focus in. The cost is that a time off the step cannot be typed, which is why
  * the step is the finest session length the tenant offers.
  */
+/**
+ * How finely every time control on this product offers the clock.
+ *
+ * Declared here rather than in the booking form, because the rescheduling
+ * panel wants the same list: it was a browser `<input type="time">`, which
+ * closes on the first choice, so setting an hour, a minute and a meridiem
+ * meant opening the picker three times — and it offered minutes the service
+ * would then refuse.
+ */
+export const CLOCK_STEP_MINUTES = 15;
+
 export function clockTimes(stepMinutes = 15): { value: string; label: string }[] {
   const step = Number.isFinite(stepMinutes) && stepMinutes > 0 ? Math.floor(stepMinutes) : 15;
   const options: { value: string; label: string }[] = [];

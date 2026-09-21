@@ -24,6 +24,7 @@ import {
 } from "@/app/actions/sessions";
 import { Button, ButtonRow, Card, Choice, Field, Hint, OptionSelect, ScopeChoice } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
+import { CLOCK_STEP_MINUTES, clockTimes, durationWords, nearestClockTime } from "@/lib/presentation";
 import type { FormResult } from "@/lib/web/formState";
 
 export interface ActionsPanelProps {
@@ -34,6 +35,12 @@ export interface ActionsPanelProps {
   title: string;
   description: string | null;
   billable: boolean;
+  /**
+   * The lengths this tenant offers, from `booking.selectable_durations_minutes`.
+   * The same list the booking screen draws, so a session cannot be rescheduled
+   * to a length it could not have been booked at.
+   */
+  durations: number[];
   /**
    * Whether the Billable box is drawn. `booking.billable_enabled` ships off,
    * because this product charges for nothing — and `editDetails` ignores the
@@ -61,6 +68,23 @@ export interface ActionsPanelProps {
 function sentenceCase(value: string): string {
   const words = value.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The same quarter hours the booking screen offers. */
+const TIME_OPTIONS = clockTimes(CLOCK_STEP_MINUTES);
+
+/**
+ * The lengths to offer, with the session's own always among them.
+ *
+ * A session booked before the tenant narrowed its list still has whatever
+ * length it has, and a select that did not contain it would silently reschedule
+ * it to something else on the next save.
+ */
+function durationOptions(offered: number[], current: number) {
+  const all = offered.includes(current) ? offered : [...offered, current];
+  return [...all]
+    .sort((a, b) => a - b)
+    .map((minutes) => ({ value: String(minutes), label: durationWords(minutes) }));
 }
 
 /** One form's own result line, so an error lands beside the form that caused it. */
@@ -191,23 +215,31 @@ export function ActionsPanel(props: ActionsPanelProps) {
                 />
                             </Field>
               <Field id="new-time" label={<>New start time ({props.timezone})</>}>
-                <input
+                {/* The booking form's control, not the browser's time picker
+                    — one list, one open, one choice, and the same quarter
+                    hours the booking screen offers. The picker closed on the
+                    first choice, so setting an hour, a minute and a meridiem
+                    meant opening it three times, and it offered minutes this
+                    service then refused. */}
+                <OptionSelect
                   id="new-time"
                   name="start_time"
-                  type="time"
                   required
-                  defaultValue={props.startTime}
+                  defaultValue={nearestClockTime(props.startTime, CLOCK_STEP_MINUTES)}
+                  options={TIME_OPTIONS}
                 />
                             </Field>
-              <Field id="new-duration" label="Length in minutes">
-                <input
+              <Field id="new-duration" label="Length">
+                {/* The tenant's own list, for the same reason. A number input
+                    stepping by five offered 35 minutes and 115, neither of
+                    which `validateRequest` accepts — a control offering a
+                    choice the write refuses. */}
+                <OptionSelect
                   id="new-duration"
                   name="duration_minutes"
-                  type="number"
-                  min={5}
-                  step={5}
                   required
-                  defaultValue={props.durationMinutes}
+                  defaultValue={String(props.durationMinutes)}
+                  options={durationOptions(props.durations, props.durationMinutes)}
                 />
                             </Field>
             </div>

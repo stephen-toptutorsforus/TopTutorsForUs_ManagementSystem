@@ -52,7 +52,9 @@ async function peekOffering(page: Page, control: string): Promise<void> {
   for (let index = 0; index < Math.min(count, 30); index += 1) {
     await chips.nth(index).click();
     await expect(dialog(page)).toBeVisible();
-    if (await dialog(page).getByRole("link", { name: control }).isVisible()) return;
+    // By name rather than by role: "Cancel session" is a button that opens a
+    // panel in the dialog, and the two Edit controls are still links.
+    if (await dialog(page).getByRole(/^Cancel/.test(control) ? "button" : "link", { name: control }).isVisible()) return;
     await page.locator(".peek-actions").getByRole("button", { name: "Close" }).click();
     await expect(dialog(page)).toBeHidden();
   }
@@ -148,21 +150,28 @@ test.describe("the session modal", () => {
     await expect(page.locator("main form")).toHaveCount(0);
   });
 
-  test("goes to the editing screen for this one session", async ({ page }) => {
+  test("goes to the editing screen for this one session, saying where from", async ({ page }) => {
     await peekOffering(page, "Edit Session");
     await dialog(page).getByRole("link", { name: "Edit Session" }).click();
-    await expect(page).toHaveURL(/\/sessions\/ses\w+\/edit$/);
+    // `from` rides along so that Back still means the calendar after a save.
+    // The referrer alone cannot: a server action re-renders this page, and the
+    // `Referer` on that POST is this page.
+    await expect(page).toHaveURL(/\/sessions\/ses\w+\/edit\?from=%2Fcalendar$/);
     await expect(page.locator("h1")).toContainText("Edit");
   });
 
-  test("opens the cancel panel when that is what was pressed", async ({ page }) => {
+  test("cancels a session without leaving the calendar", async ({ page }) => {
     await peekOffering(page, "Cancel session");
-    await dialog(page).getByRole("link", { name: "Cancel session" }).click();
-    await expect(page).toHaveURL(/\/edit\?do=cancel$/);
 
-    // Open already, rather than a panel somebody has to find again.
-    const cancel = page.locator("details", { has: page.getByText("Cancel", { exact: true }) });
-    await expect(cancel.first()).toHaveAttribute("open", "");
+    // A button now, not a link: the reason is asked here rather than on a
+    // second screen. Pressing it opens the panel; it does not cancel anything.
+    await dialog(page).getByRole("button", { name: "Cancel session" }).click();
+    await expect(page).toHaveURL(/\/calendar$/);
+    await expect(dialog(page).getByLabel("Reason")).toBeVisible();
+
+    // And the way out of having opened it by accident.
+    await dialog(page).getByRole("button", { name: "Keep it" }).click();
+    await expect(dialog(page).getByLabel("Reason")).toHaveCount(0);
   });
 
   test("offers no cancel on a completed session", async ({ page }) => {
@@ -173,7 +182,7 @@ test.describe("the session modal", () => {
     // permission there is, and the status is what refuses. Deciding once for
     // the page could not hear that.
     await expect(
-      dialog(page).getByRole("link", { name: "Cancel session" }),
+      dialog(page).getByRole("button", { name: "Cancel session" }),
     ).toHaveCount(0);
   });
 
@@ -181,7 +190,7 @@ test.describe("the session modal", () => {
     const found = await peekWithStatus(page, "Cancelled");
     test.skip(!found, "no cancelled session on the calendar to check");
 
-    await expect(dialog(page).getByRole("link", { name: "Cancel session" })).toHaveCount(0);
+    await expect(dialog(page).getByRole("button", { name: "Cancel session" })).toHaveCount(0);
     await expect(dialog(page).getByRole("link", { name: "Edit Session" })).toHaveCount(0);
     // Still readable, though: a cancelled session is a record, not a hole.
     await expect(dialog(page).getByRole("link", { name: "Session Details" })).toBeVisible();
@@ -192,7 +201,7 @@ test.describe("the session modal", () => {
     test.skip(!found, "the seeded month has no repeating session in it");
 
     await dialog(page).getByRole("link", { name: "Edit Series" }).click();
-    await expect(page).toHaveURL(/\/edit\?scope=all$/);
+    await expect(page).toHaveURL(/\/edit\?scope=all&do=edit&from=%2Fcalendar$/);
     // The scope arrives chosen — and still a choice, because guessing wrongly
     // rewrites work somebody has already done.
     await expect(page.locator('input[name="scope"][value="all"]').first()).toBeChecked();

@@ -30,17 +30,24 @@ import { Card, LinkButton } from "@/components/ui";
 
 export default function Forbidden() {
   return (
-    <Card as="section" className="card-padded refusal">
-      <h1>No access</h1>
-      <p>
-        Your account does not have permission for this page. If you think it
-        should, ask an administrator at your organization to change your role.
-      </p>
-      <p>
-        <LinkButton variant="primary" href="/">
-          Back to the dashboard
-        </LinkButton>
-      </p>
-    </Card>
+    // Centred on the page, because a refusal is the whole of what is on it —
+    // it read as the first row of a table that had failed to load.
+    <div className="refusal-page">
+      <Card as="section" className="card-padded refusal">
+        <span className="refusal-glyph" aria-hidden="true">
+          ⊘
+        </span>
+        <h1>No access</h1>
+        <p>
+          Your account does not have permission for this page. If you think it
+          should, ask an administrator at your organization to change your role.
+        </p>
+        <p>
+          <LinkButton variant="primary" href="/">
+            Back to the dashboard
+          </LinkButton>
+        </p>
+      </Card>
+    </div>
   );
 }

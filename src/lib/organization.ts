@@ -256,6 +256,21 @@ export function settingBoolean(
   return value === undefined || value === null ? fallback : Boolean(value);
 }
 
+/**
+ * The session lengths this tenant offers, in minutes.
+ *
+ * Lifted out of the booking context because the rescheduling panel wants the
+ * same list: it had a number input stepping by five, which offered 35 minutes
+ * and 115 and then had them refused by `validateRequest` — a control offering a
+ * choice the write does not accept.
+ */
+export function selectableDurations(reader: SettingsReader | null | undefined): number[] {
+  const stored = reader?.setting(["booking", "selectable_durations_minutes"], [60]);
+  if (!Array.isArray(stored) || stored.length === 0) return [60];
+  const minutes = stored.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  return minutes.length > 0 ? minutes : [60];
+}
+
 export function settingStrings(
   reader: SettingsReader | null | undefined,
   path: readonly string[],

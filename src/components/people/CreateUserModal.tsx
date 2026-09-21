@@ -36,6 +36,7 @@ import {
   Modal,
   OptionSelect,
   PhoneField,
+  useSettled,
 } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { isEmail } from "@/lib/shapes";
@@ -61,6 +62,11 @@ const STEPS = ["Who", "Details", "Confirm"] as const;
 export function CreateUserModal(props: CreateUserModalProps) {
   const [state, submit, pending] = useActionState(createPersonAction, {});
   const [step, setStep] = useState(1);
+  // A person has been created: this dialog has done what it was opened to do,
+  // so it goes away and the page says what happened. It used to stay open with
+  // a green line in it, and the only way out was the control that means
+  // "abandon this" — which is why the same person was created twice.
+  useSettled(state, () => props.onOpenChange(false));
   // Focus lands on the first thing being asked for rather than on the close
   // button, which is what `showModal()` would otherwise choose.
   const firstField = useRef<HTMLInputElement>(null);
@@ -206,11 +212,6 @@ export function CreateUserModal(props: CreateUserModalProps) {
       {state.error && (
         <p className="notice notice-bad" role="alert">
           <span aria-hidden="true">!</span> <span>{state.error}</span>
-        </p>
-      )}
-      {state.notice && (
-        <p className="notice notice-good">
-          <span aria-hidden="true">✓</span> <span>{state.notice}</span>
         </p>
       )}
 
