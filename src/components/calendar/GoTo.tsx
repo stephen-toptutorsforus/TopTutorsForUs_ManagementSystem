@@ -18,6 +18,13 @@
  * that the action prefers says "instead of that" without depending on
  * document order.
  *
+ * **A submitter carries one name and one value, so a control that changes both
+ * has to say both in that one value.** "+3 more" wanted the day view *and* that
+ * day; it could only send `goto_date`, so it moved the anchor inside a month
+ * that renders the same either way and the press did nothing at all — reported
+ * as a dead button, and it was. `goto_at` carries `view|date` for exactly that
+ * case, and `applyCalendarState` splits it.
+ *
  * No script is needed for any of it: this is a submit button.
  */
 
@@ -40,10 +47,15 @@ export function GoTo({
   disabled?: boolean;
   children: React.ReactNode;
 }) {
-  // One name and one value per button, which is all a submitter carries. Every
-  // control here changes exactly one of the two, and the form holds the other.
+  // One name and one value per button, which is all a submitter carries. Most
+  // of these change one of the two and let the form hold the other; a control
+  // that changes both packs them into the single value it is allowed.
   const [name, value] =
-    view !== undefined ? (["goto_view", view] as const) : (["goto_date", date ?? ""] as const);
+    view !== undefined && date !== undefined
+      ? (["goto_at", `${view}|${date}`] as const)
+      : view !== undefined
+        ? (["goto_view", view] as const)
+        : (["goto_date", date ?? ""] as const);
 
   return (
     <button

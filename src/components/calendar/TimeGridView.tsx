@@ -147,7 +147,7 @@ export function TimeGridView({
               return (
                 <Link
                   key={String(session.id)}
-                  className={`tg-event is-${session.status.toLowerCase()} c${columnIndex + 1} ${positionClass(item)}`}
+                  className={`tg-event is-${session.status.toLowerCase()} tone-${meta.tone} c${columnIndex + 1} ${positionClass(item)}`}
                   href={`/sessions/${session.ref}`}
                   data-session-ref={session.ref}
                   // Incomplete only — see the same line on the month chip.

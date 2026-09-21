@@ -256,9 +256,22 @@ describe("what a session's state is, as against what its status says", () => {
     );
   });
 
-  it("draws Incomplete as an absence rather than an alarm", () => {
-    // Muted, not bad: nothing has gone wrong, something is merely unfinished.
-    expect(sessionStateMeta(SessionStatus.SCHEDULED, past, { now }).tone).toBe("muted");
+  it("draws Incomplete in the colour that asks for attention, with the glyph that does not", () => {
+    const meta = sessionStateMeta(SessionStatus.SCHEDULED, past, { now });
+
+    // `warn`, the tone Missed wears. It was `muted` on the argument that
+    // nothing has gone wrong yet — but muted is also Cancelled and Rejected,
+    // so on a month of tinted slots the one state that needs somebody to act
+    // was painted exactly like the two that are finished with.
+    expect(meta.tone).toBe("warn");
+    expect(meta.tone, "the same fill as Missed, which is what the calendar now paints the slot").toBe(
+      statusMeta(SessionStatus.MISSED).tone,
+    );
+
+    // The glyph is what still separates them: a dash is an absence, `!` is a
+    // judgement somebody recorded.
+    expect(meta.icon).toBe("–");
+    expect(meta.icon).not.toBe(statusMeta(SessionStatus.MISSED).icon);
   });
 });
 

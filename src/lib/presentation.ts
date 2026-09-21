@@ -157,7 +157,16 @@ export function incompleteMeaning(attendanceRecorded = false): string {
 
 export const INCOMPLETE: Badge = {
   label: "Incomplete",
-  tone: "muted",
+  // `warn`, which is what Missed wears. It was `muted` on the argument that
+  // nothing has gone wrong yet, only something is unfinished — but muted is
+  // also what Cancelled and Rejected wear, so the one state that asks the
+  // reader to *do* something was drawn exactly like the two that are settled
+  // and need nothing. On a month of tinted slots that is the row nobody looks
+  // at twice.
+  tone: "warn",
+  // The glyph stays a dash rather than Missed's `!`: an absence, not an alarm,
+  // and it is the glyph rather than the fill that separates "nobody said" from
+  // "somebody said it did not happen".
   icon: "–",
   meaning: incompleteMeaning(),
 };

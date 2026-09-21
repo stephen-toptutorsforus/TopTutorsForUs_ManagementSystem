@@ -725,7 +725,11 @@ body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
 }
 .btn-link:hover { background: none; color: var(--brand-700); text-decoration: none; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/* `align-items: center` rather than the flex default of `stretch`: a row
+   holding a button and a line of text — the session grid's "Page 1 of 11"
+   between Previous and Next — drew the text against the top of a 34px
+   button and the two read as belonging to different rows. */
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 
 /* These were fourteen inline `style` attributes, every one of them silently
    dropped: `style-src 'self'` forbids inline styles, so the widths and spacing
@@ -1165,12 +1169,23 @@ td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; 
 /* Pushed to the end of the chip, which is the only thing about it that is not
    shared — see the swatch rule beside `.filtermenu-swatch`. */
 .cal-flag { margin-left: auto; flex: none; }
-.cal-event.is-scheduled { border-left-color: var(--info-text); }
-.cal-event.is-rescheduled { border-left-color: var(--moved-text); }
-.cal-event.is-in_progress { border-left-color: var(--live-text); }
-.cal-event.is-completed { border-left-color: var(--good-text); }
-.cal-event.is-missed { border-left-color: var(--warn-text); }
-.cal-event.is-requested { border-left-color: var(--pending-text); border-left-style: dashed; }
+/* A slot is painted in the colour of the square inside it.
+   `tone-*` is the *state's* tone rather than the status column's, so a
+   scheduled session whose hour has gone by is drawn as Incomplete here as well
+   as on its badge — see `sessionStateMeta`. One class drives the fill and the
+   rule down the left, so the chip and its own swatch can never disagree. */
+.cal-event.tone-good   { background: var(--good-surface);    border-left-color: var(--good-text); }
+.cal-event.tone-warn   { background: var(--warn-surface);    border-left-color: var(--warn-text); }
+.cal-event.tone-bad    { background: var(--bad-surface);     border-left-color: var(--bad-text); }
+.cal-event.tone-info   { background: var(--info-surface);    border-left-color: var(--info-text); }
+.cal-event.tone-live   { background: var(--live-surface);    border-left-color: var(--live-text); }
+.cal-event.tone-moved  { background: var(--moved-surface);   border-left-color: var(--moved-text); }
+.cal-event.tone-muted  { background: var(--ink-100);         border-left-color: var(--ink-400); }
+.cal-event.tone-pending {
+  background: var(--pending-surface);
+  border-left-color: var(--pending-text);
+  border-left-style: dashed;
+}
 .cal-event.is-cancelled,
 .cal-event.is-rejected {
   border-left-color: var(--ink-400);
@@ -1782,10 +1797,21 @@ button.timecell:hover { background: var(--brand-100); border-color: var(--brand-
 .tg-event:not(.lane-1-of-1) .tg-event-flag { width: 16px; height: 16px; }
 
 .tg-event.is-cancelled, .tg-event.is-rejected { opacity: 0.62; text-decoration: line-through; }
-.tg-event.is-completed { border-left-color: var(--good-text); background: var(--good-surface); }
-.tg-event.is-missed { border-left-color: var(--bad-text); background: var(--bad-surface); }
-.tg-event.is-requested { border-left-color: var(--pending-text); background: var(--pending-surface); }
-.tg-event.is-rescheduled { border-left-color: var(--moved-text); background: var(--moved-surface); }
+/* The same eight fills as the month chip, from the same class, for the same
+   reason: three spellings of one thing is a second vocabulary to learn. Missed
+   was `--bad-surface` here and `--warn-*` on its own badge, so the grid and the
+   filter menu disagreed about what Missed looks like. */
+.tg-event.tone-good   { background: var(--good-surface);    border-left-color: var(--good-text); }
+.tg-event.tone-warn   { background: var(--warn-surface);    border-left-color: var(--warn-text); }
+.tg-event.tone-bad    { background: var(--bad-surface);     border-left-color: var(--bad-text); }
+.tg-event.tone-info   { background: var(--info-surface);    border-left-color: var(--info-text); }
+.tg-event.tone-live   { background: var(--live-surface);    border-left-color: var(--live-text); }
+.tg-event.tone-moved  { background: var(--moved-surface);   border-left-color: var(--moved-text); }
+.tg-event.tone-muted  { background: var(--ink-100);         border-left-color: var(--ink-400); }
+.tg-event.tone-pending {
+  background: var(--pending-surface);
+  border-left-color: var(--pending-text);
+}
 
 /* On a phone, one day at a time.
  *

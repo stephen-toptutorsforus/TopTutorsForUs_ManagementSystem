@@ -116,7 +116,7 @@ function EventLink({ row, zone }: { row: SessionRow; zone: string }) {
 
   return (
     <Link
-      className={`cal-event is-${session.status.toLowerCase()}`}
+      className={`cal-event is-${session.status.toLowerCase()} tone-${meta.tone}`}
       href={`/sessions/${session.ref}`}
       // Only Incomplete carries one, and it is the state that asks for
       // something to be done. On the whole chip rather than on the 18px
@@ -485,8 +485,12 @@ export default async function CalendarPage() {
                 {rows.slice(0, MONTH_CELL_LIMIT).map((row) => (
                   <EventLink key={String(row.session.id)} row={row} zone={zone} />
                 ))}
+                {/* The day view, not merely this day: a month cell is what is
+                    hiding them, so moving the anchor inside the month leaves
+                    them exactly as hidden — which is why this read as a dead
+                    button. */}
                 {rows.length > MONTH_CELL_LIMIT && (
-                  <GoTo className="cal-more" date={day}>
+                  <GoTo className="cal-more" view={CalendarView.DAY} date={day}>
                     +{rows.length - MONTH_CELL_LIMIT} more
                     <VisuallyHidden> on {longDate(day)}</VisuallyHidden>
                   </GoTo>

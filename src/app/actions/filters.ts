@@ -69,8 +69,13 @@ export async function applyCalendarState(form: FormData): Promise<void> {
   // person is leaving. A button can submit one name and one value, and a second
   // `view` entry would be a duplicate key whose first value — the old one — is
   // what a parser reads. See `components/calendar/GoTo.tsx`.
-  const view = parseView(params.get("goto_view") ?? params.get("view"));
-  const anchor = parseAnchor(params.get("goto_date") ?? params.get("date"), today);
+  //
+  // `goto_at` is the case where one press has to change both: "+3 more" asks
+  // for that day *in the day view*, and sending only the date moved the anchor
+  // inside a month that draws identically, so the button did nothing.
+  const [atView, atDate] = (params.get("goto_at") ?? "").split("|");
+  const view = parseView(atView || params.get("goto_view") || params.get("view"));
+  const anchor = parseAnchor(atDate || params.get("goto_date") || params.get("date"), today);
   const filters = parseFilters(params);
 
   // `queryString` drops what is already the default — the month view, today's
