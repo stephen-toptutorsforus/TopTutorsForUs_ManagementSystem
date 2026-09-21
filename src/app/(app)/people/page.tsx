@@ -13,12 +13,18 @@
 import Link from "next/link";
 
 import { FilterMenu } from "@/components/FilterMenu";
-import { AssignButton, CreateUserButton } from "@/components/people/OverlayTriggers";
+import {
+  AssignButton,
+  CreateUserButton,
+  PersonNameButton,
+} from "@/components/people/OverlayTriggers";
 import { PeopleOverlays } from "@/components/people/PeopleOverlays";
 import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { Moment } from "@/lib/rendering";
+import { personSheetOf } from "@/lib/web/personSheet";
 import { scoped } from "@/lib/policies/scoping";
 import { USER_STATUS_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
@@ -139,6 +145,7 @@ export default async function PeoplePage() {
     // untouched — the provider is a wrapper, not a boundary the table crosses.
     <PeopleOverlays
       enabled={canManage}
+      canManage={canManage}
       csrfToken={await csrfToken()}
       create={{
         creatableRoles: CREATABLE_ROLES.map((role) => ({
@@ -329,7 +336,41 @@ export default async function PeoplePage() {
                       </span>
                     </td>
                     <td data-label="Name" className="people-name">
-                      {displayName}
+                      {/* The name opens the record, which is where it is read
+                          and changed. A button rather than a link: it opens a
+                          panel over this page, and the directory's own address
+                          — which is where its filter is *not* — stays put. */}
+                      <PersonNameButton
+                        person={personSheetOf(person, {
+                          roleNames: row.roleNames,
+                          connections: row.connections.map((link) => ({
+                            kind: link.kind,
+                            name: link.name,
+                          })),
+                          groups: [...row.groups],
+                          // The same clock the row's own cell uses: their
+                          // timezone if they have one, the tenant's otherwise.
+                          lastLoginLabel: row.lastLoginAt
+                            ? new Moment(
+                                row.lastLoginAt,
+                                person.timezone || organization.timezone,
+                              ).full
+                            : null,
+                          // Decided here, by the rules the service enforces, so
+                          // a control is never drawn for a write that will be
+                          // refused. The service checks again regardless.
+                          canSetPassword:
+                            principal.isAdmin &&
+                            person.ref !== principal.userRef &&
+                            !row.roleNames.includes("Admin"),
+                          canArchive:
+                            canManage &&
+                            person.ref !== principal.userRef &&
+                            (principal.isAdmin || !row.roleNames.includes("Admin")),
+                        })}
+                      >
+                        {displayName}
+                      </PersonNameButton>
                     </td>
                     <td data-label="Email/Username">
                       {person.email ? (

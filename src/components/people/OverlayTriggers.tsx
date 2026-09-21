@@ -15,6 +15,7 @@
  */
 
 import { Button } from "@/components/ui";
+import type { PersonSheetData } from "@/lib/web/personSheet";
 
 import { usePeopleOverlays, type AssignTarget } from "./PeopleOverlays";
 
@@ -53,6 +54,33 @@ export function AssignButton({ target }: { target: AssignTarget }) {
       onClick={() => openAssign(target)}
     >
       Assign
+    </Button>
+  );
+}
+
+/**
+ * Somebody's name in the directory, which opens their record.
+ *
+ * A button rather than a link, for the reason the two above are: it opens a
+ * panel over this page rather than going anywhere, and the address of the
+ * directory stays the directory's. A name that navigated would also lose the
+ * filter somebody is reading under, which is a cookie keyed to the screen.
+ *
+ * Drawn as a link because that is what a name in a table reads as, and because
+ * every other row in the product opens something when its first cell is
+ * pressed.
+ */
+export function PersonNameButton({
+  person,
+  children,
+}: {
+  person: PersonSheetData;
+  children: React.ReactNode;
+}) {
+  const { openPerson } = usePeopleOverlays();
+  return (
+    <Button variant="link" className="person-name" onClick={() => openPerson(person)}>
+      {children}
     </Button>
   );
 }

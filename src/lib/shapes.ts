@@ -43,3 +43,19 @@ export function isEmail(value: string): boolean {
 export function isPhone(value: string): boolean {
   return PHONE_SHAPE.test(value.trim());
 }
+
+/**
+ * The shortest password this product will set.
+ *
+ * Here for the reason the two shapes above are: the person drawer draws the
+ * `minLength` and the sentence under the field, and the service refuses
+ * anything shorter. A client component importing it from the service would
+ * drag the Argon2 binding into the browser bundle, which the build refuses —
+ * and it was right to.
+ *
+ * Length alone, deliberately. Composition rules — a digit, a symbol, mixed
+ * case — measurably push people towards `Password1!` and a sticky note, and
+ * this is a password one person is choosing *for another*, to be said out loud.
+ * Twelve characters of anything beats eight characters of theatre.
+ */
+export const MIN_PASSWORD_LENGTH = 12;

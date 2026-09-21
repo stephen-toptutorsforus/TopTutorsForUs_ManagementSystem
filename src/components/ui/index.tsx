@@ -24,6 +24,7 @@ export { FilterControl } from "./FilterControl";
 export { FILTER_DRAWER_ID, FilterDrawer, FilterSection } from "./FilterDrawer";
 export { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon, SearchIcon, ShareIcon, TrashIcon } from "./icons";
 export { Modal } from "./Modal";
+export { Sheet } from "./Sheet";
 export { PageHeader, PageToolbar, SearchField } from "./PageHeader";
 export { Notice } from "./Notice";
 export { ScopeChoice } from "./ScopeChoice";

@@ -26,11 +26,15 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
+import { Sheet } from "@/components/ui";
+import type { PersonSheetData } from "@/lib/web/personSheet";
+
 import { AssignModal } from "./AssignModal";
+import { PersonSheet } from "./PersonSheet";
 import { CreateUserModal, type CreateUserModalProps } from "./CreateUserModal";
 import type { PickerOption } from "./Picker";
 
-export type PeopleOverlay = "create-user" | "assign-people" | null;
+export type PeopleOverlay = "create-user" | "assign-people" | "person" | null;
 
 /** The person a row's Assign button was pressed for. */
 export interface AssignTarget {
@@ -41,8 +45,19 @@ export interface AssignTarget {
 interface OverlayControls {
   openCreateUser: () => void;
   openAssign: (target?: AssignTarget) => void;
+  /**
+   * Open one person's record.
+   *
+   * Takes the whole payload rather than a ref, because the page has already
+   * built it for every row — opening a drawer should not be a round trip for
+   * data that is on screen. It is a hand-built shape rather than the Prisma
+   * row: see `lib/web/personSheet.ts`.
+   */
+  openPerson: (person: PersonSheetData) => void;
   /** False where the viewer may not manage people: the triggers render nothing. */
   enabled: boolean;
+  /** Whether the drawer's forms are editable, which is `USER_MANAGE`. */
+  canManage: boolean;
 }
 
 const Controls = createContext<OverlayControls | null>(null);
@@ -59,12 +74,21 @@ export function usePeopleOverlays(): OverlayControls {
 
 export function PeopleOverlays({
   enabled,
+  canManage,
   csrfToken,
   create,
   assign,
   children,
 }: {
   enabled: boolean;
+  /**
+   * `USER_MANAGE`, which is not the same question as `enabled`.
+   *
+   * The person drawer opens for anybody who may *read* the directory — it is
+   * where a record is read — and its fields are disabled for anybody who may
+   * not change one.
+   */
+  canManage: boolean;
   csrfToken: string;
   /** Everything `CreateUserModal` needs but the token and the open state. */
   create: Omit<CreateUserModalProps, "csrfToken" | "open" | "onOpenChange">;
@@ -73,6 +97,7 @@ export function PeopleOverlays({
 }) {
   const [overlay, setOverlay] = useState<PeopleOverlay>(null);
   const [target, setTarget] = useState<AssignTarget | null>(null);
+  const [person, setPerson] = useState<PersonSheetData | null>(null);
   const [openings, setOpenings] = useState(0);
 
   const openCreateUser = useCallback(() => {
@@ -86,9 +111,15 @@ export function PeopleOverlays({
     setOverlay("assign-people");
   }, []);
 
+  const openPerson = useCallback((next: PersonSheetData) => {
+    setPerson(next);
+    setOpenings((count) => count + 1);
+    setOverlay("person");
+  }, []);
+
   const controls = useMemo<OverlayControls>(
-    () => ({ openCreateUser, openAssign, enabled }),
-    [enabled, openAssign, openCreateUser],
+    () => ({ openCreateUser, openAssign, openPerson, enabled, canManage }),
+    [canManage, enabled, openAssign, openCreateUser, openPerson],
   );
 
   return (
@@ -113,6 +144,25 @@ export function PeopleOverlays({
           />
         </>
       )}
+      {/* Outside the `enabled` gate: a record is readable by anybody who may
+          read the directory, and the drawer's own fields are what narrow by
+          `canManage`. */}
+      <Sheet
+        open={overlay === "person"}
+        onOpenChange={(open) => setOverlay(open ? "person" : null)}
+        title={person?.displayName ?? ""}
+        subtitle={person ? person.roleNames.join(", ") : undefined}
+      >
+        {person && (
+          <PersonSheet
+            key={`person-${openings}`}
+            person={person}
+            csrfToken={csrfToken}
+            canManage={canManage}
+            onDone={() => setOverlay(null)}
+          />
+        )}
+      </Sheet>
     </Controls.Provider>
   );
 }

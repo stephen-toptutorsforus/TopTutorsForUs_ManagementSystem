@@ -25,6 +25,13 @@ import { createGuardian, createStaff, createStudent } from "@/lib/services/enrol
 import type { PlaceRef } from "@/lib/services/enrolment";
 import { assignStudent } from "@/lib/services/people";
 import type { PersonRecord } from "@/lib/services/people";
+import {
+  archivePerson,
+  editPerson,
+  findPerson,
+  restorePerson,
+  setPassword,
+} from "@/lib/services/personAdmin";
 import type { FormResult } from "@/lib/web/formState";
 import { requestMeta, requireContext, verifyCsrf } from "@/lib/web/session";
 
@@ -212,6 +219,115 @@ export async function assignStudentAction(
     const name = (person: typeof instructor) =>
       `${person.firstName} ${person.lastName}`.trim() || person.ref;
     return { notice: `Assigned ${name(student)} to ${name(instructor)}.` };
+  } catch (error) {
+    return { error: payloadFor(error).message };
+  }
+}
+
+// --- One person's own record -------------------------------------------------
+
+/**
+ * Everything the person drawer writes.
+ *
+ * Three actions rather than one with a mode: they are guarded differently —
+ * editing needs `USER_MANAGE`, setting a password needs an administrator — and
+ * a single action branching on a hidden field is a guard somebody can choose.
+ */
+
+/** Load one person by ref, or 404. Archived people are still readable. */
+async function loadPerson(principal: Principal, ref: string) {
+  const found = await findPerson(prisma, principal, ref);
+  if (found === null) throw new NotFound("no such user");
+  return found;
+}
+
+/** Every screen a person's name or status is drawn on. */
+function revalidatePeople(): void {
+  for (const path of ["/people", "/calendar", "/sessions", "/series", "/availability"]) {
+    revalidatePath(path);
+  }
+}
+
+export async function editPersonAction(
+  ref: string,
+  _previous: FormResult,
+  form: FormData,
+): Promise<FormResult> {
+  try {
+    await verifyCsrf(form);
+    const { principal, organization } = await requireContext();
+    const person = await loadPerson(principal, ref);
+
+    const updated = await editPerson(prisma, organization, principal, person, {
+      firstName: String(form.get("first_name") ?? ""),
+      lastName: String(form.get("last_name") ?? ""),
+      email: String(form.get("email") ?? ""),
+      phone: String(form.get("phone") ?? ""),
+      timezone: String(form.get("timezone") ?? ""),
+      grade: String(form.get("grade") ?? ""),
+      requestMeta: await requestMeta(),
+    });
+
+    revalidatePeople();
+    const name = `${updated.firstName} ${updated.lastName}`.trim() || updated.ref;
+    return { notice: `Saved ${name}.` };
+  } catch (error) {
+    return { error: payloadFor(error).message };
+  }
+}
+
+export async function setPasswordAction(
+  ref: string,
+  _previous: FormResult,
+  form: FormData,
+): Promise<FormResult> {
+  try {
+    await verifyCsrf(form);
+    const { principal } = await requireContext();
+    const person = await loadPerson(principal, ref);
+
+    const password = String(form.get("password") ?? "");
+    // Checked here as well as in the service, because only this layer has the
+    // second field: the service is given one password and cannot know whether
+    // it was typed twice.
+    if (password !== String(form.get("password_confirm") ?? "")) {
+      throw new ValidationError("those two passwords are not the same");
+    }
+
+    await setPassword(prisma, principal, person, password, await requestMeta());
+
+    revalidatePath("/people");
+    const name = `${person.firstName} ${person.lastName}`.trim() || person.ref;
+    // Never the password, and never a hint about it. The person setting it
+    // already has it; anybody reading over their shoulder should not.
+    return { notice: `Set a new password for ${name}. Tell them in person.` };
+  } catch (error) {
+    return { error: payloadFor(error).message };
+  }
+}
+
+export async function archivePersonAction(
+  ref: string,
+  _previous: FormResult,
+  form: FormData,
+): Promise<FormResult> {
+  try {
+    await verifyCsrf(form);
+    const { principal } = await requireContext();
+    const person = await loadPerson(principal, ref);
+    const name = `${person.firstName} ${person.lastName}`.trim() || person.ref;
+
+    // One control, both directions: the button says which way it goes, and the
+    // state on the record decides rather than a hidden field.
+    if (person.archivedAt === null) {
+      await archivePerson(prisma, principal, person, await requestMeta());
+      revalidatePeople();
+      return { notice: `${name} can no longer sign in. Nothing they did was removed.` };
+    }
+
+    await restorePerson(prisma, principal, person, await requestMeta());
+    revalidatePeople();
+    return { notice: `${name} can sign in again.` };
   } catch (error) {
     return { error: payloadFor(error).message };
   }
