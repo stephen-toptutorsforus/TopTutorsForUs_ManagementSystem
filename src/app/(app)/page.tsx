@@ -149,7 +149,7 @@ export default async function DashboardPage() {
                     />
                   </td>
                   <td data-label="Session">
-                    <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
+                    <Link href={`/sessions/${row.session.ref}?from=%2F`}>{row.session.title}</Link>
                   </td>
                   <td data-label="Instructor">{row.instructorName ?? "—"}</td>
                   <td data-label="Students">
@@ -190,7 +190,7 @@ export default async function DashboardPage() {
                     <When instant={row.session.scheduledStart} zone={row.session.timezone} />
                   </td>
                   <td data-label="Session">
-                    <Link href={`/sessions/${row.session.ref}`}>{row.session.title}</Link>
+                    <Link href={`/sessions/${row.session.ref}?from=%2F`}>{row.session.title}</Link>
                     {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
                   </td>
                   <td data-label="Instructor">{row.instructorName ?? "—"}</td>

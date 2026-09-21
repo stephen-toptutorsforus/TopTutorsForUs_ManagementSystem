@@ -40,7 +40,7 @@ import {
   attendanceRate,
   scheduledDurationMinutes,
 } from "@/lib/services/sessionOps";
-import { backTarget } from "@/lib/web/backLink";
+import { SESSION_LIST, backTarget, fromQuery, originPath } from "@/lib/web/backLink";
 import { participantViews } from "@/lib/web/participants";
 import { csrfToken, requireContext } from "@/lib/web/session";
 
@@ -53,10 +53,13 @@ function sentenceCase(value: string): string {
 
 export default async function SessionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ ref: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { ref } = await params;
+  const search = await searchParams;
   const { principal, organization } = await requireContext();
 
   const session = await prisma.sessionOccurrence.findFirst({
@@ -134,7 +137,17 @@ export default async function SessionDetailPage({
   // Six screens link here, so the way back is read from the referrer rather
   // than fixed — see `lib/web/backLink.ts` for what it refuses to trust.
   const sent = await headers();
-  const back = backTarget(sent.get("referer"), sent.get("host"), `/sessions/${session.ref}`);
+  // Where this record was opened from, stated rather than inferred — see
+  // `lib/web/backLink.ts`. Threaded on to the editing screen below, so a round
+  // trip through Edit and back still lands on the calendar somebody started on.
+  const origin = originPath(search.from);
+  const back = backTarget(
+    sent.get("referer"),
+    sent.get("host"),
+    `/sessions/${session.ref}`,
+    search.from,
+  );
+  const carry = fromQuery(origin ?? (back === SESSION_LIST ? null : back));
   const start = new Moment(session.scheduledStart, zone);
 
   return (
@@ -153,7 +166,7 @@ export default async function SessionDetailPage({
                 change this session has to exist on it. One link, which does
                 not make a reading page an editing one. */}
             {actions.length > 0 && (
-              <LinkButton variant="primary" href={`/sessions/${session.ref}/edit`}>
+              <LinkButton variant="primary" href={`/sessions/${session.ref}/edit${carry}`}>
                 Edit session
               </LinkButton>
             )}

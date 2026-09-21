@@ -149,7 +149,7 @@ export function SessionPeek({
 
               <dt>View</dt>
               <dd>
-                <Link href={`/sessions/${session.ref}`}>Session Details</Link>
+                <Link href={`/sessions/${session.ref}?from=%2Fcalendar`}>Session Details</Link>
               </dd>
             </dl>
 
@@ -176,7 +176,7 @@ export function SessionPeek({
                 {session.actions.includes("cancel") && (
                   <LinkButton
                     variant="danger"
-                    href={`/sessions/${session.ref}/edit?do=cancel`}
+                    href={`/sessions/${session.ref}/edit?do=cancel&from=%2Fcalendar`}
                   >
                     Cancel session
                   </LinkButton>
@@ -184,13 +184,13 @@ export function SessionPeek({
                 {session.actions.includes("edit_series") && (
                   <LinkButton
                     variant="primary"
-                    href={`/sessions/${session.ref}/edit?scope=all`}
+                    href={`/sessions/${session.ref}/edit?scope=all&do=edit&from=%2Fcalendar`}
                   >
                     Edit Series
                   </LinkButton>
                 )}
                 {session.actions.includes("edit") && (
-                  <LinkButton variant="primary" href={`/sessions/${session.ref}/edit`}>
+                  <LinkButton variant="primary" href={`/sessions/${session.ref}/edit?from=%2Fcalendar`}>
                     Edit Session
                   </LinkButton>
                 )}

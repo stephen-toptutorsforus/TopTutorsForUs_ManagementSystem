@@ -66,7 +66,7 @@ function Cell({ column, row, zone }: { column: string; row: SessionRow; zone: st
     case "title":
       return (
         <>
-          <Link href={`/sessions/${session.ref}`}>{session.title}</Link>
+          <Link href={`/sessions/${session.ref}?from=%2Fsessions`}>{session.title}</Link>
           {row.seriesPosition && <Tag>{row.seriesPosition}</Tag>}
           {session.detachedFromSeries && (
             <Tag title="Edited on its own; series edits skip it">
@@ -361,7 +361,7 @@ export default async function SessionsPage() {
                     </td>
                   ))}
                   <td data-label="Actions">
-                    <LinkButton size="small" href={`/sessions/${row.session.ref}`}>
+                    <LinkButton size="small" href={`/sessions/${row.session.ref}?from=%2Fsessions`}>
                       Open
                     </LinkButton>
                   </td>

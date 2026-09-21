@@ -64,11 +64,38 @@ async function loadSession(ref: string) {
   return { principal, organization, occurrence };
 }
 
+/**
+ * Every screen a session is drawn on.
+ *
+ * Editing one only revalidated its own page, so the rows it had just changed
+ * went on being served from the router cache everywhere else: somebody moved a
+ * session, pressed Back, and the calendar showed it at the old time. A
+ * series-scoped edit is worse, because it can move a hundred of them.
+ *
+ * The two dynamic routes are named as patterns rather than as one ref, because
+ * a series edit changes every occurrence and a `this_and_future` edit changes
+ * an unknown number of them.
+ */
+const SESSION_SCREENS = [
+  "/calendar",
+  "/sessions",
+  "/series",
+  "/",
+  "/audit",
+] as const;
+
 /** Every action answers the same shape, so one component can show the result. */
 async function run(ref: string, work: () => Promise<string>): Promise<FormResult> {
   try {
     const notice = await work();
     revalidatePath(`/sessions/${ref}`);
+    // The editing screen is a second page on the same record.
+    revalidatePath(`/sessions/${ref}/edit`);
+    for (const path of SESSION_SCREENS) revalidatePath(path);
+    // Every other occurrence of the series, and every series page: a scoped
+    // edit reaches rows this action never names.
+    revalidatePath("/sessions/[ref]", "page");
+    revalidatePath("/series/[ref]", "page");
     return { notice };
   } catch (error) {
     return { error: payloadFor(error).message };

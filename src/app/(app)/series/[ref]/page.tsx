@@ -151,7 +151,7 @@ export default async function SeriesDetailPage({
                     {durationLabel(actualDurationMinutes(row.session))}
                   </td>
                   <td data-label="Actions">
-                    <LinkButton size="small" href={`/sessions/${row.session.ref}`}>
+                    <LinkButton size="small" href={`/sessions/${row.session.ref}?from=${encodeURIComponent(`/series/${series.ref}`)}`}>
                       Open
                     </LinkButton>
                   </td>

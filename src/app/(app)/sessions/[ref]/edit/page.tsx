@@ -100,7 +100,16 @@ export default async function EditSessionPage({
   const openPanel = PANELS.has(wanted) ? (wanted as "edit" | "move" | "cancel") : null;
 
   const sent = await headers();
-  const back = backTarget(sent.get("referer"), sent.get("host"), `/sessions/${ref}/edit`);
+  // `search.from` before the referrer: this page is re-rendered by every
+  // server action on it, and the `Referer` on that POST is this page, so the
+  // referrer alone turned "back to the calendar" into "back to the session
+  // list" the moment anybody pressed Save.
+  const back = backTarget(
+    sent.get("referer"),
+    sent.get("host"),
+    `/sessions/${ref}/edit`,
+    search.from,
+  );
 
   const localInput = (instant: Date | null) =>
     instant === null ? "" : new Moment(instant, zone).local.toFormat("yyyy-MM-dd'T'HH:mm");

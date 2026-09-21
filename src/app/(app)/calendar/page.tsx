@@ -117,7 +117,9 @@ function EventLink({ row, zone }: { row: SessionRow; zone: string }) {
   return (
     <Link
       className={`cal-event is-${session.status.toLowerCase()} tone-${meta.tone}`}
-      href={`/sessions/${session.ref}`}
+      // Where this record is being opened from, so Back returns here even
+      // after an edit has re-rendered the screen it lands on.
+      href={`/sessions/${session.ref}?from=%2Fcalendar`}
       // Only Incomplete carries one, and it is the state that asks for
       // something to be done. On the whole chip rather than on the 18px
       // square: the square is what says the state, but the chip is what a
@@ -544,7 +546,7 @@ export default async function CalendarPage() {
                           </td>
                           <td data-label="Session">
                             <Link
-                              href={`/sessions/${row.session.ref}`}
+                              href={`/sessions/${row.session.ref}?from=%2Fcalendar`}
                               data-session-ref={row.session.ref}
                             >
                               {row.session.title}

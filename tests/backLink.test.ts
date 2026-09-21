@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SESSION_LIST, backTarget } from "@/lib/web/backLink";
+import { SESSION_LIST, backTarget, fromQuery, originPath } from "@/lib/web/backLink";
 
 const HOST = "ops.example.test";
 const HERE = "/sessions/ses_123";
@@ -64,5 +64,64 @@ describe("backTarget", () => {
     expect(to("/sessions/new")).toBe("/sessions/new");
     expect(to("/series/ser_9")).toBe("/series/ser_9");
     expect(to("/somewhere-nobody-has-built-yet")).toBe("/somewhere-nobody-has-built-yet");
+  });
+});
+
+describe("where a record says it was opened from", () => {
+  it("prefers what the link said over what the browser sent", () => {
+    // The case the parameter exists for. A server action re-renders the page it
+    // was submitted from, and the `Referer` on that POST is the page itself —
+    // so after any save the referrer says "here", falls through to the session
+    // list, and somebody who started on the calendar is quietly moved.
+    expect(
+      backTarget(
+        "https://ops.test/sessions/ses_a/edit",
+        "ops.test",
+        "/sessions/ses_a/edit",
+        "/calendar",
+      ),
+    ).toBe("/calendar");
+  });
+
+  it("falls back to the referrer when nothing was stated", () => {
+    expect(
+      backTarget("https://ops.test/calendar", "ops.test", "/sessions/ses_a", undefined),
+    ).toBe("/calendar");
+  });
+
+  it("refuses a from that is not a path on this site", () => {
+    // It arrives from the address bar and ends up in an `href`, so the same
+    // rule the referrer already followed applies: a protocol-relative `//host`
+    // is read by a browser as somewhere else entirely.
+    for (const hostile of [
+      "//evil.test/phish",
+      "https://evil.test/phish",
+      "javascript:alert(1)",
+      "calendar",
+      "",
+    ]) {
+      expect(originPath(hostile), hostile).toBeNull();
+      expect(
+        backTarget("https://ops.test/calendar", "ops.test", "/sessions/ses_a", hostile),
+        hostile,
+      ).toBe("/calendar");
+    }
+  });
+
+  it("takes the first value when a parameter is repeated", () => {
+    expect(originPath(["/calendar", "/sessions"])).toBe("/calendar");
+  });
+
+  it("does not send somebody back to the page they are on", () => {
+    expect(
+      backTarget(null, null, "/sessions/ses_a", "/sessions/ses_a"),
+    ).toBe(SESSION_LIST);
+  });
+
+  it("writes the parameter only when there is somewhere to say", () => {
+    expect(fromQuery("/calendar")).toBe("?from=%2Fcalendar");
+    expect(fromQuery("/series/ser_a")).toBe("?from=%2Fseries%2Fser_a");
+    expect(fromQuery(null)).toBe("");
+    expect(fromQuery(undefined)).toBe("");
   });
 });
