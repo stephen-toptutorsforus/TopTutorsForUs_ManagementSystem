@@ -29,10 +29,31 @@
  *
  * ## What you get afterwards
  *
- * Imported people arrive as `INVITED` with no password, which is deliberate:
- * an import must not mint working accounts. So exactly one account can sign in
- * — the administrator this script creates — and any imported person can be
- * given a password from their own record in the directory.
+ * Imported people arrive as `INVITED` with no password, which is deliberate: an
+ * import must not mint working accounts. So none of the roster can sign in, and
+ * any one of them can be given a password from their own record in the
+ * directory.
+ *
+ * What *can* sign in is the five test accounts, which this puts back as its
+ * last step — see `tools/testAccounts.ts`. That is why a reload is one command
+ * rather than two: a refresh that left you locked out of your own database
+ * would be a refresh nobody ran twice. They are invented people on the reserved
+ * `.test` domain, and they carry the small amount of structure the export
+ * cannot supply — declared hours, one assignment, one guardian link — without
+ * which the booking screen cannot be walked at all.
+ *
+ * ## Reloading is the way to follow a fresh export
+ *
+ * The file has no id column, so matching an exported row to a record already
+ * here can only be done on its values, and those collide: measured against this
+ * export, 148 session rows and 177 series rows cannot be told apart from a
+ * sibling that says something different. An update path built on that is
+ * confidently wrong about a twelfth of the file and silent about which twelfth.
+ * A reload has no such problem — it is exact by construction.
+ *
+ * What it costs is anything created *here* since the last one. The day that
+ * starts to matter is the day to stop reloading and ask the source system for
+ * an id.
  *
  * The fixtures are *not* removed from the repository. `npm run db:seed` and
  * `npm run db:scenarios` still work and are what the browser suite needs; run
@@ -54,6 +75,8 @@ import { hashPassword } from "../src/lib/security";
 import { commitImport, previewImport } from "../src/lib/services/import";
 import type { ImportFiles } from "../src/lib/services/import";
 
+import { ADMIN_EMAIL, TEST_PASSWORD, ensureTestAccounts, printAccounts } from "./testAccounts";
+
 config({ path: ".env", quiet: true });
 
 /** The only database this will touch. */
@@ -67,7 +90,7 @@ const ALLOWED = "tutorops_ops_dev";
  * anybody real in the export.
  */
 const ADMIN = {
-  email: "admin@toptutorsforus.test",
+  email: ADMIN_EMAIL,
   firstName: "Operations",
   lastName: "Admin",
 };
@@ -111,7 +134,7 @@ async function main(): Promise<void> {
 
   const zone = flag("timezone") ?? "America/Chicago";
   const organizationName = flag("organization") ?? "TopTutorsForUs";
-  const password = flag("password") ?? "ChangeThisPasswordNow!2026";
+  const password = flag("password") ?? TEST_PASSWORD;
 
   // A schema drop and every migration again, rather than a table-by-table
   // delete: the hand-written guarantees below the marked line in the migration
@@ -190,13 +213,11 @@ async function main(): Promise<void> {
     }
   }
 
-  console.info(`\n  Sign in at http://127.0.0.1:3000/sign-in`);
-  console.info(`  ${ADMIN.email}`);
-  console.info(`  ${password}\n`);
-  console.info(
-    "  Imported people cannot sign in: an import does not mint accounts.\n" +
-      "  Give one a password from their own record in People.\n",
-  );
+  // Last, and part of the reload rather than a second command to remember: a
+  // database nobody can sign in to is not a refreshed one. It runs after the
+  // import, so the roster is already here — and the assignment and guardian
+  // link it makes are between its own invented people, never a real record.
+  printAccounts(organizationName, password, await ensureTestAccounts(db, organization, password));
 
   await db.$disconnect();
 }
