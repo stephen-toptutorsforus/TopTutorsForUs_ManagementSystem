@@ -2305,6 +2305,26 @@ dialog.modal::backdrop { background: rgba(16, 22, 29, 0.45); }
   pointer-events: none;
 }
 .search-field input { padding-left: 2.1rem; }
+.search-field.is-open { z-index: 5; }
+
+/* Suggestions for a picker. Drawn by the page so the menu is the width of the
+   field. A datalist is a browser popup, and the page cannot give it that width. */
+.picker-menu {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0;
+  margin: 0; padding: 0.25rem 0; list-style: none;
+  max-height: 240px; overflow-y: auto;
+  background: var(--paper); border: 1px solid var(--ink-400);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.picker-menu[hidden] { display: none; }
+.picker-option {
+  display: block; width: 100%; min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  border: 0; background: none; color: var(--ink-900);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.picker-option:hover,
+.picker-option.is-active { background: var(--brand-100); color: var(--brand-700); }
 
 /* --- Small form helpers -------------------------------------------------- */
 
