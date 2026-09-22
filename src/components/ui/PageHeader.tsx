@@ -29,6 +29,7 @@
 
 import { Field } from "./Field";
 import { SearchIcon } from "./icons";
+import { SearchInput } from "./SearchInput";
 
 /**
  * Title, subtitle, and the three rows that may follow.
@@ -193,9 +194,10 @@ export function PageToolbar({
  * which of two fields they are typing in. A default for either would be a
  * worse answer than the page's own.
  *
- * No submit button beside it. Every form this appears in has exactly one field
- * that blocks implicit submission, so Enter still searches — and with scripting
- * off that is also what applies the filter menu's ticks.
+ * No submit button beside it. Enter still searches. The clear control on a
+ * search box does not: emptying the field used to submit the form and reload
+ * the list. With scripting off, Enter is also what applies the filter menu's
+ * ticks.
  */
 export function SearchField({
   label,
@@ -225,10 +227,9 @@ export function SearchField({
       <span className="page-toolbar-search-icon" aria-hidden="true">
         <SearchIcon />
       </span>
-      <input
+      <SearchInput
         id={id}
         name={name}
-        type="search"
         defaultValue={defaultValue}
         placeholder={placeholder}
       />

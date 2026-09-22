@@ -15,7 +15,7 @@ import Link from "next/link";
 import { FilterMenu } from "@/components/FilterMenu";
 import { SessionPeek } from "@/components/calendar/SessionPeek";
 import { TimeGridView } from "@/components/calendar/TimeGridView";
-import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import {
   CalendarView,
@@ -295,10 +295,9 @@ export default async function CalendarPage() {
 
             <FilterSection legend="Sessions">
               <Field id="filter-q" label="Search session titles">
-                <input
+                <SearchInput
                   id="filter-q"
                   name="q"
-                  type="search"
                   defaultValue={filters.search}
                   placeholder="Session title"
                 />

@@ -93,6 +93,10 @@ export function PersonSheet({
 
   const [schoolRefs, setSchoolRefs] = useState<string[]>([...person.schoolRefs]);
   const [regionRefs, setRegionRefs] = useState<string[]>([...person.regionRefs]);
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
 
   // Each closes the drawer on success and announces it on the page behind —
   // see `useSettled`. The directory underneath has already been revalidated by
@@ -301,22 +305,46 @@ export function PersonSheet({
 
           {person.canSetPassword ? (
             <>
-              <Failure state={password} />
+              {passwordMismatch ? (
+                <p className="notice notice-bad" role="alert">
+                  <span aria-hidden="true">!</span>{" "}
+                  <span>those two passwords are not the same</span>
+                </p>
+              ) : (
+                <Failure state={password} />
+              )}
               <p className="hint">
                 {person.hasPassword
                   ? "Sets a new one immediately. Tell them in person — it is never emailed, and it is not recorded anywhere you can read it back."
                   : "They have never set one. Giving them a password here also makes the account usable."}
               </p>
-              <form action={submitPassword}>
+              {/* Held in state, and refused here before the action runs. A
+                  server action resets the form when it returns, including
+                  when it returns the mismatch, which wiped both boxes at the
+                  moment the warning appeared. */}
+              <form
+                action={submitPassword}
+                onSubmit={(event) => {
+                  if (nextPassword !== confirmPassword) {
+                    event.preventDefault();
+                    setPasswordMismatch(true);
+                  }
+                }}
+              >
                 <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
                 <Field id="person-password" label="New password">
                   <input
                     id="person-password"
                     name="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     minLength={MIN_PASSWORD_LENGTH}
                     autoComplete="new-password"
+                    value={nextPassword}
+                    onChange={(event) => {
+                      setNextPassword(event.target.value);
+                      setPasswordMismatch(false);
+                    }}
                   />
                   <Hint>At least {MIN_PASSWORD_LENGTH} characters. Length is the whole rule.</Hint>
                 </Field>
@@ -324,10 +352,15 @@ export function PersonSheet({
                   <input
                     id="person-password-again"
                     name="password_confirm"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     minLength={MIN_PASSWORD_LENGTH}
                     autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => {
+                      setConfirmPassword(event.target.value);
+                      setPasswordMismatch(false);
+                    }}
                   />
                 </Field>
                 {/* A checkbox rather than an eye glyph on the field: it belongs
@@ -337,13 +370,8 @@ export function PersonSheet({
                   type="checkbox"
                   name="show_password"
                   label="Show password"
-                  onChange={(event) => {
-                    const kind = event.currentTarget.checked ? "text" : "password";
-                    for (const id of ["person-password", "person-password-again"]) {
-                      const box = document.getElementById(id) as HTMLInputElement | null;
-                      if (box) box.type = kind;
-                    }
-                  }}
+                  checked={showPassword}
+                  onChange={(event) => setShowPassword(event.target.checked)}
                 />
                 <div className="btn-row">
                   <Button variant="primary" type="submit" disabled={settingPassword}>

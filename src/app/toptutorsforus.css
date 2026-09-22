@@ -761,16 +761,23 @@ body:has(.filterdrawer[data-open="true"]) .main { overflow: hidden; }
 /* What a page says once a dialog has closed — see `components/ui/Flash.tsx`.
    The region is always in the document so that a live region is not being
    *added* along with its first message, which most screen readers never
-   announce. Empty it has no box, no gap and no margin, so a page with nothing
-   to report is laid out exactly as it was before this existed. */
-.flash-region { display: flex; flex-direction: column; gap: 0.5rem; }
-.flash-region:not(:empty) { margin-bottom: 1rem; }
+   announce. It is taken out of the flow: a notice arriving, and the same
+   notice leaving a few seconds later, must not move the page under it. */
+.flash-region {
+  position: fixed; z-index: 80;
+  top: 1rem; right: 1.25rem;
+  width: min(28rem, calc(100vw - 2.5rem));
+  display: flex; flex-direction: column; gap: 0.5rem;
+  margin: 0; pointer-events: none;
+}
 
 .flash {
   display: flex; align-items: flex-start; gap: 0.55rem;
   margin: 0; padding: 0.7rem 0.8rem;
   border: 1px solid; border-radius: var(--radius);
   font-size: 0.93rem;
+  pointer-events: auto;
+  box-shadow: var(--shadow);
 }
 .flash-glyph { flex: none; font-weight: 700; line-height: 1.5; }
 .flash-text { flex: 1 1 auto; }
@@ -909,6 +916,15 @@ details > form { margin-top: 0.8rem; }
   display: block; margin-bottom: 0.3rem;
   font-weight: 600; font-size: 0.88rem; color: var(--ink-700);
 }
+/* The star is the signal that the control has to be filled. The attribute
+   already tells a screen reader; this is for the eye. A picker cannot put
+   `required` on its text box — that box is not what is submitted — so its
+   star is an element instead, the same colour. */
+.field:has(input:required, select:required, textarea:required) > label::after {
+  content: " *";
+  color: var(--bad-text);
+}
+.req { margin-left: 0.15em; color: var(--bad-text); font-weight: 700; text-decoration: none; }
 .field .hint { display: block; margin-top: 0.25rem; font-size: 0.82rem; color: var(--ink-500); }
 .field .error { display: block; margin-top: 0.25rem; font-size: 0.85rem; color: var(--bad-text); font-weight: 600; }
 

@@ -19,6 +19,7 @@ export function Field({
   label,
   className,
   labelClassName,
+  required,
   children,
   ...rest
 }: {
@@ -28,12 +29,23 @@ export function Field({
   className?: string;
   /** For a label that is present but not drawn — a search box in a toolbar. */
   labelClassName?: string;
+  /**
+   * Draws the required star. A native `required` on the control already does
+   * that from the stylesheet; this is for a control that cannot carry the
+   * attribute, such as a picker whose text box is not what gets submitted.
+   */
+  required?: boolean;
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={className ? `field ${className}` : "field"} {...rest}>
       <label className={labelClassName} htmlFor={id}>
         {label}
+        {required ? (
+          <abbr className="req" title="required">
+            *
+          </abbr>
+        ) : null}
       </label>
       {children}
     </div>

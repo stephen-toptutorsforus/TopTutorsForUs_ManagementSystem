@@ -23,10 +23,11 @@
  * form that produced them, inside the dialog, which is where the field that
  * needs correcting is.
  *
- * The region sits above the page's own heading and is never removed from the
- * document, so an announcement is made by the text changing inside a live
- * region that was already there. A region added *with* its first message is one
- * most screen readers never announce at all.
+ * The region is never removed from the document, so an announcement is made by
+ * the text changing inside a live region that was already there. A region
+ * added *with* its first message is one most screen readers never announce at
+ * all. It is fixed over the page: whether a notice is showing or has gone,
+ * nothing else moves.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";

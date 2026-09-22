@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 
-import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
+import { AnchorButton, Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, StatusBadge, TableWrap, Tag, VisuallyHidden, When } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -200,10 +200,9 @@ export default async function SessionsPage() {
               >
             <FilterSection legend="Sessions">
               <Field id="filter-q" label="Search titles">
-                <input
+                <SearchInput
                   id="filter-q"
                   name="q"
-                  type="search"
                   defaultValue={filters.search}
                   placeholder="Session title"
                 />

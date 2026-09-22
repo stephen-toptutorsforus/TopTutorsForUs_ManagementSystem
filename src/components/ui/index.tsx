@@ -26,6 +26,7 @@ export { ChevronIcon, FunnelIcon, ResetIcon, SaveIcon, SearchIcon, ShareIcon, Tr
 export { Modal } from "./Modal";
 export { Sheet } from "./Sheet";
 export { PageHeader, PageToolbar, SearchField } from "./PageHeader";
+export { SearchInput } from "./SearchInput";
 export { Notice } from "./Notice";
 export { ScopeChoice } from "./ScopeChoice";
 export { TableWrap } from "./Table";

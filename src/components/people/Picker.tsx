@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Field, Hint, VisuallyHidden } from "@/components/ui";
+import { Field, Hint, SearchInput, VisuallyHidden } from "@/components/ui";
 
 /** The nearest ancestor that scrolls, so a menu can be brought into that box. */
 function scrollParent(element: HTMLElement): HTMLElement | null {
@@ -107,18 +107,17 @@ export function Picker({
   }, [menuOpen, highlighted]);
 
   return (
-    <Field id={inputId} label={<>{label}</>}>
+    <Field id={inputId} label={label} required={required}>
       <div ref={fieldRef} className={menuOpen ? "search-field is-open" : "search-field"}>
         <span className="search-icon" aria-hidden="true">
           ⌕
         </span>
-        <input
+        <SearchInput
           id={inputId}
           // Only submitted when nothing has been chipped: with a chip present
           // the refs are authoritative, and sending a half-typed name as well
           // would resolve a second person nobody picked.
           name={chosen.length === 0 ? `${name}_names` : undefined}
-          type="search"
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={menuOpen}

@@ -19,7 +19,7 @@ import {
   PersonNameButton,
 } from "@/components/people/OverlayTriggers";
 import { PeopleOverlays } from "@/components/people/PeopleOverlays";
-import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -261,10 +261,9 @@ export default async function PeoplePage() {
                   query does — `listPeople` searches both in one pass. Two
                   boxes here would be two parameters mapping to one search. */}
               <Field id="filter-q" label="Name or email">
-                <input
+                <SearchInput
                   id="filter-q"
                   name="q"
-                  type="search"
                   defaultValue={search}
                   placeholder="Name or email"
                 />
