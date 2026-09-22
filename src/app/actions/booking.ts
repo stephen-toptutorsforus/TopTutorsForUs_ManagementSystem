@@ -26,12 +26,14 @@ import { prisma } from "@/lib/db";
 import { ValidationError, payloadFor } from "@/lib/errors";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
+import { resolveRosterFromRefs } from "@/lib/services/instructorEligibility";
 import {
   type BookingRequest,
   createFromPlan,
   plan as planBooking,
 } from "@/lib/services/booking";
 import type { WeekdaySchedule } from "@/lib/recurrence";
+import { assertStudentsAtSchool } from "@/lib/services/enrolment";
 import { type CivilDate, type CivilTime, isValidZone } from "@/lib/time";
 import { maxRepeatDays, weekdayOf } from "@/lib/presentation";
 import {
@@ -309,6 +311,7 @@ export async function bookingStep(
   const askedDays = intOr(one(form, "matrix_days"), MATRIX_PAGE_DAYS);
   const matrixDays = Math.min(MATRIX_MAX_DAYS, Math.max(MATRIX_PAGE_DAYS, askedDays));
 
+  const schoolRef = one(form, "school_ref");
   const context = await bookingContext(prisma, principal, organization, {
     day: dateOrNull(values.start_date ?? ""),
     fromTime: timeOr(values.start_time ?? "", "09:00"),
@@ -321,6 +324,7 @@ export async function bookingStep(
     // for React to commit the new hidden inputs before submitting.
     studentRefs: selectedStudents,
     groupRef: one(form, "group_ref"),
+    schoolRef,
     // The weekdays the run falls on, so a chosen instructor's availability can
     // be drawn a row per weekday. Only above one session: below it the panel is
     // hidden and its fields still submit.
@@ -330,7 +334,11 @@ export async function bookingStep(
         : [],
   });
 
-  const base: BookingState = { context, values, selectedStudents, plan: null };
+  const offered = new Set(context.students.map((person) => person.ref));
+  const roster = schoolRef
+    ? selectedStudents.filter((ref) => offered.has(ref))
+    : selectedStudents;
+  const base: BookingState = { context, values, selectedStudents: roster, plan: null };
 
   // A refresh answers "who is free" and nothing else. No plan, no write.
   if (step === "refresh") return base;
@@ -339,6 +347,17 @@ export async function bookingStep(
   let bookingPlan: Awaited<ReturnType<typeof planBooking>>;
   try {
     booking = await bookingFromForm(principal, form);
+    if (schoolRef) {
+      const school = await prisma.school.findFirst({
+        where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+      });
+      if (school === null) throw new ValidationError("no such school");
+      const rosterIds = await resolveRosterFromRefs(prisma, principal, {
+        studentRefs: roster,
+        groupRef: one(form, "group_ref"),
+      });
+      await assertStudentsAtSchool(prisma, organization, school, rosterIds);
+    }
     bookingPlan = await planBooking(prisma, organization, principal, booking);
   } catch (error) {
     return { ...base, error: payloadFor(error).message };

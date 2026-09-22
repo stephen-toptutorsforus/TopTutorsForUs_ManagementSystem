@@ -242,6 +242,10 @@ export interface BookingContext extends AvailabilityBlock {
    * text beside it is directions to it, not a substitute for it.
    */
   locations: Choice[];
+  /** The tenant's schools. Hidden on the form when the list is empty. */
+  schools: Choice[];
+  /** The school the form is currently narrowing by, if any. */
+  chosenSchoolRef: string;
   durations: number[];
   deliveryTypes: { value: string; label: string }[];
   canOverride: boolean;
@@ -544,6 +548,7 @@ export async function bookingContext(
     studentRefs?: readonly string[];
     groupRef?: string;
     repeatDays?: readonly RepeatDayInput[];
+    schoolRef?: string;
   },
 ): Promise<BookingContext> {
   const zone = principal.timezone;
@@ -582,9 +587,26 @@ export async function bookingContext(
   // No instructor query here: the eligible list came back from
   // `availabilityContext` and is spread in below. Asking a second time is how
   // the dropdown and the grid start offering different people.
-  const [students, programs, groups, locations] = await Promise.all([
+  const schoolRef = (chosen.schoolRef ?? "").trim();
+  const school = schoolRef
+    ? await db.school.findFirst({
+        where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+        select: { id: true, ref: true },
+      })
+    : null;
+
+  const [students, programs, groups, locations, schools] = await Promise.all([
     db.user.findMany({
-      where: { ...scoped(principal), archivedAt: null, roles: { some: { role: "STUDENT" } } },
+      where: {
+        ...scoped(principal),
+        archivedAt: null,
+        roles: { some: { role: "STUDENT" } },
+        ...(school
+          ? { schools: { some: { schoolId: school.id } } }
+          : schoolRef
+            ? { id: -1n }
+            : {}),
+      },
       select: { ref: true, firstName: true, lastName: true, email: true },
       orderBy: { lastName: "asc" },
     }),
@@ -599,6 +621,19 @@ export async function bookingContext(
       orderBy: { name: "asc" },
     }),
     db.location.findMany({
+      where: {
+        ...scoped(principal),
+        archivedAt: null,
+        ...(school
+          ? { OR: [{ schoolId: school.id }, { schoolId: null }] }
+          : schoolRef
+            ? { id: -1n }
+            : {}),
+      },
+      select: { ref: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    db.school.findMany({
       where: { ...scoped(principal), archivedAt: null },
       select: { ref: true, name: true },
       orderBy: { name: "asc" },
@@ -619,6 +654,8 @@ export async function bookingContext(
     programs: programs.map((program) => ({ ref: program.ref, label: program.name })),
     groups: groups.map((group) => ({ ref: group.ref, label: group.name })),
     locations: locations.map((location) => ({ ref: location.ref, label: location.name })),
+    schools: schools.map((row) => ({ ref: row.ref, label: row.name })),
+    chosenSchoolRef: school?.ref ?? "",
     durations,
     deliveryTypes: deliveryTypes.length > 0 ? deliveryTypes : [
       { value: "external_link", label: deliveryMeta(DeliveryType.EXTERNAL_LINK).choice },

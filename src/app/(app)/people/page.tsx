@@ -82,6 +82,31 @@ export default async function PeoplePage() {
   const { search, roles: chosenRoles } = filters;
 
   const rows = await listPeople(prisma, principal, filters);
+  const personIds = rows.map((row) => row.user.id);
+  const [schoolRows, regionRows] = personIds.length
+    ? await Promise.all([
+        prisma.userSchool.findMany({
+          where: { organizationId: principal.organizationId, userId: { in: personIds } },
+          select: { userId: true, school: { select: { ref: true } } },
+        }),
+        prisma.userRegion.findMany({
+          where: { organizationId: principal.organizationId, userId: { in: personIds } },
+          select: { userId: true, region: { select: { ref: true } } },
+        }),
+      ])
+    : [[], []];
+  const schoolsByUser = new Map<bigint, string[]>();
+  for (const row of schoolRows) {
+    const held = schoolsByUser.get(row.userId) ?? [];
+    held.push(row.school.ref);
+    schoolsByUser.set(row.userId, held);
+  }
+  const regionsByUser = new Map<bigint, string[]>();
+  for (const row of regionRows) {
+    const held = regionsByUser.get(row.userId) ?? [];
+    held.push(row.region.ref);
+    regionsByUser.set(row.userId, held);
+  }
   const canManage = principal.has(Permission.USER_MANAGE);
   const roleOptions = roleFilterOptions();
   const activeFilters = activeDirectoryFilters(filters);
@@ -367,6 +392,12 @@ export default async function PeoplePage() {
                             canManage &&
                             person.ref !== principal.userRef &&
                             (principal.isAdmin || !row.roleNames.includes("Admin")),
+                          // Derived region rows behind a school are hidden so
+                          // submitting the drawer cannot trip "not both".
+                          schoolRefs: schoolsByUser.get(person.id) ?? [],
+                          regionRefs: (schoolsByUser.get(person.id) ?? []).length
+                            ? []
+                            : (regionsByUser.get(person.id) ?? []),
                         })}
                       >
                         {displayName}

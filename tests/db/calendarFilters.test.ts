@@ -151,4 +151,29 @@ describeDb("narrowing the calendar by who", () => {
     expect(await titles({ studentRef: theirs.ref })).toEqual([]);
     expect(await titles({ instructorRef: theirs.ref })).toEqual([]);
   });
+
+  it("narrows to sessions whose student is at a school", async () => {
+    const north = await db.school.create({
+      data: { ref: newRef("sch"), organizationId: org.id, name: "Northgate High" },
+    });
+    const south = await db.school.create({
+      data: { ref: newRef("sch"), organizationId: org.id, name: "Riverbend Middle" },
+    });
+    await db.userSchool.create({
+      data: { organizationId: org.id, userId: ada.id, schoolId: north.id },
+    });
+    await db.userSchool.create({
+      data: { organizationId: org.id, userId: bruno.id, schoolId: south.id },
+    });
+
+    expect(await titles({ schoolRef: north.ref })).toEqual(["Marguerite and Ada"]);
+    expect(await titles({ schoolRef: south.ref })).toEqual(["Tobias and Bruno"]);
+    expect(await titles({ schoolRef: "sch_nobody" })).toEqual([]);
+
+    const elsewhere = await makeOrganization(db, { name: "Harbour Point 2", timezone: NY });
+    const theirs = await db.school.create({
+      data: { ref: newRef("sch"), organizationId: elsewhere.id, name: "Elsewhere High" },
+    });
+    expect(await titles({ schoolRef: theirs.ref })).toEqual([]);
+  });
 });

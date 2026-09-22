@@ -184,7 +184,14 @@ async function attachLocations(
   regions: readonly PlaceRef[],
 ): Promise<void> {
   const districtIds = new Set<bigint>();
-  const regionIds = new Set<bigint>(regions.map((region) => region.id));
+  const regionIds = new Set<bigint>();
+
+  for (const region of regions) {
+    if (region.organizationId !== organization.id) {
+      throw new ValidationError("that region is not in this organization");
+    }
+    regionIds.add(region.id);
+  }
 
   for (const school of schools) {
     if (school.organizationId !== organization.id) {
@@ -406,4 +413,179 @@ export async function createStaff(
   });
 
   return person;
+}
+
+export interface SetPlacementsInput {
+  person: PersonRecord;
+  schools?: readonly PlaceRef[];
+  regions?: readonly PlaceRef[];
+  requestMeta?: RequestMeta;
+}
+
+/**
+ * Replace where somebody is placed.
+ *
+ * The same two rules as create: schools or regions, never both, and a school
+ * expands upward. Existing place rows are dropped first so this is a write of
+ * the whole set, not an append. Role grants are left alone — a regional
+ * administrator's scope rides on `user_role`, not on these rows.
+ */
+export async function setPlacements(
+  db: Db,
+  organization: OrganizationRef,
+  principal: Principal,
+  input: SetPlacementsInput,
+): Promise<void> {
+  principal.require(P.USER_MANAGE);
+
+  const { person } = input;
+  const schools = input.schools ?? [];
+  const regions = input.regions ?? [];
+
+  if (person.organizationId !== organization.id) {
+    throw new ValidationError("that person is not in this organization");
+  }
+  if (schools.length > 0 && regions.length > 0) {
+    throw new ValidationError(
+      "attach this person to schools or to regions, not both — " +
+        "a school already carries its district and region",
+    );
+  }
+
+  await db.userSchool.deleteMany({ where: { userId: person.id } });
+  await db.userDistrict.deleteMany({ where: { userId: person.id } });
+  await db.userRegion.deleteMany({ where: { userId: person.id } });
+  await attachLocations(db, organization, person, schools, regions);
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "user.placements_set",
+    entityType: "user_account",
+    entityId: person.id,
+    entityRef: person.ref,
+    changes: {
+      location_ref: {
+        from: null,
+        to:
+          schools.length > 0
+            ? schools.map((place) => place.ref)
+            : regions.length > 0
+              ? regions.map((place) => place.ref)
+              : null,
+      },
+    },
+    ...input.requestMeta,
+  });
+}
+
+/**
+ * The schools and regions a person currently holds, as `PlaceRef`s the write
+ * path can take back. Districts are derived from schools and are not returned.
+ */
+export async function currentPlacements(
+  db: Db,
+  person: { id: bigint; organizationId: bigint },
+): Promise<{ schools: PlaceRef[]; regions: PlaceRef[] }> {
+  const [schoolRows, regionRows] = await Promise.all([
+    db.userSchool.findMany({
+      where: { userId: person.id, organizationId: person.organizationId },
+      select: {
+        school: {
+          select: { id: true, ref: true, organizationId: true, districtId: true },
+        },
+      },
+    }),
+    db.userRegion.findMany({
+      where: { userId: person.id, organizationId: person.organizationId },
+      select: {
+        region: { select: { id: true, ref: true, organizationId: true } },
+      },
+    }),
+  ]);
+
+  return {
+    schools: schoolRows.map((row) => row.school),
+    regions: regionRows.map((row) => row.region),
+  };
+}
+
+/**
+ * Add one school to somebody who is already school-placed, or unplaced.
+ *
+ * Refuses a person who is attached to regions only — that is the other method,
+ * and converting it is a decision for their record, not a side-effect of
+ * attaching them from a school page.
+ */
+export async function attachSchool(
+  db: Db,
+  organization: OrganizationRef,
+  principal: Principal,
+  input: {
+    person: PersonRecord;
+    school: PlaceRef;
+    requestMeta?: RequestMeta;
+  },
+): Promise<void> {
+  const current = await currentPlacements(db, input.person);
+  if (current.regions.length > 0 && current.schools.length === 0) {
+    throw new ValidationError(
+      "this person is attached to regions; change that from their record",
+    );
+  }
+  if (current.schools.some((school) => school.id === input.school.id)) return;
+
+  await setPlacements(db, organization, principal, {
+    person: input.person,
+    schools: [...current.schools, input.school],
+    requestMeta: input.requestMeta,
+  });
+}
+
+/** Drop one school. Remaining schools keep their district and region rows. */
+export async function detachSchool(
+  db: Db,
+  organization: OrganizationRef,
+  principal: Principal,
+  input: {
+    person: PersonRecord;
+    school: PlaceRef;
+    requestMeta?: RequestMeta;
+  },
+): Promise<void> {
+  const current = await currentPlacements(db, input.person);
+  await setPlacements(db, organization, principal, {
+    person: input.person,
+    schools: current.schools.filter((school) => school.id !== input.school.id),
+    requestMeta: input.requestMeta,
+  });
+}
+
+/**
+ * Every named student must be placed at this school.
+ *
+ * Used when the booking form has chosen a school: the list is already
+ * narrowed, and this is what a crafted post cannot talk its way around.
+ */
+export async function assertStudentsAtSchool(
+  db: Db,
+  organization: OrganizationRef,
+  school: PlaceRef,
+  studentIds: readonly bigint[],
+): Promise<void> {
+  if (school.organizationId !== organization.id) {
+    throw new ValidationError("that school is not in this organization");
+  }
+  if (studentIds.length === 0) return;
+
+  const placed = await db.userSchool.findMany({
+    where: {
+      organizationId: organization.id,
+      schoolId: school.id,
+      userId: { in: [...studentIds] },
+    },
+    select: { userId: true },
+  });
+  if (placed.length !== studentIds.length) {
+    throw new ValidationError("that student is not at this school");
+  }
 }

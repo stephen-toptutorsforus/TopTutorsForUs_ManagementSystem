@@ -129,6 +129,13 @@ const NAV_MAIN: readonly NavSpec[] = [
         icon: "⌂",
         permissions: [P.STRUCTURE_VIEW],
       },
+      {
+        kind: "item",
+        label: "Schools",
+        href: "/schools",
+        icon: "▣",
+        permissions: [P.STRUCTURE_VIEW],
+      },
       // Availability belongs to the person being scheduled, so for anybody who
       // may edit everybody's it is filed with the people rather than with the
       // sessions.

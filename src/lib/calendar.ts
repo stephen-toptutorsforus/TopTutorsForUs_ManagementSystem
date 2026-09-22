@@ -293,7 +293,7 @@ export function narrowsByStatus(statuses: readonly SessionStatus[]): boolean {
  */
 export type CalendarFilters = Pick<
   SessionFilters,
-  "search" | "statuses" | "instructorRef" | "studentRef"
+  "search" | "statuses" | "instructorRef" | "studentRef" | "schoolRef"
 >;
 
 /**
@@ -310,6 +310,7 @@ export function activeCalendarFilters(filters: CalendarFilters): number {
     narrowsByStatus(filters.statuses),
     filters.instructorRef !== null,
     filters.studentRef !== null,
+    filters.schoolRef !== null,
   ].filter(Boolean).length;
 }
 
@@ -348,5 +349,6 @@ export function queryString(
   // empty value is what the address already means when it says nothing.
   if (filters.instructorRef) params.append("instructor", filters.instructorRef);
   if (filters.studentRef) params.append("student", filters.studentRef);
+  if (filters.schoolRef) params.append("school", filters.schoolRef);
   return readableQuery(params);
 }

@@ -193,6 +193,15 @@ export function BookingForm({
   const [students, setStudents] = useState<string[]>(state.selectedStudents);
   const [matrixDays, setMatrixDays] = useState(context.matrixDays);
 
+  // A school narrows the roster. Chips for people who are no longer offered
+  // have to go, or the next submit would post a student the list no longer
+  // holds — and Preview would refuse them after the fact.
+  if (context.chosenSchoolRef) {
+    const offered = new Set(context.students.map((person) => person.ref));
+    const kept = students.filter((ref) => offered.has(ref));
+    if (kept.length !== students.length) setStudents(kept);
+  }
+
   const value = (name: string, fallback = "") => values[name] ?? fallback;
   /**
    * Whether the Billable box is ticked.
@@ -837,6 +846,23 @@ export function BookingForm({
 
         <fieldset className="card-section">
           <legend className="card-subhead">Students and groups</legend>
+
+          {context.schools.length > 0 && (
+            <Field id="school_ref" label="School">
+              <OptionSelect
+                id="school_ref"
+                name="school_ref"
+                defaultValue={value("school_ref") || context.chosenSchoolRef}
+                key={`school-${value("school_ref") || context.chosenSchoolRef}`}
+                placeholder="Any school"
+                options={context.schools.map(({ ref, label }) => ({ value: ref, label }))}
+                onChange={() => refresh()}
+              />
+              <Hint>
+                Optional. Narrows the student list and the rooms to this school.
+              </Hint>
+            </Field>
+          )}
 
           <Field id="student_picker" label="Students">
             {/* An ordinary one-line dropdown, not a multi-select list box: a

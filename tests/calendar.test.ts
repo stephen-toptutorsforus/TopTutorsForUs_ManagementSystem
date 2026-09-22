@@ -131,7 +131,7 @@ describe("window arithmetic", () => {
  */
 const only = (
   filters: Partial<CalendarFilters> & Pick<CalendarFilters, "search" | "statuses">,
-): CalendarFilters => ({ instructorRef: null, studentRef: null, ...filters });
+): CalendarFilters => ({ instructorRef: null, studentRef: null, schoolRef: null, ...filters });
 
 describe("links", () => {
   it("carries the whole filter state", () => {
@@ -274,7 +274,8 @@ describe("one spelling per state", () => {
       "status=cancelled,missed",
       "instructor=usr_abc",
       "student=usr_xyz",
-      "view=week&q=algebra&instructor=usr_abc&student=usr_xyz",
+      "school=sch_abc",
+      "view=week&q=algebra&instructor=usr_abc&student=usr_xyz&school=sch_abc",
     ]) {
       expect(stored(stored(query)), query).toBe(stored(query));
     }
@@ -287,6 +288,7 @@ describe("one spelling per state", () => {
     // selection that narrowed nothing.
     expect(stored("instructor=usr_abc")).toBe("instructor=usr_abc");
     expect(stored("student=usr_xyz")).toBe("student=usr_xyz");
+    expect(stored("school=sch_abc")).toBe("school=sch_abc");
   });
 
   it("counts each of them as one filter, and an unset one as none", () => {
@@ -296,6 +298,7 @@ describe("one spelling per state", () => {
     expect(
       activeCalendarFilters({ ...none, instructorRef: "usr_abc", studentRef: "usr_xyz" }),
     ).toBe(2);
+    expect(activeCalendarFilters({ ...none, schoolRef: "sch_abc" })).toBe(1);
   });
 
   it("reads a status list written either way to the same one string", () => {

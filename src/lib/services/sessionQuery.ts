@@ -111,6 +111,11 @@ export interface SessionFilters {
    * nothing rather than being ignored.
    */
   studentRef: string | null;
+  /**
+   * One school, by ref. A session matches if any student participant is
+   * placed there. Not a column on the session — the schema has no schoolId.
+   */
+  schoolRef: string | null;
   page: number;
   columns: readonly string[];
 }
@@ -123,6 +128,7 @@ export const EMPTY_FILTERS: SessionFilters = {
   instructorRef: null,
   programRef: null,
   studentRef: null,
+  schoolRef: null,
   page: 1,
   columns: DEFAULT_COLUMNS,
 };
@@ -170,6 +176,7 @@ export function parseFilters(params: URLSearchParams): SessionFilters {
     instructorRef: (params.get("instructor") ?? "").trim() || null,
     programRef: (params.get("program") ?? "").trim() || null,
     studentRef: (params.get("student") ?? "").trim() || null,
+    schoolRef: (params.get("school") ?? "").trim() || null,
     page,
     columns: requested.length > 0 ? requested : DEFAULT_COLUMNS,
   };
@@ -198,6 +205,7 @@ export function activeSessionFilters(filters: SessionFilters): number {
     filters.instructorRef !== null,
     filters.programRef !== null,
     filters.studentRef !== null,
+    filters.schoolRef !== null,
     !sameColumns(filters.columns, DEFAULT_COLUMNS),
   ].filter(Boolean).length;
 }
@@ -224,6 +232,7 @@ export function toQuery(
     instructor: filters.instructorRef ?? "",
     program: filters.programRef ?? "",
     student: filters.studentRef ?? "",
+    school: filters.schoolRef ?? "",
     page: filters.page,
     columns:
       sameColumns(filters.columns, DEFAULT_COLUMNS) ? "" : filters.columns.join(","),
@@ -436,21 +445,49 @@ async function narrowByRefs(
     });
     narrowed = { ...narrowed, programId: program ? program.id : -1n };
   }
-  if (filters.studentRef) {
-    // A relation rather than a column, so no id lookup: an unknown ref matches
-    // no participant row and the session list comes back empty, which is the
-    // same answer the other two reach the long way round. Scoped to the tenant
-    // on the participant row as well, so the join cannot reach across.
-    narrowed = {
-      ...narrowed,
-      participants: {
+  const studentFilter = filters.studentRef
+    ? {
         some: {
           organizationId: principal.organizationId,
           role: ParticipantRole.STUDENT,
           user: { ref: filters.studentRef },
         },
-      },
+      }
+    : null;
+  const schoolFilter = filters.schoolRef
+    ? {
+        some: {
+          organizationId: principal.organizationId,
+          role: ParticipantRole.STUDENT,
+          user: { schools: { some: { school: { ref: filters.schoolRef } } } },
+        },
+      }
+    : null;
+
+  if (studentFilter && schoolFilter) {
+    // Two `some`s, not one merged: a student at the school is one person, and
+    // asking both of the same row would hide a session whose school student
+    // and named student are two different people.
+    const existingAnd = Array.isArray(narrowed.AND)
+      ? narrowed.AND
+      : narrowed.AND
+        ? [narrowed.AND]
+        : [];
+    narrowed = {
+      ...narrowed,
+      AND: [...existingAnd, { participants: studentFilter }, { participants: schoolFilter }],
     };
+  } else if (studentFilter) {
+    // A relation rather than a column, so no id lookup: an unknown ref matches
+    // no participant row and the session list comes back empty, which is the
+    // same answer the other two reach the long way round. Scoped to the tenant
+    // on the participant row as well, so the join cannot reach across.
+    narrowed = { ...narrowed, participants: studentFilter };
+  } else if (schoolFilter) {
+    // Same shape as studentRef: a session belongs to a school because a
+    // student on it is placed there. An unknown or foreign ref matches no
+    // placement row, so the list comes back empty rather than widening.
+    narrowed = { ...narrowed, participants: schoolFilter };
   }
   return narrowed;
 }

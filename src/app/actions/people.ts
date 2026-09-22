@@ -21,7 +21,12 @@ import { prisma } from "@/lib/db";
 import { NotFound, ValidationError, payloadFor } from "@/lib/errors";
 import type { Principal } from "@/lib/policies/principal";
 import { scoped } from "@/lib/policies/scoping";
-import { createGuardian, createStaff, createStudent } from "@/lib/services/enrolment";
+import {
+  createGuardian,
+  createStaff,
+  createStudent,
+  setPlacements,
+} from "@/lib/services/enrolment";
 import type { PlaceRef } from "@/lib/services/enrolment";
 import { assignStudent } from "@/lib/services/people";
 import type { PersonRecord } from "@/lib/services/people";
@@ -271,6 +276,32 @@ export async function editPersonAction(
     revalidatePeople();
     const name = `${updated.firstName} ${updated.lastName}`.trim() || updated.ref;
     return { notice: `Saved ${name}.` };
+  } catch (error) {
+    return { error: payloadFor(error).message };
+  }
+}
+
+export async function setPlacementsAction(
+  ref: string,
+  _previous: FormResult,
+  form: FormData,
+): Promise<FormResult> {
+  try {
+    await verifyCsrf(form);
+    const { principal, organization } = await requireContext();
+    const person = await loadPerson(principal, ref);
+
+    await setPlacements(prisma, organization, principal, {
+      person,
+      schools: await pickPlaces(principal, form, "school", prisma.school),
+      regions: await pickPlaces(principal, form, "region", prisma.region),
+      requestMeta: await requestMeta(),
+    });
+
+    revalidatePeople();
+    revalidatePath("/schools");
+    const name = `${person.firstName} ${person.lastName}`.trim() || person.ref;
+    return { notice: `Updated where ${name} is placed.` };
   } catch (error) {
     return { error: payloadFor(error).message };
   }

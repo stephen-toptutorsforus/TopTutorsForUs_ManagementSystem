@@ -13,7 +13,14 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { GuardianRelationship, Role, UserStatus } from "@/generated/prisma/enums";
 import type { Principal } from "@/lib/policies/principal";
 import { loadPrincipal } from "@/lib/policies/principal";
-import { createGuardian, createStaff, createStudent } from "@/lib/services/enrolment";
+import {
+  attachSchool,
+  createGuardian,
+  createStaff,
+  createStudent,
+  detachSchool,
+  setPlacements,
+} from "@/lib/services/enrolment";
 import { newRef } from "@/lib/ref";
 
 import { TEST_DATABASE_URL, makeOrganization, makeUser, reset, testClient } from "./harness";
@@ -346,5 +353,124 @@ describeDb("enrolment", () => {
         email: "",
       }),
     ).rejects.toThrow("needs an email address");
+  });
+
+  // --- Placements after create --------------------------------------------
+
+  it("replaces a person's schools and expands the new one", async () => {
+    const first = await aSchoolUnderARegion();
+    const secondRegion = await aRegion("Southern");
+    const secondDistrict = await db.district.create({
+      data: {
+        ref: newRef("dis"),
+        organizationId: org.id,
+        name: "Vale",
+        regionId: secondRegion.id,
+      },
+    });
+    const second = await db.school.create({
+      data: {
+        ref: newRef("sch"),
+        organizationId: org.id,
+        name: "Vale High",
+        districtId: secondDistrict.id,
+      },
+    });
+
+    const person = await withRoles(student.id);
+    await setPlacements(db, org, principal, { person, schools: [first.school] });
+    await setPlacements(db, org, principal, { person, schools: [second] });
+
+    expect(await db.userSchool.findMany({ where: { userId: person.id } })).toHaveLength(1);
+    expect(
+      (await db.userSchool.findFirstOrThrow({ where: { userId: person.id } })).schoolId,
+    ).toBe(second.id);
+    expect(
+      (await db.userDistrict.findFirstOrThrow({ where: { userId: person.id } })).districtId,
+    ).toBe(secondDistrict.id);
+    expect(
+      (await db.userRegion.findFirstOrThrow({ where: { userId: person.id } })).regionId,
+    ).toBe(secondRegion.id);
+  });
+
+  it("refuses schools and regions together when replacing placements", async () => {
+    const { school } = await aSchoolUnderARegion();
+    const region = await aRegion("Coastal");
+
+    await expect(
+      setPlacements(db, org, principal, {
+        person: await withRoles(student.id),
+        schools: [school],
+        regions: [region],
+      }),
+    ).rejects.toThrow("not both");
+  });
+
+  it("refuses another tenant's school", async () => {
+    const other = await makeOrganization(db, { timezone: "America/Los_Angeles" });
+    const theirSchool = await db.school.create({
+      data: { ref: newRef("sch"), organizationId: other.id, name: "Elsewhere High" },
+    });
+
+    await expect(
+      setPlacements(db, org, principal, {
+        person: await withRoles(student.id),
+        schools: [theirSchool],
+      }),
+    ).rejects.toThrow("not in this organization");
+  });
+
+  it("leaves role grants alone when placements change", async () => {
+    const { school } = await aSchoolUnderARegion();
+    const person = await withRoles(instructor.id);
+    const before = await db.userRole.findMany({ where: { userId: person.id } });
+
+    await setPlacements(db, org, principal, { person, schools: [school] });
+
+    const after = await db.userRole.findMany({ where: { userId: person.id } });
+    expect(after.map((row) => row.role)).toEqual(before.map((row) => row.role));
+  });
+
+  it("attaches a school without dropping one already held", async () => {
+    const first = await aSchoolUnderARegion();
+    const extra = await db.school.create({
+      data: {
+        ref: newRef("sch"),
+        organizationId: org.id,
+        name: "Riverbend Middle",
+        districtId: first.district.id,
+      },
+    });
+    const person = await withRoles(student.id);
+    await setPlacements(db, org, principal, { person, schools: [first.school] });
+    await attachSchool(db, org, principal, { person, school: extra });
+
+    const held = await db.userSchool.findMany({ where: { userId: person.id } });
+    expect(new Set(held.map((row) => row.schoolId))).toEqual(
+      new Set([first.school.id, extra.id]),
+    );
+  });
+
+  it("refuses to attach a school to somebody placed only at a region", async () => {
+    const { school, region } = await aSchoolUnderARegion();
+    const person = await withRoles(student.id);
+    await setPlacements(db, org, principal, { person, regions: [region] });
+
+    await expect(
+      attachSchool(db, org, principal, { person, school }),
+    ).rejects.toThrow("attached to regions");
+  });
+
+  it("detaches one school and rebuilds the rest", async () => {
+    const { school, district, region } = await aSchoolUnderARegion();
+    const person = await withRoles(student.id);
+    await setPlacements(db, org, principal, { person, schools: [school] });
+    await detachSchool(db, org, principal, { person, school });
+
+    expect(await db.userSchool.findMany({ where: { userId: person.id } })).toHaveLength(0);
+    expect(await db.userDistrict.findMany({ where: { userId: person.id } })).toHaveLength(0);
+    expect(await db.userRegion.findMany({ where: { userId: person.id } })).toHaveLength(0);
+    expect(district.id).toBeTruthy();
+    expect(region.id).toBeTruthy();
   });
 });

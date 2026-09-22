@@ -27,6 +27,7 @@ import {
 } from "@/lib/calendar";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { scoped } from "@/lib/policies/scoping";
 import { availableActions } from "@/lib/policies/sessions";
 import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters";
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
@@ -202,7 +203,7 @@ export default async function CalendarPage() {
   // Fetched with the range rather than after it: three statements in parallel
   // rather than one waiting on another, and the drawer needs them on the first
   // paint because it is server-rendered markup.
-  const [buckets, instructors, students] = await Promise.all([
+  const [buckets, instructors, students, schools] = await Promise.all([
     calendarRange(prisma, principal, {
       first: window.first,
       last: window.last,
@@ -211,6 +212,11 @@ export default async function CalendarPage() {
     }),
     personOptions(prisma, principal, Role.INSTRUCTOR),
     personOptions(prisma, principal, Role.STUDENT),
+    prisma.school.findMany({
+      where: { ...scoped(principal), archivedAt: null },
+      select: { ref: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
   const total = [...buckets.values()].reduce((sum, rows) => sum + rows.length, 0);
 
@@ -345,6 +351,20 @@ export default async function CalendarPage() {
                   options={students}
                 />
               </Field>
+              {schools.length > 0 && (
+                <Field id="filter-school" label="School">
+                  <OptionSelect
+                    id="filter-school"
+                    name="school"
+                    defaultValue={filters.schoolRef ?? ""}
+                    placeholder="Any school"
+                    options={schools.map((school) => ({
+                      value: school.ref,
+                      label: school.name,
+                    }))}
+                  />
+                </Field>
+              )}
             </FilterSection>
               </FilterControl>
             }

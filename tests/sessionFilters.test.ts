@@ -84,7 +84,7 @@ describe("toQuery", () => {
   it("round-trips through parseFilters", () => {
     const original = filtersFrom(
       "q=algebra&status=scheduled&status=missed&from=2026-04-01&to=2026-04-30" +
-        "&instructor=usr_abc&program=prg_xyz&page=4&columns=title,status",
+        "&instructor=usr_abc&program=prg_xyz&student=usr_xyz&school=sch_abc&page=4&columns=title,status",
     );
 
     expect(filtersFrom(toQuery(original))).toEqual(original);
@@ -109,7 +109,7 @@ describe("what the grid stores", () => {
 
   it("drops the empty fields the filter form submits", () => {
     // Filtering on nothing at all submits all five as empty strings.
-    expect(tidy("q=&from=&to=&instructor=&program=&student=")).toBe("");
+    expect(tidy("q=&from=&to=&instructor=&program=&student=&school=")).toBe("");
     expect(tidy("q=&page=1")).toBe("");
   });
 
@@ -137,7 +137,8 @@ describe("what the grid stores", () => {
       "columns=title,status",
       "status=scheduled,missed",
       "student=usr_xyz",
-      "q=algebra&status=missed&from=2026-04-01&instructor=abc&student=xyz&page=2",
+      "school=sch_abc",
+      "q=algebra&status=missed&from=2026-04-01&instructor=abc&student=xyz&school=sch_abc&page=2",
     ]) {
       expect(tidy(tidy(query)), query).toBe(tidy(query));
     }

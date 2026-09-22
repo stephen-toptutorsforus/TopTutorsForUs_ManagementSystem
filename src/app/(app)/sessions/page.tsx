@@ -132,10 +132,15 @@ export default async function SessionsPage() {
 
   const results = await listSessions(prisma, principal, filters, { zone });
 
-  const [instructors, students, programs] = await Promise.all([
+  const [instructors, students, programs, schools] = await Promise.all([
     personOptions(prisma, principal, Role.INSTRUCTOR),
     personOptions(prisma, principal, Role.STUDENT),
     prisma.program.findMany({
+      where: { ...scoped(principal), archivedAt: null },
+      select: { ref: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.school.findMany({
       where: { ...scoped(principal), archivedAt: null },
       select: { ref: true, name: true },
       orderBy: { name: "asc" },
@@ -273,6 +278,20 @@ export default async function SessionsPage() {
                   }))}
                 />
               </Field>
+              {schools.length > 0 && (
+                <Field id="filter-school" label="School">
+                  <OptionSelect
+                    id="filter-school"
+                    name="school"
+                    defaultValue={filters.schoolRef ?? ""}
+                    placeholder="Any school"
+                    options={schools.map((school) => ({
+                      value: school.ref,
+                      label: school.name,
+                    }))}
+                  />
+                </Field>
+              )}
             </FilterSection>
 
             {/* Not a filter — a choice about the shape of the table. It rides

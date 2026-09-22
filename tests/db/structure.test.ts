@@ -17,11 +17,17 @@ import { loadPrincipal } from "@/lib/policies/principal";
 import type { PersonRecord } from "@/lib/services/people";
 import {
   addMember,
+  archiveDistrict,
   archiveGroup,
   archiveLocation,
+  archiveRegion,
+  archiveSchool,
   countMembers,
+  createDistrict,
   createGroup,
   createLocation,
+  createRegion,
+  createSchool,
   removeMember,
 } from "@/lib/services/structure";
 
@@ -314,5 +320,123 @@ describeDb("structure", () => {
         schoolId: theirSchool.id,
       }),
     ).rejects.toThrow("no such school");
+  });
+
+  // --- Places --------------------------------------------------------------
+
+  it("creates a region, a district inside it, and a school inside that", async () => {
+    const region = await createRegion(db, org, principal, { name: "North Region" });
+    const district = await createDistrict(db, org, principal, {
+      name: "Riverbend District",
+      regionId: region.id,
+    });
+    const school = await createSchool(db, org, principal, {
+      name: "Northgate High",
+      districtId: district.id,
+      timezone: NY,
+    });
+
+    expect(region.ref.startsWith("reg_")).toBe(true);
+    expect(district.regionId).toBe(region.id);
+    expect(school.districtId).toBe(district.id);
+    expect(school.timezone).toBe(NY);
+
+    const event = await db.auditEvent.findFirstOrThrow({
+      where: { action: "school.created", entityRef: school.ref },
+    });
+    expect((event.changes as Record<string, { to: string }>).title!.to).toBe("Northgate High");
+  });
+
+  it("refuses a duplicate school name within the tenant", async () => {
+    await createSchool(db, org, principal, { name: "Northgate High" });
+    await expect(
+      createSchool(db, org, principal, { name: "northgate high" }),
+    ).rejects.toThrow("already exists here");
+  });
+
+  it("leaves the same school name free in another tenant", async () => {
+    await createSchool(db, org, principal, { name: "Northgate High" });
+    const outsiderAdmin = await makeUser(db, otherOrg.id, {
+      first: "Bo",
+      last: "Fischer",
+      email: "bo.fischer@example.test",
+      roles: [Role.ADMIN],
+    });
+
+    const school = await createSchool(
+      db,
+      otherOrg,
+      await loadPrincipal(db, outsiderAdmin.id),
+      { name: "Northgate High" },
+    );
+    expect(school.organizationId).toBe(otherOrg.id);
+  });
+
+  it("refuses a district from another tenant", async () => {
+    const theirDistrict = await db.district.create({
+      data: { ref: "dis_elsewhere1", organizationId: otherOrg.id, name: "Elsewhere" },
+    });
+
+    await expect(
+      createSchool(db, org, principal, {
+        name: "Borrowed High",
+        districtId: theirDistrict.id,
+      }),
+    ).rejects.toThrow("no such district");
+  });
+
+  it("refuses a region from another tenant", async () => {
+    const theirRegion = await db.region.create({
+      data: { ref: "reg_elsewhere1", organizationId: otherOrg.id, name: "Elsewhere" },
+    });
+
+    await expect(
+      createDistrict(db, org, principal, {
+        name: "Borrowed District",
+        regionId: theirRegion.id,
+      }),
+    ).rejects.toThrow("no such region");
+  });
+
+  it("hides an archived school without deleting it", async () => {
+    const school = await createSchool(db, org, principal, { name: "Northgate High" });
+    const archived = await archiveSchool(db, principal, { school });
+
+    expect(archived.archivedAt).not.toBeNull();
+    expect(await db.school.findUnique({ where: { id: school.id } })).not.toBeNull();
+  });
+
+  it("hides an archived region and district without deleting them", async () => {
+    const region = await createRegion(db, org, principal, { name: "North Region" });
+    const district = await createDistrict(db, org, principal, {
+      name: "Riverbend District",
+      regionId: region.id,
+    });
+
+    expect((await archiveRegion(db, principal, { region })).archivedAt).not.toBeNull();
+    expect((await archiveDistrict(db, principal, { district })).archivedAt).not.toBeNull();
+    expect(await db.region.findUnique({ where: { id: region.id } })).not.toBeNull();
+    expect(await db.district.findUnique({ where: { id: district.id } })).not.toBeNull();
+  });
+
+  it("does not let an instructor create a school", async () => {
+    await expect(
+      createSchool(db, org, instructorPrincipal, { name: "Theirs" }),
+    ).rejects.toThrow("structure.manage");
+  });
+
+  it("refuses an empty place name and an unknown timezone", async () => {
+    await expect(createRegion(db, org, principal, { name: "   " })).rejects.toThrow(
+      "needs a name",
+    );
+    await expect(createDistrict(db, org, principal, { name: "   " })).rejects.toThrow(
+      "needs a name",
+    );
+    await expect(createSchool(db, org, principal, { name: "   " })).rejects.toThrow(
+      "needs a name",
+    );
+    await expect(
+      createSchool(db, org, principal, { name: "Northgate High", timezone: "Not/AZone" }),
+    ).rejects.toThrow("unknown timezone");
   });
 });

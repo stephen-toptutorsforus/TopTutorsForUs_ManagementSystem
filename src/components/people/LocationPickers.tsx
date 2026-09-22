@@ -46,8 +46,7 @@ export function LocationPickers({
         Assign this {subject} to schools or regions. Assigning directly to a school
         will also assign the {subject} to that school&rsquo;s districts and regions. You
         can only use one of the methods below when creating {article(subject)} {subject}.
-        After creation, additional changes can be made to user locations from their
-        profile.
+        After creation, additional changes can be made from their record.
       </p>
 
       <Picker

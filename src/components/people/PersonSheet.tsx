@@ -18,12 +18,13 @@
  * irreversible, and the sentence beside it says so.
  */
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   archivePersonAction,
   editPersonAction,
   setPasswordAction,
+  setPlacementsAction,
 } from "@/app/actions/people";
 import {
   Button,
@@ -43,6 +44,9 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/shapes";
 import type { PersonSheetData } from "@/lib/web/personSheet";
 import type { FormResult } from "@/lib/web/formState";
 
+import { LocationPickers } from "./LocationPickers";
+import type { PickerOption } from "./Picker";
+
 /** One form's own failure, beside the form that caused it. */
 function Failure({ state }: { state: FormResult }) {
   if (!state.error) return null;
@@ -58,6 +62,8 @@ export function PersonSheet({
   csrfToken,
   canManage,
   onDone,
+  schools,
+  regions,
 }: {
   person: PersonSheetData;
   csrfToken: string;
@@ -65,9 +71,15 @@ export function PersonSheet({
   canManage: boolean;
   /** Called when an action has succeeded and the drawer should go. */
   onDone: () => void;
+  schools: PickerOption[];
+  regions: PickerOption[];
 }) {
   const [edit, submitEdit, editing] = useActionState(
     editPersonAction.bind(null, person.ref),
+    {},
+  );
+  const [placements, submitPlacements, placing] = useActionState(
+    setPlacementsAction.bind(null, person.ref),
     {},
   );
   const [password, submitPassword, settingPassword] = useActionState(
@@ -79,10 +91,14 @@ export function PersonSheet({
     {},
   );
 
+  const [schoolRefs, setSchoolRefs] = useState<string[]>([...person.schoolRefs]);
+  const [regionRefs, setRegionRefs] = useState<string[]>([...person.regionRefs]);
+
   // Each closes the drawer on success and announces it on the page behind —
   // see `useSettled`. The directory underneath has already been revalidated by
   // the action, so the row somebody reads after it closes is the new one.
   useSettled(edit, onDone);
+  useSettled(placements, onDone);
   useSettled(password, onDone);
   useSettled(archive, onDone);
 
@@ -203,7 +219,8 @@ export function PersonSheet({
               </div>
               <Hint>
                 Roles, relationships and groups are changed from the directory and
-                from the group pages, not here.
+                from the group pages, not here. Schools and regions are the card
+                below.
               </Hint>
             </CardSection>
 
@@ -216,6 +233,44 @@ export function PersonSheet({
             )}
           </form>
         </Card>
+
+        {(schools.length > 0 || regions.length > 0) && (
+          <Card as="section" className="card-padded">
+            <h3>Schools and regions</h3>
+            <Failure state={placements} />
+            {canManage ? (
+              <form action={submitPlacements}>
+                <input type="hidden" name={CSRF_FIELD} value={csrfToken} />
+                <LocationPickers
+                  subject={person.roleNames.includes("Instructor") ? "instructor" : "person"}
+                  schools={schools}
+                  schoolRefs={schoolRefs}
+                  onSchools={setSchoolRefs}
+                  regions={regions}
+                  regionRefs={regionRefs}
+                  onRegions={setRegionRefs}
+                />
+                <div className="btn-row">
+                  <Button variant="primary" type="submit" disabled={placing}>
+                    {placing ? "Saving…" : "Save placements"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <Fact label="Placed at">
+                {schoolRefs.length > 0
+                  ? schoolRefs
+                      .map((ref) => schools.find((school) => school.ref === ref)?.label ?? ref)
+                      .join(", ")
+                  : regionRefs.length > 0
+                    ? regionRefs
+                        .map((ref) => regions.find((region) => region.ref === ref)?.label ?? ref)
+                        .join(", ")
+                    : null}
+              </Fact>
+            )}
+          </Card>
+        )}
 
         {person.canArchive && (
           <Card as="section" className="card-padded person-sheet-archive">

@@ -1,11 +1,9 @@
 /**
- * Groups and locations: the tenant's own vocabulary for who and where.
+ * Groups, locations, and the place hierarchy: the tenant's own vocabulary for
+ * who and where.
  *
- * Ported from `app/services/structure.py`.
- *
- * Both are load-bearing elsewhere — booking expands a group into participants,
- * and the room exclusion constraint keys on a location — so they exist before
- * the screens that create them.
+ * Ported from `app/services/structure.py`. Regions, districts and schools were
+ * seed-only in Phase 1; the same two rules apply to them as to a group.
  *
  * Two rules shared with the rest of the platform:
  *
@@ -25,6 +23,7 @@ import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import { newRef } from "@/lib/ref";
 import type { Db, PersonRecord, RequestMeta } from "@/lib/services/people";
+import { isValidZone } from "@/lib/time";
 
 export const MEMBER_ROLES = ["student", "instructor"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -32,6 +31,9 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
 export type GroupRecord = Prisma.GroupGetPayload<object>;
 export type GroupMemberRecord = Prisma.GroupMemberGetPayload<object>;
 export type LocationRecord = Prisma.LocationGetPayload<object>;
+export type RegionRecord = Prisma.RegionGetPayload<object>;
+export type DistrictRecord = Prisma.DistrictGetPayload<object>;
+export type SchoolRecord = Prisma.SchoolGetPayload<object>;
 
 export interface CreateGroupInput {
   name: string;
@@ -323,6 +325,262 @@ export async function archiveLocation(
     entityId: location.id,
     entityRef: location.ref,
     changes: { title: { from: location.name, to: null } },
+    ...input.requestMeta,
+  });
+
+  return archived;
+}
+
+// --- Places ----------------------------------------------------------------
+
+export interface CreateRegionInput {
+  name: string;
+  requestMeta?: RequestMeta;
+}
+
+export async function createRegion(
+  db: Db,
+  organization: { id: bigint },
+  principal: Principal,
+  input: CreateRegionInput,
+): Promise<RegionRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+
+  const name = input.name.trim();
+  if (!name) throw new ValidationError("a region needs a name");
+
+  const clash = await db.region.findFirst({
+    where: {
+      organizationId: organization.id,
+      name: { equals: name, mode: "insensitive" },
+      archivedAt: null,
+    },
+    select: { id: true },
+  });
+  if (clash !== null) {
+    throw new ValidationError("a region with that name already exists here");
+  }
+
+  const region = await db.region.create({
+    data: {
+      ref: newRef("reg"),
+      organizationId: organization.id,
+      name,
+    },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "region.created",
+    entityType: "region",
+    entityId: region.id,
+    entityRef: region.ref,
+    changes: { title: { from: null, to: name } },
+    ...input.requestMeta,
+  });
+
+  return region;
+}
+
+export async function archiveRegion(
+  db: Db,
+  principal: Principal,
+  input: { region: RegionRecord; requestMeta?: RequestMeta },
+): Promise<RegionRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+  const { region } = input;
+
+  const archived = await db.region.update({
+    where: { id: region.id },
+    data: { archivedAt: new Date() },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "region.archived",
+    entityType: "region",
+    entityId: region.id,
+    entityRef: region.ref,
+    changes: { title: { from: region.name, to: null } },
+    ...input.requestMeta,
+  });
+
+  return archived;
+}
+
+export interface CreateDistrictInput {
+  name: string;
+  regionId?: bigint | null;
+  requestMeta?: RequestMeta;
+}
+
+export async function createDistrict(
+  db: Db,
+  organization: { id: bigint },
+  principal: Principal,
+  input: CreateDistrictInput,
+): Promise<DistrictRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+
+  const name = input.name.trim();
+  if (!name) throw new ValidationError("a district needs a name");
+
+  const clash = await db.district.findFirst({
+    where: {
+      organizationId: organization.id,
+      name: { equals: name, mode: "insensitive" },
+      archivedAt: null,
+    },
+    select: { id: true },
+  });
+  if (clash !== null) {
+    throw new ValidationError("a district with that name already exists here");
+  }
+
+  const regionId = input.regionId ?? null;
+  if (regionId !== null) {
+    const region = await db.region.findFirst({
+      where: { id: regionId, organizationId: organization.id, archivedAt: null },
+      select: { id: true },
+    });
+    if (region === null) throw new ValidationError("no such region");
+  }
+
+  const district = await db.district.create({
+    data: {
+      ref: newRef("dis"),
+      organizationId: organization.id,
+      name,
+      regionId,
+    },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "district.created",
+    entityType: "district",
+    entityId: district.id,
+    entityRef: district.ref,
+    changes: { title: { from: null, to: name } },
+    ...input.requestMeta,
+  });
+
+  return district;
+}
+
+export async function archiveDistrict(
+  db: Db,
+  principal: Principal,
+  input: { district: DistrictRecord; requestMeta?: RequestMeta },
+): Promise<DistrictRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+  const { district } = input;
+
+  const archived = await db.district.update({
+    where: { id: district.id },
+    data: { archivedAt: new Date() },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "district.archived",
+    entityType: "district",
+    entityId: district.id,
+    entityRef: district.ref,
+    changes: { title: { from: district.name, to: null } },
+    ...input.requestMeta,
+  });
+
+  return archived;
+}
+
+export interface CreateSchoolInput {
+  name: string;
+  districtId?: bigint | null;
+  timezone?: string | null;
+  requestMeta?: RequestMeta;
+}
+
+export async function createSchool(
+  db: Db,
+  organization: { id: bigint },
+  principal: Principal,
+  input: CreateSchoolInput,
+): Promise<SchoolRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+
+  const name = input.name.trim();
+  if (!name) throw new ValidationError("a school needs a name");
+
+  const clash = await db.school.findFirst({
+    where: {
+      organizationId: organization.id,
+      name: { equals: name, mode: "insensitive" },
+      archivedAt: null,
+    },
+    select: { id: true },
+  });
+  if (clash !== null) {
+    throw new ValidationError("a school with that name already exists here");
+  }
+
+  const districtId = input.districtId ?? null;
+  if (districtId !== null) {
+    const district = await db.district.findFirst({
+      where: { id: districtId, organizationId: organization.id, archivedAt: null },
+      select: { id: true },
+    });
+    if (district === null) throw new ValidationError("no such district");
+  }
+
+  const timezone = (input.timezone ?? "").trim() || null;
+  if (timezone !== null && !isValidZone(timezone)) {
+    throw new ValidationError("unknown timezone");
+  }
+
+  const school = await db.school.create({
+    data: {
+      ref: newRef("sch"),
+      organizationId: organization.id,
+      name,
+      districtId,
+      timezone,
+    },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "school.created",
+    entityType: "school",
+    entityId: school.id,
+    entityRef: school.ref,
+    changes: { title: { from: null, to: name } },
+    ...input.requestMeta,
+  });
+
+  return school;
+}
+
+export async function archiveSchool(
+  db: Db,
+  principal: Principal,
+  input: { school: SchoolRecord; requestMeta?: RequestMeta },
+): Promise<SchoolRecord> {
+  principal.require(P.STRUCTURE_MANAGE);
+  const { school } = input;
+
+  const archived = await db.school.update({
+    where: { id: school.id },
+    data: { archivedAt: new Date() },
+  });
+
+  await record(db, principal, {
+    category: AuditCategory.USER,
+    action: "school.archived",
+    entityType: "school",
+    entityId: school.id,
+    entityRef: school.ref,
+    changes: { title: { from: school.name, to: null } },
     ...input.requestMeta,
   });
 

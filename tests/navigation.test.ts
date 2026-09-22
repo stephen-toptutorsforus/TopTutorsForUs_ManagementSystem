@@ -107,6 +107,12 @@ describe("what the sidebar offers", () => {
     expect(section(navFor(Role.ADMIN), "Session Management")).toEqual(["Sessions", "Series"]);
   });
 
+  it("files Schools with the rest of the place vocabulary", () => {
+    expect(section(navFor(Role.ADMIN), "People & Organization")).toContain("Schools");
+    expect(section(navFor(Role.ADMIN), "People & Organization")).toContain("Locations");
+    expect(labels(navFor(Role.STUDENT))).not.toContain("Schools");
+  });
+
   it("files the audit trail under Administration, and shows it to nobody else", () => {
     expect(section(navFor(Role.ADMIN), "Administration")).toEqual(["Audit trail", "Import"]);
     for (const role of [Role.INSTRUCTOR, Role.STUDENT, Role.PARENT, Role.PAYER]) {

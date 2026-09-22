@@ -95,6 +95,7 @@ export function PeopleOverlays({
   assign: { instructors: PickerOption[]; students: PickerOption[] };
   children: React.ReactNode;
 }) {
+  const places = { schools: create.schools, regions: create.regions };
   const [overlay, setOverlay] = useState<PeopleOverlay>(null);
   const [target, setTarget] = useState<AssignTarget | null>(null);
   const [person, setPerson] = useState<PersonSheetData | null>(null);
@@ -160,6 +161,8 @@ export function PeopleOverlays({
             csrfToken={csrfToken}
             canManage={canManage}
             onDone={() => setOverlay(null)}
+            schools={places.schools}
+            regions={places.regions}
           />
         )}
       </Sheet>

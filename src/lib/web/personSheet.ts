@@ -46,6 +46,13 @@ export interface PersonSheetData {
   canSetPassword: boolean;
   /** Whether this viewer may archive them. Same reasoning. */
   canArchive: boolean;
+  /**
+   * Where they are placed. Schools *or* regions, matching the create form —
+   * derived region rows behind a school are not listed, so submitting this
+   * set cannot trip the "not both" rule.
+   */
+  schoolRefs: readonly string[];
+  regionRefs: readonly string[];
 }
 
 export interface PersonSheetSource {
@@ -71,6 +78,8 @@ export function personSheetOf(
     lastLoginLabel: string | null;
     canSetPassword: boolean;
     canArchive: boolean;
+    schoolRefs?: readonly string[];
+    regionRefs?: readonly string[];
   },
 ): PersonSheetData {
   return {
@@ -91,5 +100,7 @@ export function personSheetOf(
     lastLoginLabel: extras.lastLoginLabel,
     canSetPassword: extras.canSetPassword,
     canArchive: extras.canArchive,
+    schoolRefs: extras.schoolRefs ?? [],
+    regionRefs: extras.regionRefs ?? [],
   };
 }
