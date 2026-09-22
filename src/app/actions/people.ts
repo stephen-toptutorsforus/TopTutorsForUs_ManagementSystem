@@ -20,6 +20,7 @@ import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { NotFound, ValidationError, payloadFor } from "@/lib/errors";
 import type { Principal } from "@/lib/policies/principal";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import {
   createGuardian,
@@ -48,6 +49,14 @@ import { requestMeta, requireContext, verifyCsrf } from "@/lib/web/session";
  * several need the script. Both paths are tenant-scoped, and anything that
  * matches nothing is dropped rather than failing the whole form.
  */
+function visiblePeople(principal: Principal) {
+  const scope = schoolScope(principal);
+  return {
+    ...scoped(principal),
+    ...(scope ? peopleAtSchools(scope) : {}),
+  };
+}
+
 async function pickPeople(
   principal: Principal,
   form: FormData,
@@ -58,7 +67,7 @@ async function pickPeople(
   const refs = form.getAll(`${field}_refs`).map(String).filter(Boolean);
   if (refs.length > 0) {
     for (const row of await prisma.user.findMany({
-      where: { ...scoped(principal), ref: { in: refs } },
+      where: { ...visiblePeople(principal), ref: { in: refs } },
       include: { roles: true },
     })) {
       found.set(row.id, row);
@@ -70,7 +79,7 @@ async function pickPeople(
     const parts = name.split(/\s+/);
     const row = await prisma.user.findFirst({
       where: {
-        ...scoped(principal),
+        ...visiblePeople(principal),
         firstName: { equals: parts[0], mode: "insensitive" },
         lastName: { equals: parts[parts.length - 1], mode: "insensitive" },
       },
@@ -142,7 +151,7 @@ export async function createPersonAction(
       const guardian =
         requiresGuardian && guardianRef
           ? await prisma.user.findFirst({
-              where: { ...scoped(principal), ref: guardianRef, archivedAt: null },
+              where: { ...visiblePeople(principal), ref: guardianRef, archivedAt: null },
               include: { roles: true },
             })
           : null;
@@ -204,7 +213,7 @@ export async function assignStudentAction(
 
     const load = async (ref: string) => {
       const found = await prisma.user.findFirst({
-        where: { ...scoped(principal), ref, archivedAt: null },
+        where: { ...visiblePeople(principal), ref, archivedAt: null },
         include: { roles: true },
       });
       if (found === null) throw new NotFound("no such user");

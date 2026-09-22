@@ -360,13 +360,16 @@ export function statusFilterOptions(): FilterOption[] {
  * The roles the directory filters by. Not every role in the enum: `payer` is
  * granted by assigning somebody to pay rather than held as a job, and
  * `regional_admin` is a narrowing of `admin` rather than a different kind of
- * person. Both still appear as tags on the rows they belong to.
+ * person. School admin and principal are jobs and belong here. The two that
+ * stay out still appear as tags on the rows they belong to.
  */
 export const ROLE_FILTER_ORDER: readonly Role[] = [
   Role.INSTRUCTOR,
   Role.STUDENT,
   Role.PARENT,
   Role.ADMIN,
+  Role.SCHOOL_ADMIN,
+  Role.PRINCIPAL,
 ];
 
 /**

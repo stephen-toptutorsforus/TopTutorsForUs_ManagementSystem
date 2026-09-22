@@ -13,6 +13,7 @@ import { Button, Card, EmptyState, Field, OptionSelect, PageHeader, PageToolbar,
 import { prisma } from "@/lib/db";
 import { matrix } from "@/lib/availability";
 import { Permission } from "@/lib/policies/permissions";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
@@ -45,10 +46,16 @@ export default async function AvailabilityPage({
     await guard(async () => principal.require(Permission.AVAILABILITY_VIEW_OWN));
   }
 
+  const bound = schoolScope(principal);
+  const inRoster = {
+    ...scoped(principal),
+    archivedAt: null,
+    ...(bound ? peopleAtSchools(bound) : {}),
+  };
+
   const roster = await prisma.user.findMany({
     where: {
-      ...scoped(principal),
-      archivedAt: null,
+      ...inRoster,
       roles: { some: { role: "INSTRUCTOR" } },
     },
     select: { id: true, ref: true, firstName: true, lastName: true },
@@ -59,7 +66,7 @@ export default async function AvailabilityPage({
   let instructor =
     asked && principal.has(Permission.AVAILABILITY_VIEW_ANY)
       ? await prisma.user.findFirst({
-          where: { ...scoped(principal), ref: asked, archivedAt: null },
+          where: { ...inRoster, ref: asked },
           select: { id: true, ref: true, firstName: true, lastName: true },
         })
       : null;

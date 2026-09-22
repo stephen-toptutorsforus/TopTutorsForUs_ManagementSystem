@@ -32,7 +32,9 @@ import { billingEnabled } from "@/lib/organization";
 import { Permission } from "@/lib/policies/permissions";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
-import { availableActions } from "@/lib/policies/sessions";
+import { visibleSessions } from "@/lib/services/sessionQuery";
+import { meetingFromConfig } from "@/lib/meetings";
+import { availableActions, canStartMeeting } from "@/lib/policies/sessions";
 import { deliveryMeta, durationWords, studentList } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import {
@@ -63,13 +65,16 @@ export default async function SessionDetailPage({
   const { principal, organization } = await requireContext();
 
   const session = await prisma.sessionOccurrence.findFirst({
-    where: { ...scoped(principal), ref, archivedAt: null },
+    where: { ...visibleSessions(principal), ref },
   });
   // 404, never 403: a refusal that confirms the record exists is itself a
   // cross-tenant disclosure.
   if (session === null) notFound();
 
   const zone = session.timezone;
+  const hostStartUrl = canStartMeeting(principal, session).allowed
+    ? (meetingFromConfig(session.classroomConfig)?.startUrl ?? null)
+    : null;
 
   const [participantRows, series, seriesTotal, location, instructor, group, program, events] =
     await Promise.all([
@@ -225,6 +230,14 @@ export default async function SessionDetailPage({
                 <a href={session.meetingUrl} rel="noopener noreferrer">
                   Join the meeting
                 </a>
+              ) : null}
+              {hostStartUrl ? (
+                <>
+                  {session.meetingUrl ? " · " : null}
+                  <a href={hostStartUrl} rel="noopener noreferrer">
+                    Start the meeting
+                  </a>
+                </>
               ) : null}
             </Fact>
           )}

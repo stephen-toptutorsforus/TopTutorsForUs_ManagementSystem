@@ -23,6 +23,7 @@ import type { Db } from "@/lib/db";
 import { Forbidden, ValidationError } from "@/lib/errors";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { hashPassword } from "@/lib/security";
 import { EMAIL_SHAPE, MIN_PASSWORD_LENGTH, PHONE_SHAPE } from "@/lib/shapes";
@@ -58,8 +59,13 @@ export async function findPerson(
   // Archived people are still readable here, and that is the point of the
   // screen: somebody has to be able to see who they archived and put them back.
   // Every *list* filters them out; this reads one by name.
+  const scope = schoolScope(principal);
   return db.user.findFirst({
-    where: { ...scoped(principal), ref },
+    where: {
+      ...scoped(principal),
+      ref,
+      ...(scope ? peopleAtSchools(scope) : {}),
+    },
     include: { roles: true },
   });
 }

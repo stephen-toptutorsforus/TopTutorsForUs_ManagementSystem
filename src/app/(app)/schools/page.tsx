@@ -19,6 +19,7 @@ import {
 import { Card, EmptyState, Hint, PageHeader, TableWrap, VisuallyHidden } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { csrfToken, requireContext } from "@/lib/web/session";
 import { guard } from "@/lib/web/interrupt";
@@ -30,6 +31,7 @@ export default async function SchoolsPage() {
   const { principal } = await requireContext();
   await guard(async () => principal.require(Permission.STRUCTURE_VIEW));
 
+  const bound = schoolScope(principal);
   const inOrder = {
     where: { ...scoped(principal), archivedAt: null },
     orderBy: { name: "asc" as const },
@@ -38,9 +40,18 @@ export default async function SchoolsPage() {
   const [regions, districts, schools, placed, roster] = await Promise.all([
     prisma.region.findMany(inOrder),
     prisma.district.findMany(inOrder),
-    prisma.school.findMany(inOrder),
+    prisma.school.findMany({
+      ...inOrder,
+      where: {
+        ...inOrder.where,
+        ...(bound ? { id: { in: [...bound] } } : {}),
+      },
+    }),
     prisma.userSchool.findMany({
-      where: { organizationId: principal.organizationId },
+      where: {
+        organizationId: principal.organizationId,
+        ...(bound ? { schoolId: { in: [...bound] } } : {}),
+      },
       select: {
         schoolId: true,
         user: { select: { ref: true, firstName: true, lastName: true, archivedAt: true } },
@@ -48,7 +59,11 @@ export default async function SchoolsPage() {
       orderBy: { user: { lastName: "asc" } },
     }),
     prisma.user.findMany({
-      where: { ...scoped(principal), archivedAt: null },
+      where: {
+        ...scoped(principal),
+        archivedAt: null,
+        ...(bound ? peopleAtSchools(bound) : {}),
+      },
       select: { ref: true, firstName: true, lastName: true },
       orderBy: { lastName: "asc" },
     }),

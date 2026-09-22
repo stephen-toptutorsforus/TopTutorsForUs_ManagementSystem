@@ -29,6 +29,11 @@ import { ValidationError } from "@/lib/errors";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
 import {
+  assertSchoolsInScope,
+  isSchoolScopedRole,
+  schoolScope,
+} from "@/lib/policies/schoolScope";
+import {
   type Db,
   type PersonRecord,
   type RequestMeta,
@@ -101,6 +106,10 @@ export async function createStudent(
       "attach this student to schools or to regions, not both — " +
         "a school already carries its district and region",
     );
+  }
+  assertSchoolsInScope(principal, schools);
+  if (schoolScope(principal) !== null && schools.length === 0) {
+    throw new ValidationError("place this person at your school");
   }
 
   const person = await createPerson(db, organization, principal, {
@@ -361,6 +370,17 @@ export async function createStaff(
   if (input.role === Role.REGIONAL_ADMIN && regions.length === 0) {
     throw new ValidationError("a regional administrator needs at least one region");
   }
+  if (isSchoolScopedRole(input.role) && schools.length !== 1) {
+    throw new ValidationError("this role needs exactly one school");
+  }
+  assertSchoolsInScope(principal, schools);
+  if (
+    schoolScope(principal) !== null &&
+    schools.length === 0 &&
+    input.role !== Role.ADMIN
+  ) {
+    throw new ValidationError("place this person at your school");
+  }
 
   const person = await createPerson(db, organization, principal, {
     email: input.email,
@@ -451,6 +471,12 @@ export async function setPlacements(
         "a school already carries its district and region",
     );
   }
+  if (hasRole(person, Role.SCHOOL_ADMIN) || hasRole(person, Role.PRINCIPAL)) {
+    if (schools.length !== 1 || regions.length > 0) {
+      throw new ValidationError("this role needs exactly one school");
+    }
+  }
+  assertSchoolsInScope(principal, schools);
 
   await db.userSchool.deleteMany({ where: { userId: person.id } });
   await db.userDistrict.deleteMany({ where: { userId: person.id } });

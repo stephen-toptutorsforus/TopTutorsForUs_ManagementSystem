@@ -125,6 +125,18 @@ describeDb("loading a principal", () => {
     expect(() => principal.require(P.SESSION_BOOK)).toThrow("session.book");
   });
 
+  it("loads the schools this person is placed at", async () => {
+    const school = await db.school.create({
+      data: { ref: "sch_north1", organizationId: org.id, name: "Northgate High" },
+    });
+    await db.userSchool.create({
+      data: { organizationId: org.id, userId: instructor.id, schoolId: school.id },
+    });
+
+    const principal = await loadPrincipal(db, instructor.id);
+    expect(principal.schoolIds).toEqual(new Set([school.id]));
+  });
+
   it("falls back to the organization's timezone when the person has none", async () => {
     const principal = await loadPrincipal(db, instructor.id);
     expect(principal.timezone).toBe(NY);

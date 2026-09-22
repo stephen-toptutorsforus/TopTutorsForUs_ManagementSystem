@@ -17,6 +17,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { Role, UserStatus } from "@/generated/prisma/enums";
 import type { Principal } from "@/lib/policies/principal";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { ROLE_FILTER_ORDER, USER_STATUS_FILTER_ORDER } from "@/lib/presentation";
 import { narrows } from "@/lib/selection";
@@ -230,6 +231,8 @@ export async function listPeople(
   const statuses = options.statuses ?? [];
 
   const where: Prisma.UserWhereInput = { ...scoped(principal), archivedAt: null };
+  const scope = schoolScope(principal);
+  if (scope !== null) Object.assign(where, peopleAtSchools(scope));
 
   if (search) {
     // Name or address: somebody looking up a person has whichever of the two

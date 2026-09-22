@@ -108,7 +108,10 @@ export async function createPerson(
   // one. A regional administrator holds USER_MANAGE but must not be able to
   // promote a new account past their own level.
   if (
-    (resolved.has(Role.ADMIN) || resolved.has(Role.REGIONAL_ADMIN)) &&
+    (resolved.has(Role.ADMIN) ||
+      resolved.has(Role.REGIONAL_ADMIN) ||
+      resolved.has(Role.SCHOOL_ADMIN) ||
+      resolved.has(Role.PRINCIPAL)) &&
     !principal.isAdmin
   ) {
     throw new ValidationError("only an administrator may grant an administrator role");

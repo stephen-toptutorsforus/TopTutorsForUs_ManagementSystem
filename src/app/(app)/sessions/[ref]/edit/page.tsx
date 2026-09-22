@@ -29,7 +29,7 @@ import {
   settingsReader,
 } from "@/lib/organization";
 import { rosterFor } from "@/lib/policies/roster";
-import { scoped } from "@/lib/policies/scoping";
+import { visibleSessions } from "@/lib/services/sessionQuery";
 import { availableActions } from "@/lib/policies/sessions";
 import { durationWords } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
@@ -60,7 +60,7 @@ export default async function EditSessionPage({
   const { principal, organization } = await requireContext();
 
   const session = await prisma.sessionOccurrence.findFirst({
-    where: { ...scoped(principal), ref, archivedAt: null },
+    where: { ...visibleSessions(principal), ref },
   });
   // 404, never 403: a refusal that confirms the record exists is itself a
   // cross-tenant disclosure.

@@ -113,7 +113,11 @@ export function CreateUserModal(props: CreateUserModalProps) {
     relationship: role === "parent",
     instructors: role === "student",
     students: role === "parent",
-    schools: role === "student" || role === "instructor",
+    schools:
+      role === "student" ||
+      role === "instructor" ||
+      role === "school_admin" ||
+      role === "principal",
     regions:
       role === "student" || role === "instructor" || role === "regional_admin",
   };
@@ -130,6 +134,9 @@ export function CreateUserModal(props: CreateUserModalProps) {
   const detailsComplete = (() => {
     if (parentOnboards) return Boolean(guardianRef);
     if (role === "regional_admin") return isEmail(email) && regionRefs.length > 0;
+    if (role === "school_admin" || role === "principal") {
+      return isEmail(email) && schoolRefs.length === 1;
+    }
     return isEmail(email);
   })();
 
@@ -451,6 +458,29 @@ export function CreateUserModal(props: CreateUserModalProps) {
               value={email}
               onChange={setEmail}
             />
+          )}
+
+          {(role === "school_admin" || role === "principal") && (
+            <>
+              <EmailField
+                id={`${role}-email`}
+                label="Email"
+                placeholder="admin@example.com"
+                hint="The onboarding email goes here."
+                value={email}
+                onChange={setEmail}
+              />
+              <Picker
+                label="Select School"
+                name="school"
+                placeholder="Search schools"
+                options={props.schools}
+                chosen={schoolRefs}
+                onChange={(refs) => setSchoolRefs(refs.slice(0, 1))}
+                required
+                hint="This is what bounds what they can see, so exactly one is required."
+              />
+            </>
           )}
 
           {role === "regional_admin" && (

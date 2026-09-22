@@ -22,6 +22,7 @@ import type { Db } from "@/lib/db";
 import { type ConfigurableOrganization, billingEnabled } from "@/lib/organization";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
+import { schoolScope, sessionAtSchools } from "@/lib/policies/schoolScope";
 import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { weekdayOf } from "@/lib/presentation";
@@ -349,7 +350,11 @@ export function visibleSessions(principal: Principal): Prisma.SessionOccurrenceW
     ...scoped(principal),
     archivedAt: null,
   };
-  if (principal.has(P.SESSION_VIEW_ANY)) return base;
+  if (principal.has(P.SESSION_VIEW_ANY)) {
+    const schools = schoolScope(principal);
+    if (schools === null) return base;
+    return { ...base, ...sessionAtSchools(principal.organizationId, schools) };
+  }
 
   return {
     ...base,

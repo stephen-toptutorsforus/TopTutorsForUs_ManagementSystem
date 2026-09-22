@@ -30,6 +30,7 @@ import {
   canEdit,
   canEditSeries,
   canMarkAttendance,
+  canStartMeeting,
   canView,
 } from "@/lib/policies/sessions";
 
@@ -38,7 +39,11 @@ const NY = "America/New_York";
 /** A principal built directly, for policy tests that need no database. */
 function principalWith(
   roles: Role[],
-  { orgId = 1n, userId = 1n }: { orgId?: bigint; userId?: bigint } = {},
+  {
+    orgId = 1n,
+    userId = 1n,
+    schoolIds = [],
+  }: { orgId?: bigint; userId?: bigint; schoolIds?: bigint[] } = {},
 ): Principal {
   const roleSet = new Set(roles);
   return new Principal({
@@ -50,6 +55,7 @@ function principalWith(
     roles: roleSet,
     permissions: resolve(roleSet),
     regionIds: new Set(),
+    schoolIds: new Set(schoolIds),
     timezone: NY,
   });
 }
@@ -97,6 +103,13 @@ describe("the catalogue", () => {
     [Role.PARENT, P.SESSION_EDIT_ANY],
     [Role.PARENT, P.AUDIT_VIEW],
     [Role.PAYER, P.SESSION_BOOK],
+    [Role.SCHOOL_ADMIN, P.ORG_CONFIGURE],
+    [Role.SCHOOL_ADMIN, P.SESSION_DELETE],
+    [Role.SCHOOL_ADMIN, P.SESSION_OVERRIDE_CONFLICT],
+    [Role.PRINCIPAL, P.USER_MANAGE],
+    [Role.PRINCIPAL, P.SESSION_BOOK],
+    [Role.PRINCIPAL, P.SESSION_EDIT_ANY],
+    [Role.PRINCIPAL, P.ATTENDANCE_MARK_ANY],
   ])("bounds %s away from %s", (role, forbidden) => {
     expect(codeDefault([role]).has(forbidden)).toBe(false);
   });
@@ -185,6 +198,15 @@ describe("per-object policy", () => {
     );
   });
 
+  it("shows a school admin only sessions at their school", () => {
+    const admin = principalWith([Role.SCHOOL_ADMIN], { schoolIds: [7n] });
+    const session = aSession();
+
+    expect(canView(admin, session, { studentSchoolIds: [7n] }).allowed).toBe(true);
+    expect(canView(admin, session, { studentSchoolIds: [8n] }).allowed).toBe(false);
+    expect(canView(admin, session, { studentSchoolIds: [8n] }).reason).toBe("no such session");
+  });
+
   it("shows a guardian their child's session", () => {
     const parent = principalWith([Role.PARENT], { userId: 20n });
     const session = aSession({ instructorId: 9n });
@@ -197,6 +219,19 @@ describe("per-object policy", () => {
       canView(parent, session, { participantUserIds: [9n, 32n], guardianOfIds: [31n] })
         .allowed,
     ).toBe(false);
+  });
+
+  it("lets the instructor and an administrator start the meeting, not a student", () => {
+    const instructor = principalWith([Role.INSTRUCTOR], { userId: 9n });
+    const student = principalWith([Role.STUDENT], { userId: 31n });
+    const admin = principalWith([Role.ADMIN]);
+    const outsider = principalWith([Role.ADMIN], { orgId: 2n });
+    const session = aSession({ instructorId: 9n });
+
+    expect(canStartMeeting(instructor, session).allowed).toBe(true);
+    expect(canStartMeeting(admin, session).allowed).toBe(true);
+    expect(canStartMeeting(student, session).allowed).toBe(false);
+    expect(canStartMeeting(outsider, session).reason).toBe("no such session");
   });
 
   it("lets an instructor edit their own session but not another's", () => {

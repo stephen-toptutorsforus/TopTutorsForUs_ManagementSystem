@@ -11,6 +11,8 @@ import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { NotFound, ValidationError, payloadFor } from "@/lib/errors";
+import type { Principal } from "@/lib/policies/principal";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { attachSchool, detachSchool } from "@/lib/services/enrolment";
 import {
@@ -30,6 +32,24 @@ import {
 import type { MemberRole } from "@/lib/services/structure";
 import type { FormResult } from "@/lib/web/formState";
 import { requestMeta, requireContext, verifyCsrf } from "@/lib/web/session";
+
+function peopleWhere(principal: Principal) {
+  const bound = schoolScope(principal);
+  return {
+    ...scoped(principal),
+    archivedAt: null,
+    ...(bound ? peopleAtSchools(bound) : {}),
+  };
+}
+
+function schoolWhere(principal: Principal) {
+  const bound = schoolScope(principal);
+  return {
+    ...scoped(principal),
+    archivedAt: null,
+    ...(bound ? { id: { in: [...bound] } } : {}),
+  };
+}
 
 /** An empty box means "no limit"; anything else must be a whole number. */
 function optionalInt(raw: FormDataEntryValue | null, field: string): number | null {
@@ -93,7 +113,7 @@ export async function addGroupMemberAction(
     if (group === null) throw new NotFound("no such group");
 
     const user = await prisma.user.findFirst({
-      where: { ...scoped(principal), ref: String(form.get("user_ref") ?? ""), archivedAt: null },
+      where: { ...peopleWhere(principal), ref: String(form.get("user_ref") ?? "") },
       include: { roles: true },
     });
     if (user === null) throw new NotFound("no such user");
@@ -345,12 +365,12 @@ export async function attachSchoolPersonAction(
     const { principal, organization } = await requireContext();
 
     const school = await prisma.school.findFirst({
-      where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+      where: { ...schoolWhere(principal), ref: schoolRef },
     });
     if (school === null) throw new NotFound("no such school");
 
     const user = await prisma.user.findFirst({
-      where: { ...scoped(principal), ref: String(form.get("user_ref") ?? ""), archivedAt: null },
+      where: { ...peopleWhere(principal), ref: String(form.get("user_ref") ?? "") },
       include: { roles: true },
     });
     if (user === null) throw new NotFound("no such user");
@@ -375,12 +395,12 @@ export async function detachSchoolPersonAction(
     const { principal, organization } = await requireContext();
 
     const school = await prisma.school.findFirst({
-      where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+      where: { ...schoolWhere(principal), ref: schoolRef },
     });
     if (school === null) throw new NotFound("no such school");
 
     const user = await prisma.user.findFirst({
-      where: { ...scoped(principal), ref: String(form.get("user_ref") ?? ""), archivedAt: null },
+      where: { ...peopleWhere(principal), ref: String(form.get("user_ref") ?? "") },
       include: { roles: true },
     });
     if (user === null) throw new NotFound("no such user");

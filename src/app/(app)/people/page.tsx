@@ -25,6 +25,7 @@ import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { Moment } from "@/lib/rendering";
 import { personSheetOf } from "@/lib/web/personSheet";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { USER_STATUS_FILTER_ORDER, roleFilterOptions } from "@/lib/presentation";
 import { ticked } from "@/lib/selection";
@@ -53,6 +54,8 @@ const CREATABLE_ROLES: Role[] = [
   Role.PARENT,
   Role.INSTRUCTOR,
   Role.ADMIN,
+  Role.SCHOOL_ADMIN,
+  Role.PRINCIPAL,
   Role.REGIONAL_ADMIN,
 ];
 
@@ -110,10 +113,16 @@ export default async function PeoplePage() {
   const canManage = principal.has(Permission.USER_MANAGE);
   const roleOptions = roleFilterOptions();
   const activeFilters = activeDirectoryFilters(filters);
+  const bound = schoolScope(principal);
+  const peopleWhere = {
+    ...scoped(principal),
+    archivedAt: null,
+    ...(bound ? peopleAtSchools(bound) : {}),
+  };
 
   const people = async (role: Role) =>
     prisma.user.findMany({
-      where: { ...scoped(principal), archivedAt: null, roles: { some: { role } } },
+      where: { ...peopleWhere, roles: { some: { role } } },
       select: { ref: true, firstName: true, lastName: true, email: true },
       orderBy: { lastName: "asc" },
     });
@@ -129,7 +138,13 @@ export default async function PeoplePage() {
   const [regions, districts, schools] = await Promise.all([
     prisma.region.findMany(inOrder),
     prisma.district.findMany(inOrder),
-    prisma.school.findMany(inOrder),
+    prisma.school.findMany({
+      ...inOrder,
+      where: {
+        ...inOrder.where,
+        ...(bound ? { id: { in: [...bound] } } : {}),
+      },
+    }),
   ]);
 
   // Only the ones this tenant has. Built here rather than in the drawer because
@@ -173,7 +188,16 @@ export default async function PeoplePage() {
       canManage={canManage}
       csrfToken={await csrfToken()}
       create={{
-        creatableRoles: CREATABLE_ROLES.map((role) => ({
+        creatableRoles: (principal.isAdmin
+          ? CREATABLE_ROLES
+          : CREATABLE_ROLES.filter(
+              (role) =>
+                role !== Role.ADMIN &&
+                role !== Role.SCHOOL_ADMIN &&
+                role !== Role.PRINCIPAL &&
+                role !== Role.REGIONAL_ADMIN,
+            )
+        ).map((role) => ({
           value: role.toLowerCase(),
           label: titleCase(role),
         })),

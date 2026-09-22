@@ -19,6 +19,7 @@ import { Badge, Card, EmptyState, LinkButton, PageHeader, TableWrap, VisuallyHid
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { csrfToken, requireContext } from "@/lib/web/session";
 import { guard } from "@/lib/web/interrupt";
@@ -46,10 +47,16 @@ export default async function GroupDetailPage({
   });
 
   const taken = new Set(members.map((member) => member.userId));
+  const bound = schoolScope(principal);
   const eligible = async (role: Role) =>
     (
       await prisma.user.findMany({
-        where: { ...scoped(principal), archivedAt: null, roles: { some: { role } } },
+        where: {
+          ...scoped(principal),
+          archivedAt: null,
+          roles: { some: { role } },
+          ...(bound ? peopleAtSchools(bound) : {}),
+        },
         select: { id: true, ref: true, firstName: true, lastName: true },
         orderBy: { lastName: "asc" },
       })

@@ -17,7 +17,7 @@ import { revalidatePath } from "next/cache";
 import { AttendanceStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { NotFound, ValidationError, payloadFor } from "@/lib/errors";
-import { scoped } from "@/lib/policies/scoping";
+import { visibleSessions } from "@/lib/services/sessionQuery";
 import { EditScope } from "@/lib/services/booking";
 import * as sessionOps from "@/lib/services/sessionOps";
 import { resolveCivil } from "@/lib/time";
@@ -58,7 +58,7 @@ function localToInstant(value: FormDataEntryValue | null, zone: string): Date | 
 async function loadSession(ref: string) {
   const { principal, organization } = await requireContext();
   const occurrence = await prisma.sessionOccurrence.findFirst({
-    where: { ...scoped(principal), ref, archivedAt: null },
+    where: { ...visibleSessions(principal), ref },
   });
   if (occurrence === null) throw new NotFound("no such session");
   return { principal, organization, occurrence };

@@ -13,6 +13,7 @@ import { record } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { NotFound, ValidationError, payloadFor } from "@/lib/errors";
 import { Permission } from "@/lib/policies/permissions";
+import { peopleAtSchools, schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { WEEKDAY_LABELS } from "@/lib/presentation";
 import { newRef } from "@/lib/ref";
@@ -31,8 +32,14 @@ export async function addAvailability(
     const { principal } = await requireContext();
 
     const instructorRef = String(form.get("instructor_ref") ?? "");
+    const bound = schoolScope(principal);
     const instructor = await prisma.user.findFirst({
-      where: { ...scoped(principal), ref: instructorRef, archivedAt: null },
+      where: {
+        ...scoped(principal),
+        ref: instructorRef,
+        archivedAt: null,
+        ...(bound ? peopleAtSchools(bound) : {}),
+      },
     });
     if (instructor === null) throw new NotFound("no such user");
 

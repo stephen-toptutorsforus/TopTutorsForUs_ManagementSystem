@@ -44,12 +44,19 @@ describe("what the filter menus offer", () => {
     expect(offered.has(SessionStatus.IN_PROGRESS)).toBe(false);
   });
 
-  it("offers four of the six roles, and says which two it leaves out", () => {
+  it("offers six of the eight roles, and says which two it leaves out", () => {
     // `payer` is granted by assigning somebody to pay rather than held as a
     // job, and `regional_admin` is a narrowing of `admin`. Both still show as
-    // tags on the rows they belong to.
+    // tags on the rows they belong to. School admin and principal are jobs.
     expect(new Set<string>(ROLE_FILTER_ORDER)).toEqual(
-      new Set<string>([Role.INSTRUCTOR, Role.STUDENT, Role.PARENT, Role.ADMIN]),
+      new Set<string>([
+        Role.INSTRUCTOR,
+        Role.STUDENT,
+        Role.PARENT,
+        Role.ADMIN,
+        Role.SCHOOL_ADMIN,
+        Role.PRINCIPAL,
+      ]),
     );
   });
 

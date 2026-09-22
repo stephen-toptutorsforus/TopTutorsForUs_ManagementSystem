@@ -7,9 +7,8 @@
 
 import { prisma } from "@/lib/db";
 import { NotFound, payloadFor, statusFor } from "@/lib/errors";
-import { scoped } from "@/lib/policies/scoping";
 import { availableActions, canView } from "@/lib/policies/sessions";
-import { decorate } from "@/lib/services/sessionQuery";
+import { decorate, visibleSessions } from "@/lib/services/sessionQuery";
 import { toSessionOut } from "@/lib/web/api";
 import { NO_STORE_HEADERS } from "@/lib/web/caching";
 import { requireContext } from "@/lib/web/session";
@@ -25,7 +24,7 @@ export async function GET(
     const { principal, organization } = await requireContext();
 
     const occurrence = await prisma.sessionOccurrence.findFirst({
-      where: { ...scoped(principal), ref, archivedAt: null },
+      where: { ...visibleSessions(principal), ref },
     });
     if (occurrence === null) throw new NotFound("no such session");
 
