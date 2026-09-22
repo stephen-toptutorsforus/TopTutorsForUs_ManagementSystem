@@ -47,7 +47,13 @@ const anOrganization = () => ({ settings: {}, features: {} });
  * behaviour actually depends on.
  */
 function aRow(
-  overrides: { status?: SessionStatus; seriesId?: bigint | null; seriesPosition?: string | null } = {},
+  overrides: {
+    status?: SessionStatus;
+    seriesId?: bigint | null;
+    seriesPosition?: string | null;
+    meetingUrl?: string | null;
+    classroomConfig?: unknown;
+  } = {},
 ): SessionRow {
   const start = new Date(Date.now() + 7 * 86_400_000);
   return {
@@ -62,7 +68,8 @@ function aRow(
       scheduledEnd: new Date(start.getTime() + 3_600_000),
       timezone: NY,
       deliveryType: DeliveryType.EXTERNAL_LINK,
-      meetingUrl: null,
+      meetingUrl: overrides.meetingUrl ?? null,
+      classroomConfig: overrides.classroomConfig ?? {},
       locationDetail: null,
       seriesId: overrides.seriesId ?? null,
     },
@@ -140,6 +147,22 @@ describe("what the modal is told it may do", () => {
 
     expect(alone.actions).not.toContain("edit_series");
     expect(inSeries.actions).toContain("edit_series");
+  });
+
+  it("hands the host start URL only to somebody who may start", () => {
+    const row = aRow({
+      meetingUrl: "https://meet.example.test/zoom/1",
+      classroomConfig: {
+        provider: "mock",
+        meetingId: "mock-1",
+        startUrl: "https://meet.example.test/zoom/1/host",
+      },
+    });
+
+    expect(peekOf(row, "Online", [], NY, false).hostStartUrl).toBeNull();
+    expect(peekOf(row, "Online", [], NY, true).hostStartUrl).toBe(
+      "https://meet.example.test/zoom/1/host",
+    );
   });
 
   it("still offers the series when the position has no label", () => {

@@ -37,6 +37,8 @@ datasource db {
 
 enum Role {
   ADMIN          @map("admin")
+  SCHOOL_ADMIN   @map("school_admin")
+  PRINCIPAL      @map("principal")
   REGIONAL_ADMIN @map("regional_admin")
   INSTRUCTOR     @map("instructor")
   STUDENT        @map("student")
@@ -905,6 +907,12 @@ model SessionOccurrence {
   description        String?
   deliveryType       DeliveryType  @map("delivery_type")
   meetingUrl         String?       @map("meeting_url") @db.VarChar(1000)
+  /// Provider metadata for an auto-created meeting — meeting id and the host
+  /// start URL. The student join link stays in `meetingUrl`. The series row
+  /// already had this column; the occurrence owns its own meeting, so the
+  /// config has to live here too. Never a `zoom_*` column: those names are
+  /// not in the reference schema.
+  classroomConfig    Json          @default("{}") @map("classroom_config") @db.JsonB
   locationId         BigInt?       @map("location_id")
   locationDetail     String?       @map("location_detail") @db.VarChar(500)
   scheduledStart     DateTime      @map("scheduled_start") @db.Timestamptz(6)

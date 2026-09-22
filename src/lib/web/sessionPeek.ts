@@ -12,6 +12,7 @@
  * follows.
  */
 
+import { meetingFromConfig } from "@/lib/meetings";
 import { durationWords, sessionStateMeta, studentList } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import type { SessionRow } from "@/lib/services/sessionQuery";
@@ -43,6 +44,11 @@ export interface PeekSession {
   place: string | null;
   /** Whether `place` is a URL to follow rather than a room to walk to. */
   placeIsLink: boolean;
+  /**
+   * Host start URL, only when this viewer may start the meeting. Null for
+   * students, parents, and any session that has no auto-created room.
+   */
+  hostStartUrl: string | null;
   instructorName: string | null;
   /**
    * The students, written out — already narrowed to the ones this viewer may be
@@ -85,6 +91,8 @@ export function peekOf(
   actions: readonly string[],
   /** The reader's clock, so the dialog agrees with the chip it opened from. */
   zone: string,
+  /** Whether this viewer may follow the host start URL. */
+  canStart = false,
 ): PeekSession {
   const session = row.session;
   const start = new Moment(session.scheduledStart, zone);
@@ -92,6 +100,7 @@ export function peekOf(
     (session.scheduledEnd.getTime() - session.scheduledStart.getTime()) / 60_000,
   );
   const isLink = session.deliveryType !== "IN_PERSON";
+  const created = meetingFromConfig(session.classroomConfig);
 
   return {
     ref: session.ref,
@@ -109,6 +118,7 @@ export function peekOf(
     // meeting link follows.
     place: isLink ? session.meetingUrl : (row.locationName ?? session.locationDetail),
     placeIsLink: isLink,
+    hostStartUrl: canStart && created ? created.startUrl : null,
     instructorName: row.instructorName,
     studentsLabel: studentList(row.studentNames, row.studentCount),
     seriesPosition: row.seriesPosition,

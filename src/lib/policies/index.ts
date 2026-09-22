@@ -11,6 +11,15 @@ export {
 export { Principal, loadPrincipal, type PrincipalFields } from "@/lib/policies/principal";
 export { fetchScoped, scoped, type TenantScope } from "@/lib/policies/scoping";
 export {
+  SCHOOL_SCOPED_ROLES,
+  assertSchoolsInScope,
+  isSchoolScopedRole,
+  peopleAtSchools,
+  schoolScope,
+  sessionAtSchools,
+  sessionInSchoolScope,
+} from "@/lib/policies/schoolScope";
+export {
   ACTIONS_BY_STATUS,
   ALLOW,
   type Decision,
@@ -27,6 +36,7 @@ export {
   canMarkAttendance,
   canOverrideConflicts,
   canReschedule,
+  canStartMeeting,
   canView,
   deny,
   participantRoleFor,

@@ -18,6 +18,7 @@
 
 import { ParticipantRole, Role, SessionStatus } from "@/generated/prisma/enums";
 import { Forbidden } from "@/lib/errors";
+import { sessionInSchoolScope } from "@/lib/policies/schoolScope";
 import { type ConfigurableOrganization, settingNumber, settingsReader } from "@/lib/organization";
 import { Permission as P } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
@@ -113,6 +114,21 @@ export function owns(principal: Principal, session: SessionLike): boolean {
   return session.instructorId !== null && session.instructorId === principal.userId;
 }
 
+/**
+ * Who may follow the host start URL.
+ *
+ * Students and parents may join; they must not start. The instructor of
+ * *this* session may, and so may anybody who can see every session — that
+ * is the same people who already see the join link on the booking they
+ * made. Another tenant is 404, never 403.
+ */
+export function canStartMeeting(principal: Principal, session: SessionLike): Decision {
+  if (elsewhere(principal, session)) return deny("no such session");
+  if (owns(principal, session)) return ALLOW;
+  if (principal.has(P.SESSION_VIEW_ANY)) return ALLOW;
+  return deny("you may not start this meeting");
+}
+
 /** The one refusal that must never say more than this. */
 function elsewhere(principal: Principal, session: SessionLike): boolean {
   return session.organizationId !== principal.organizationId;
@@ -130,10 +146,20 @@ export function canView(
   options: {
     participantUserIds?: Iterable<bigint>;
     guardianOfIds?: Iterable<bigint>;
+    /** Schools of the students on this session. Used when the viewer is school-scoped. */
+    studentSchoolIds?: Iterable<bigint>;
   } = {},
 ): Decision {
   if (elsewhere(principal, session)) return deny("no such session");
-  if (principal.has(P.SESSION_VIEW_ANY)) return ALLOW;
+  if (principal.has(P.SESSION_VIEW_ANY)) {
+    if (
+      options.studentSchoolIds !== undefined &&
+      !sessionInSchoolScope(principal, options.studentSchoolIds)
+    ) {
+      return deny("no such session");
+    }
+    return ALLOW;
+  }
 
   const participants = new Set(options.participantUserIds ?? []);
   if (participants.has(principal.userId)) return ALLOW;

@@ -74,6 +74,18 @@ export class RateLimited extends AppError {
   readonly code = "rate_limited";
 }
 
+/**
+ * An integration we asked to do something and it could not.
+ *
+ * 502 rather than 500: the booking itself was valid and the failure is
+ * outside it. The message must never carry a token, a meeting URL, or a
+ * Zoom response body — those belong in nobody's error page.
+ */
+export class ServiceUnavailable extends AppError {
+  readonly status = 502;
+  readonly code = "service_unavailable";
+}
+
 /** The status to answer with, for anything that reaches a handler's catch. */
 export function statusFor(error: unknown): number {
   return error instanceof AppError ? error.status : 500;

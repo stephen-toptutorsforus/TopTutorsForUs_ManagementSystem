@@ -25,6 +25,7 @@ import { DeliveryType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { ValidationError, payloadFor } from "@/lib/errors";
 import { Permission } from "@/lib/policies/permissions";
+import { schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
 import { resolveRosterFromRefs } from "@/lib/services/instructorEligibility";
 import {
@@ -33,6 +34,7 @@ import {
   plan as planBooking,
 } from "@/lib/services/booking";
 import type { WeekdaySchedule } from "@/lib/recurrence";
+import { resolveMeetingProvider } from "@/lib/meetings";
 import { assertStudentsAtSchool } from "@/lib/services/enrolment";
 import { type CivilDate, type CivilTime, isValidZone } from "@/lib/time";
 import { maxRepeatDays, weekdayOf } from "@/lib/presentation";
@@ -250,7 +252,13 @@ async function bookingFromForm(
   // the other, but a stale value can still arrive from a browser that filled
   // both before the type changed, and the session should not carry a link it is
   // not delivered over.
-  const link = delivery === DeliveryType.EXTERNAL_LINK ? one(form, "meeting_url") : "";
+  const meetingSource =
+    delivery === DeliveryType.EXTERNAL_LINK ? one(form, "meeting_source") : "";
+  const createMeeting = meetingSource === "zoom";
+  const link =
+    delivery === DeliveryType.EXTERNAL_LINK && !createMeeting
+      ? one(form, "meeting_url")
+      : "";
   const detail = delivery === DeliveryType.IN_PERSON ? one(form, "location_detail") : "";
   // The managed room, which is the only thing the exclusion constraint can key
   // on. `locationDetail` beside it is directions to it, never a substitute for
@@ -269,6 +277,7 @@ async function bookingFromForm(
     description: one(form, "description") || null,
     deliveryType: delivery,
     meetingUrl: link || null,
+    createMeeting,
     locationId: room,
     locationDetail: detail || null,
     startDate,
@@ -348,8 +357,14 @@ export async function bookingStep(
   try {
     booking = await bookingFromForm(principal, form);
     if (schoolRef) {
+      const bound = schoolScope(principal);
       const school = await prisma.school.findFirst({
-        where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+        where: {
+          ...scoped(principal),
+          ref: schoolRef,
+          archivedAt: null,
+          ...(bound ? { id: { in: [...bound] } } : {}),
+        },
       });
       if (school === null) throw new ValidationError("no such school");
       const rosterIds = await resolveRosterFromRefs(prisma, principal, {
@@ -368,9 +383,14 @@ export async function bookingStep(
 
   let created: Awaited<ReturnType<typeof createFromPlan>>;
   try {
-    created = await createFromPlan(prisma, organization, principal, bookingPlan, {
-      ...(await requestMeta()),
-    });
+    created = await createFromPlan(
+      prisma,
+      organization,
+      principal,
+      bookingPlan,
+      { ...(await requestMeta()) },
+      resolveMeetingProvider(),
+    );
   } catch (error) {
     const payload = payloadFor(error);
     return {

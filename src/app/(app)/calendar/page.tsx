@@ -28,7 +28,7 @@ import {
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
 import { scoped } from "@/lib/policies/scoping";
-import { availableActions } from "@/lib/policies/sessions";
+import { availableActions, canStartMeeting } from "@/lib/policies/sessions";
 import { applyCalendarState, resetCalendarFilters } from "@/app/actions/filters";
 import { CALENDAR_FORM, GoTo } from "@/components/calendar/GoTo";
 import { StateFields } from "@/components/ui/StateFields";
@@ -242,6 +242,7 @@ export default async function CalendarPage() {
         deliveryMeta(row.session.deliveryType).label,
         availableActions(principal, row.session, organization),
         zone,
+        canStartMeeting(principal, row.session).allowed,
       );
     }
   }

@@ -86,6 +86,31 @@ const P = Permission;
 /** The maximum any tenant can grant to a role. Configuration only subtracts. */
 export const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> = {
   [Role.ADMIN]: new Set(ALL_PERMISSIONS),
+  [Role.SCHOOL_ADMIN]: new Set([
+    P.USER_VIEW,
+    P.USER_MANAGE,
+    P.USER_INVITE,
+    P.STRUCTURE_VIEW,
+    P.AVAILABILITY_VIEW_ANY,
+    P.AVAILABILITY_EDIT_ANY,
+    P.SESSION_VIEW_ANY,
+    P.SESSION_BOOK,
+    P.SESSION_EDIT_ANY,
+    P.SESSION_CANCEL_ANY,
+    P.SESSION_EDIT_SERIES,
+    P.SESSION_APPROVE_REQUEST,
+    P.ATTENDANCE_MARK_ANY,
+    P.AUDIT_VIEW,
+    P.EXPORT_SESSIONS,
+  ]),
+  [Role.PRINCIPAL]: new Set([
+    P.USER_VIEW,
+    P.STRUCTURE_VIEW,
+    P.AVAILABILITY_VIEW_ANY,
+    P.SESSION_VIEW_ANY,
+    P.AUDIT_VIEW,
+    P.EXPORT_SESSIONS,
+  ]),
   [Role.REGIONAL_ADMIN]: new Set([
     P.USER_VIEW,
     P.USER_MANAGE,

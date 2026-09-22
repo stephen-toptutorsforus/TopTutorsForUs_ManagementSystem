@@ -30,6 +30,11 @@ export interface PrincipalFields {
   readonly roles: ReadonlySet<Role>;
   readonly permissions: ReadonlySet<Permission>;
   readonly regionIds: ReadonlySet<bigint>;
+  /**
+   * Schools this person is placed at. Super admin ignores the set (they see
+   * every school). A school admin or principal is granted with exactly one.
+   */
+  readonly schoolIds?: ReadonlySet<bigint>;
   readonly timezone: string;
 }
 
@@ -39,6 +44,8 @@ export interface PrincipalFields {
  */
 const ROLE_PRECEDENCE: readonly Role[] = [
   Role.ADMIN,
+  Role.SCHOOL_ADMIN,
+  Role.PRINCIPAL,
   Role.REGIONAL_ADMIN,
   Role.INSTRUCTOR,
   Role.PARENT,
@@ -56,6 +63,7 @@ export class Principal implements PrincipalFields {
   readonly roles: ReadonlySet<Role>;
   readonly permissions: ReadonlySet<Permission>;
   readonly regionIds: ReadonlySet<bigint>;
+  readonly schoolIds: ReadonlySet<bigint>;
   readonly timezone: string;
 
   constructor(fields: PrincipalFields) {
@@ -67,6 +75,7 @@ export class Principal implements PrincipalFields {
     this.roles = fields.roles;
     this.permissions = fields.permissions;
     this.regionIds = fields.regionIds;
+    this.schoolIds = fields.schoolIds ?? new Set();
     this.timezone = fields.timezone;
   }
 
@@ -117,7 +126,7 @@ export async function loadPrincipal(
 ): Promise<Principal> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    include: { roles: true, organization: true },
+    include: { roles: true, organization: true, schools: { select: { schoolId: true } } },
   });
 
   const signedOut = new Unauthenticated("this session is no longer valid");
@@ -144,6 +153,7 @@ export async function loadPrincipal(
         .map((grant) => grant.regionId)
         .filter((regionId): regionId is bigint => regionId !== null),
     ),
+    schoolIds: new Set(user.schools.map((row) => row.schoolId)),
     timezone: user.timezone ?? organization.timezone,
   });
 }

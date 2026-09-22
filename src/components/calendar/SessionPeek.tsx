@@ -222,9 +222,19 @@ export function SessionPeek({
                 ) : session.placeIsLink ? (
                   /* Shown only to somebody already authorised to see this
                      session, and never written to a log or the audit trail. */
-                  <a href={session.place} rel="noopener noreferrer">
-                    Join the meeting
-                  </a>
+                  <>
+                    <a href={session.place} rel="noopener noreferrer">
+                      Join the meeting
+                    </a>
+                    {session.hostStartUrl ? (
+                      <>
+                        {" · "}
+                        <a href={session.hostStartUrl} rel="noopener noreferrer">
+                          Start the meeting
+                        </a>
+                      </>
+                    ) : null}
+                  </>
                 ) : (
                   session.place
                 )}

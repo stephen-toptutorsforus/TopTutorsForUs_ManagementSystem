@@ -3,10 +3,12 @@
  *
  * Ported from `app/services/booking.py`.
  *
- * Everything here runs inside the caller's transaction and performs no network
- * I/O, so a command either fully happens or fully does not. A series is created
- * whole or not at all — a partially generated series is worse than a failed
- * one, because nobody can tell by looking that it is incomplete.
+ * Everything here runs inside the caller's transaction. Preview performs no
+ * network I/O. Confirm does only when the booking asked a meeting provider
+ * to create a room — and then the meetings are created first, the rows
+ * second, and a failure deletes every meeting already made. A series is
+ * created whole or not at all — a partially generated series is worse than
+ * a failed one, because nobody can tell by looking that it is incomplete.
  *
  * **Preview and create share one code path.** `plan()` produces a `BookingPlan`
  * containing every occurrence with its conflicts; `createFromPlan()` writes
@@ -37,7 +39,12 @@ import {
   selfOverlaps,
 } from "@/lib/conflicts";
 import type { Db } from "@/lib/db";
-import { ConflictError, Forbidden, ValidationError } from "@/lib/errors";
+import { AppError, ConflictError, Forbidden, ServiceUnavailable, ValidationError } from "@/lib/errors";
+import {
+  type MeetingProvider,
+  classroomConfigFor,
+  resolveMeetingProvider,
+} from "@/lib/meetings";
 import {
   type ConfigurableOrganization,
   MAX_OCCURRENCES_PER_SERIES,
@@ -147,6 +154,14 @@ export interface BookingRequest {
    */
   locationDetail?: string | null;
   meetingUrl?: string | null;
+  /**
+   * Ask the meeting provider for one Zoom meeting per occurrence.
+   *
+   * Preview ignores this. Confirm is the only writer, and a leftover pasted
+   * URL is ignored when this is set — switching the form back to auto-create
+   * must not keep the previous link.
+   */
+  createMeeting?: boolean;
   description?: string | null;
   billable?: boolean;
   /** `repeat` false produces exactly one occurrence. */
@@ -344,6 +359,7 @@ export async function createFromPlan(
   principal: Principal,
   bookingPlan: BookingPlan,
   requestMeta: RequestMeta = {},
+  meetings?: MeetingProvider | null,
 ): Promise<{ series: CreatedSeries | null; created: CreatedOccurrence[] }> {
   const request = bookingPlan.request;
   // Asked on the form only where the tenant charges for anything. Where it does
@@ -395,6 +411,80 @@ export async function createFromPlan(
     instructorId: request.instructorId ?? null,
   });
 
+  const wantsMeeting =
+    request.createMeeting === true && request.deliveryType === DeliveryType.EXTERNAL_LINK;
+  const provider = wantsMeeting ? (meetings ?? resolveMeetingProvider()) : null;
+  if (wantsMeeting && provider === null) {
+    throw new ValidationError("Zoom is not configured");
+  }
+
+  const createdMeetings = [];
+  if (provider !== null) {
+    try {
+      for (const planned of bookingPlan.sessions) {
+        createdMeetings.push(
+          await provider.createMeeting({
+            topic: request.title.trim(),
+            start: planned.occurrence.start,
+            durationMinutes: planned.occurrence.durationMinutes,
+          }),
+        );
+      }
+    } catch (error) {
+      await discardMeetings(provider, createdMeetings);
+      if (error instanceof AppError) throw error;
+      throw new ServiceUnavailable("Zoom meeting could not be created");
+    }
+  }
+
+  try {
+    return await writePlan(
+      db,
+      organization,
+      principal,
+      bookingPlan,
+      requestMeta,
+      billing,
+      conflicted,
+      provider,
+      createdMeetings,
+    );
+  } catch (error) {
+    await discardMeetings(provider, createdMeetings);
+    throw error;
+  }
+}
+
+async function discardMeetings(
+  provider: MeetingProvider | null,
+  meetings: readonly { meetingId: string }[],
+): Promise<void> {
+  if (provider === null) return;
+  for (const meeting of meetings) {
+    try {
+      await provider.deleteMeeting(meeting.meetingId);
+    } catch {
+      // Already gone, or the provider is down. The booking is being refused
+      // either way; a leftover meeting is an orphan, not a written session.
+    }
+  }
+}
+
+async function writePlan(
+  db: Db,
+  organization: BookingOrganization,
+  principal: Principal,
+  bookingPlan: BookingPlan,
+  requestMeta: RequestMeta,
+  billing: boolean,
+  conflicted: PlannedSession[],
+  provider: MeetingProvider | null,
+  createdMeetings: readonly { joinUrl: string; startUrl: string; meetingId: string; uuid?: string }[],
+): Promise<{ series: CreatedSeries | null; created: CreatedOccurrence[] }> {
+  const request = bookingPlan.request;
+  const firstMeeting = createdMeetings[0] ?? null;
+  const seriesMeetingUrl = firstMeeting?.joinUrl ?? request.meetingUrl ?? null;
+
   let series: CreatedSeries | null = null;
   if (request.repeat && bookingPlan.sessions.length > 1) {
     const endMode = request.endMode ?? "count";
@@ -423,9 +513,9 @@ export async function createFromPlan(
         gradeId: request.gradeId ?? null,
         locationId: request.locationId ?? null,
         locationDetail: request.locationDetail ?? null,
-        meetingUrl: request.meetingUrl ?? null,
+        meetingUrl: seriesMeetingUrl,
         billable: billing ? (request.billable ?? true) : false,
-        classroomConfig: {},
+        classroomConfig: provider !== null ? { provider: provider.kind } : {},
         createdById: principal.userId,
       },
     });
@@ -442,7 +532,8 @@ export async function createFromPlan(
   // on each insert, so a clash the service missed still fails the whole booking
   // — the caller's transaction is what makes that all-or-nothing.
   const created: CreatedOccurrence[] = [];
-  for (const planned of bookingPlan.sessions) {
+  for (const [index, planned] of bookingPlan.sessions.entries()) {
+    const generated = createdMeetings[index];
     created.push(
       await db.sessionOccurrence.create({
         data: {
@@ -453,7 +544,11 @@ export async function createFromPlan(
           title: request.title,
           description: request.description ?? null,
           deliveryType: request.deliveryType,
-          meetingUrl: request.meetingUrl ?? null,
+          meetingUrl: generated?.joinUrl ?? request.meetingUrl ?? null,
+          classroomConfig:
+            generated && provider
+              ? (classroomConfigFor(generated, provider.kind) as unknown as Prisma.InputJsonValue)
+              : {},
           locationId: request.locationId ?? null,
           locationDetail: request.locationDetail ?? null,
           scheduledStart: planned.occurrence.start,

@@ -28,7 +28,7 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
 import { type BookingState, bookingStep } from "@/app/actions/booking";
-import { Button, Card, Choice, Field, Hint, Notice, OptionSelect, TrashIcon } from "@/components/ui";
+import { Button, Card, Choice, ChoiceGroup, Field, Hint, Notice, OptionSelect, TrashIcon } from "@/components/ui";
 import { CSRF_FIELD } from "@/lib/names";
 import { noEligibleInstructors } from "@/lib/web/eligibilityCopy";
 import {
@@ -235,6 +235,15 @@ export function BookingForm({
    * echo can only ever repeat what was sent.
    */
   const [delivery, setDelivery] = useState(() => values.delivery_type ?? "external_link");
+  /**
+   * Auto-create vs paste, for an online session. Default is Zoom when the
+   * process can create one, so a first paint does not leave the booker
+   * staring at an empty URL field the product can now fill.
+   */
+  const [meetingSource, setMeetingSource] = useState(() =>
+    values.meeting_source
+      ?? (context.canCreateMeeting ? "zoom" : "link"),
+  );
   // The day count is re-seeded from whatever the action handed back, but only
   // where the server changed it — see `sentCount`. The chip list deliberately
   // is not re-seeded at all: the server only ever echoes the roster it was
@@ -248,6 +257,10 @@ export function BookingForm({
     const echoed = state.values.occurrence_count ?? "1";
     if (echoed !== sentCount) setCounted(Number.parseInt(echoed, 10) || 1);
     setDelivery(state.values.delivery_type ?? "external_link");
+    setMeetingSource(
+      state.values.meeting_source
+        ?? (state.context.canCreateMeeting ? "zoom" : "link"),
+    );
     setSentCount(null);
   }
 
@@ -461,17 +474,57 @@ export function BookingForm({
               session. That is what makes the no-script fallback in
               `public/no-script.css` safe: it shows all four again, because with
               no script nothing re-renders when the select changes. */}
+          {context.canCreateMeeting && (
+            <div
+              data-when-delivery="external_link"
+              className={delivery === "external_link" ? undefined : "field-off"}
+            >
+              <ChoiceGroup
+                legend="Online meeting"
+                hint={
+                  <Hint>
+                    Create a Zoom meeting for each session, or paste a link you
+                    already have. Preview does not call Zoom; confirm does.
+                  </Hint>
+                }
+              >
+                <Choice
+                  type="radio"
+                  name="meeting_source"
+                  value="zoom"
+                  label="Create a Zoom meeting"
+                  checked={meetingSource === "zoom"}
+                  onChange={() => setMeetingSource("zoom")}
+                />
+                <Choice
+                  type="radio"
+                  name="meeting_source"
+                  value="link"
+                  label="Use my own link"
+                  checked={meetingSource === "link"}
+                  onChange={() => setMeetingSource("link")}
+                />
+              </ChoiceGroup>
+            </div>
+          )}
+
           <Field
             id="meeting_url"
             label="Online Classroom link"
             data-when-delivery="external_link"
-            className={delivery === "external_link" ? undefined : "field-off"}
+            className={
+              delivery === "external_link" &&
+              (!context.canCreateMeeting || meetingSource === "link")
+                ? undefined
+                : "field-off"
+            }
           >
             <input
               id="meeting_url"
               name="meeting_url"
               type="text"
               defaultValue={value("meeting_url")}
+              key={`meeting-${value("meeting_url")}`}
               placeholder="example: meet.google.com/hey-yoo-gyz"
             />
           </Field>

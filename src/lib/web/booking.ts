@@ -40,7 +40,9 @@ import {
 } from "@/lib/services/instructorEligibility";
 import { Permission } from "@/lib/policies/permissions";
 import type { Principal } from "@/lib/policies/principal";
+import { schoolScope } from "@/lib/policies/schoolScope";
 import { scoped } from "@/lib/policies/scoping";
+import { resolveMeetingProvider } from "@/lib/meetings";
 import { deliveryMeta } from "@/lib/presentation";
 import { type CivilDate, type CivilTime, addDays, civilDate, resolveCivil } from "@/lib/time";
 import type { OrganizationRecord } from "@/lib/web/session";
@@ -261,6 +263,12 @@ export interface BookingContext extends AvailabilityBlock {
    * turns billing on and configures nothing else books exactly as before.
    */
   billableDefault: boolean;
+  /**
+   * Whether the form may offer "Create a Zoom meeting". False when neither
+   * `USE_MOCK_ZOOM` nor the Zoom credentials are set — then the paste field
+   * is the only online path, which is what every booking was before this.
+   */
+  canCreateMeeting: boolean;
 }
 
 const DOW_LONG = [
@@ -587,13 +595,24 @@ export async function bookingContext(
   // No instructor query here: the eligible list came back from
   // `availabilityContext` and is spread in below. Asking a second time is how
   // the dropdown and the grid start offering different people.
+  const scope = schoolScope(principal);
   const schoolRef = (chosen.schoolRef ?? "").trim();
   const school = schoolRef
     ? await db.school.findFirst({
-        where: { ...scoped(principal), ref: schoolRef, archivedAt: null },
+        where: {
+          ...scoped(principal),
+          ref: schoolRef,
+          archivedAt: null,
+          ...(scope ? { id: { in: [...scope] } } : {}),
+        },
         select: { id: true, ref: true },
       })
-    : null;
+    : scope !== null && scope.length === 1
+      ? await db.school.findFirst({
+          where: { ...scoped(principal), id: scope[0], archivedAt: null },
+          select: { id: true, ref: true },
+        })
+      : null;
 
   const [students, programs, groups, locations, schools] = await Promise.all([
     db.user.findMany({
@@ -605,7 +624,9 @@ export async function bookingContext(
           ? { schools: { some: { schoolId: school.id } } }
           : schoolRef
             ? { id: -1n }
-            : {}),
+            : scope
+              ? { schools: { some: { schoolId: { in: [...scope] } } } }
+              : {}),
       },
       select: { ref: true, firstName: true, lastName: true, email: true },
       orderBy: { lastName: "asc" },
@@ -628,13 +649,19 @@ export async function bookingContext(
           ? { OR: [{ schoolId: school.id }, { schoolId: null }] }
           : schoolRef
             ? { id: -1n }
-            : {}),
+            : scope
+              ? { OR: [{ schoolId: { in: [...scope] } }, { schoolId: null }] }
+              : {}),
       },
       select: { ref: true, name: true },
       orderBy: { name: "asc" },
     }),
     db.school.findMany({
-      where: { ...scoped(principal), archivedAt: null },
+      where: {
+        ...scoped(principal),
+        archivedAt: null,
+        ...(scope ? { id: { in: [...scope] } } : {}),
+      },
       select: { ref: true, name: true },
       orderBy: { name: "asc" },
     }),
@@ -663,5 +690,6 @@ export async function bookingContext(
     canOverride: principal.has(Permission.SESSION_OVERRIDE_CONFLICT),
     billableEnabled: billingEnabled(organization),
     billableDefault: settingBoolean(reader, ["booking", "billable_default"], true),
+    canCreateMeeting: resolveMeetingProvider() !== null,
   };
 }
