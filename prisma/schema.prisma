@@ -1133,3 +1133,171 @@ model ImportRecord {
   @@index([batchId])
   @@map("import_record")
 }
+
+// --- Shared session slice ---------------------------------------------------
+//
+// A copy of the school app's session tables, so a change can be stored here
+// and sent onward with the same columns and the same string ids. These rows
+// are not the booking record: `session_occurrence` stays that. Passwords and
+// the host start URL are not columns here.
+
+enum SharedRole {
+  STUDENT
+  TUTOR
+  ADMIN
+  SUPER_ADMIN
+  PRINCIPAL
+  PARENT
+
+  @@map("shared_role")
+}
+
+enum SharedSessionStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+
+  @@map("shared_session_status")
+}
+
+enum SharedAttendanceStatus {
+  UNMARKED
+  PRESENT
+  LATE
+  ABSENT
+
+  @@map("shared_attendance_status")
+}
+
+model SharedSchool {
+  id       String @id @default(cuid())
+  name     String
+  slug     String @unique
+  timezone String @default("America/Chicago")
+
+  users SharedUser[]
+
+  @@map("shared_school")
+}
+
+model SharedUser {
+  id       String        @id @default(cuid())
+  email    String        @unique
+  name     String
+  role     SharedRole
+  schoolId String?
+  school   SharedSchool? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  tutoredPods     SharedPod[]               @relation("SharedPodTutor")
+  podMemberships  SharedPodMembership[]     @relation("SharedPodStudent")
+  tutoredSessions SharedSession[]           @relation("SharedSessionTutor")
+  attendance      SharedSessionAttendance[] @relation("SharedAttendanceStudent")
+
+  @@index([schoolId])
+  @@map("shared_user")
+}
+
+model SharedPod {
+  id        String     @id @default(cuid())
+  name      String
+  subject   String
+  tutorId   String
+  tutor     SharedUser @relation("SharedPodTutor", fields: [tutorId], references: [id])
+  status    String     @default("ACTIVE")
+  createdAt DateTime   @default(now())
+
+  members  SharedPodMembership[]
+  sessions SharedSession[]
+
+  @@index([tutorId])
+  @@map("shared_pod")
+}
+
+model SharedPodMembership {
+  id        String     @id @default(cuid())
+  podId     String
+  pod       SharedPod  @relation(fields: [podId], references: [id], onDelete: Cascade)
+  studentId String
+  student   SharedUser @relation("SharedPodStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime   @default(now())
+  status    String     @default("ACTIVE")
+
+  @@unique([podId, studentId])
+  @@index([studentId])
+  @@map("shared_pod_membership")
+}
+
+model SharedSession {
+  id          String              @id @default(cuid())
+  podId       String
+  pod         SharedPod           @relation(fields: [podId], references: [id])
+  tutorId     String
+  tutor       SharedUser          @relation("SharedSessionTutor", fields: [tutorId], references: [id])
+  title       String
+  subject     String
+  scheduledAt DateTime
+  duration    Int                 @default(60)
+  status      SharedSessionStatus @default(SCHEDULED)
+  /// The student join link. The host start URL is not a column.
+  zoomJoinUrl String?
+
+  attendance SharedSessionAttendance[]
+
+  @@index([podId])
+  @@index([tutorId])
+  @@map("shared_session")
+}
+
+model SharedSessionAttendance {
+  id        String                 @id @default(cuid())
+  sessionId String
+  session   SharedSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId String
+  student   SharedUser             @relation("SharedAttendanceStudent", fields: [studentId], references: [id])
+  status    SharedAttendanceStatus @default(UNMARKED)
+  joinedAt  DateTime?
+  leftAt    DateTime?
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("shared_session_attendance")
+}
+
+/// Ops row to shared id. Edit and cancel find the copy through this, and the
+/// shared tables themselves stay shaped like the school app.
+model SharedLink {
+  id         BigInt @id @default(autoincrement())
+  entityType String @map("entity_type") @db.VarChar(32)
+  opsId      BigInt @map("ops_id")
+  sharedId   String @map("shared_id")
+
+  @@unique([entityType, opsId], map: "uq_shared_link")
+  @@index([sharedId], map: "ix_shared_link_shared")
+  @@map("shared_link")
+}
+
+/// One change waiting to be delivered to the other database.
+model OutboundChange {
+  id        BigInt   @id @default(autoincrement())
+  kind      String   @db.VarChar(48)
+  sessionId String   @map("session_id")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Set once the row has been written into the other database.
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  @@index([createdAt], map: "ix_outbound_change_created")
+  @@index([deliveredAt], map: "ix_outbound_change_delivered")
+  @@map("outbound_change")
+}
+
+/// An inbound change already stored. A second delivery of the same source id
+/// does nothing, and storing it does not write an outbound change.
+model AppliedInbound {
+  id        BigInt   @id @default(autoincrement())
+  sourceId  String   @unique @map("source_id") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("applied_inbound")
+}

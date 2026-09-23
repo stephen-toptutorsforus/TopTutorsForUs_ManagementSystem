@@ -300,6 +300,7 @@ async function bookingFromForm(
     occurrenceCount: count,
     untilDate: until,
     overrideConflicts: one(form, "override_conflicts") === "on",
+    schoolId: await resolve(prisma.school, one(form, "school_ref")),
   };
 }
 

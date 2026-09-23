@@ -51,6 +51,7 @@ import {
 } from "@/lib/policies/sessions";
 import type { Principal } from "@/lib/policies/principal";
 import { EditScope, occurrencesInScope } from "@/lib/services/booking";
+import { publishOccurrence } from "@/lib/services/sharedSession";
 import type { BookingOrganization } from "@/lib/services/booking";
 import type { RequestMeta } from "@/lib/services/people";
 import {
@@ -189,6 +190,7 @@ export async function reschedule(
     });
 
     changed.push(updated);
+    await publishOccurrence(db, updated.id);
     await record(db, principal, {
       category: AuditCategory.SESSION,
       action: "session.rescheduled",
@@ -270,6 +272,7 @@ export async function editDetails(
     }
     const updated = await db.sessionOccurrence.update({ where: { id: target.id }, data });
     changed.push(updated);
+    await publishOccurrence(db, updated.id);
 
     await record(db, principal, {
       category: AuditCategory.SESSION,
@@ -345,6 +348,7 @@ export async function cancel(
       },
     });
     cancelled.push(updated);
+    await publishOccurrence(db, updated.id);
 
     await record(db, principal, {
       category: AuditCategory.SESSION,

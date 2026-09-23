@@ -72,6 +72,7 @@ import {
 import { newRef } from "@/lib/ref";
 import { organizationOffDays } from "@/lib/availability";
 import { assertEligible } from "@/lib/services/instructorEligibility";
+import { publishOccurrence } from "@/lib/services/sharedSession";
 import {
   type CivilDate,
   type CivilTime,
@@ -179,6 +180,12 @@ export interface BookingRequest {
   occurrenceCount?: number | null;
   untilDate?: CivilDate | null;
   overrideConflicts?: boolean;
+  /**
+   * The school chosen on the booking form. It is not a column on
+   * `session_occurrence`; the shared session copy uses it so the other
+   * database can tell which school the people belong to.
+   */
+  schoolId?: bigint | null;
 }
 
 /** One occurrence in a plan, with whatever is wrong with it. */
@@ -609,6 +616,10 @@ async function writePlan(
       note: occurrence.conflictOverridden ? "conflict override" : null,
       ...requestMeta,
     });
+  }
+
+  for (const occurrence of created) {
+    await publishOccurrence(db, occurrence.id, { schoolId: request.schoolId ?? null });
   }
 
   return { series, created };

@@ -22,6 +22,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:scenarios": "tsx prisma/scenarios.ts",
     "db:test-accounts": "tsx tools/make-test-accounts.ts",
+    "db:link-schools": "tsx tools/link-local-schools.ts",
+    "sync:local": "tsx tools/sync-local.ts",
     "postinstall": "prisma generate",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
