@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { SessionStatus } from "@/generated/prisma/enums";
 import {
   type CalendarFilters,
+  CALENDAR_INITIAL_STATUSES,
   CalendarView,
   activeCalendarFilters,
   buildWindow,
@@ -164,7 +165,7 @@ describe("links", () => {
     // mean something hard to find.
     expect(
       queryString(
-        only({ search: "", statuses: Object.values(SessionStatus) }),
+        only({ search: "", statuses: [...CALENDAR_INITIAL_STATUSES] }),
         { view: CalendarView.MONTH, anchor: ANCHOR },
       ),
     ).toBe("date=2026-08-14");
@@ -219,10 +220,22 @@ describe("links", () => {
     expect(narrowsByStatus([SessionStatus.SCHEDULED])).toBe(true);
   });
 
-  it("writes nothing for a full menu of ticks, so the state stays empty", () => {
+  it("writes a full menu of ticks, because that is no longer how the calendar opens", () => {
+    // The resting selection is five statuses. All seven has to be stored, or
+    // the next render would put the two that were turned back on away again.
+    const query = queryString(
+      only({ search: "", statuses: [...STATUS_FILTER_ORDER] }),
+      { view: CalendarView.MONTH },
+    );
+    expect(query).toContain("status=");
+    expect(query).toContain("rescheduled");
+    expect(query).toContain("cancelled");
+  });
+
+  it("writes nothing for the five statuses the calendar opens with", () => {
     expect(
       queryString(
-        only({ search: "", statuses: [...STATUS_FILTER_ORDER] }),
+        only({ search: "", statuses: [...CALENDAR_INITIAL_STATUSES] }),
         { view: CalendarView.MONTH },
       ),
     ).toBe("");

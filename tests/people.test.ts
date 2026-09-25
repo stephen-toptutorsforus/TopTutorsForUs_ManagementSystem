@@ -170,6 +170,20 @@ describe("the filter drawer's parameters", () => {
     expect(joined.statuses).toEqual(separate.statuses);
   });
 
+  it("writes a later page and leaves the first page unwritten", () => {
+    expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, page: 1 })).toBe("");
+    expect(directoryQuery({ ...NO_DIRECTORY_FILTERS, page: 2 })).toBe("page=2");
+    expect(parseDirectoryFilters(new URLSearchParams("page=0")).page).toBe(1);
+    expect(parseDirectoryFilters(new URLSearchParams("page=abc")).page).toBe(1);
+    const stored = directoryQuery(parseDirectoryFilters(new URLSearchParams("page=3&q=ada")));
+    expect(stored).toBe("q=ada&page=3");
+    expect(directoryQuery(parseDirectoryFilters(new URLSearchParams(stored)))).toBe(stored);
+  });
+
+  it("does not count the page as a filter", () => {
+    expect(activeDirectoryFilters({ ...NO_DIRECTORY_FILTERS, page: 4 })).toBe(0);
+  });
+
   it("is still a fixed point with everything set", () => {
     const query =
       "q=mercer&role=admin&status=active&region=reg_a&district=dis_b&school=sch_c";

@@ -19,7 +19,7 @@ import {
   PersonNameButton,
 } from "@/components/people/OverlayTriggers";
 import { PeopleOverlays } from "@/components/people/PeopleOverlays";
-import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
+import { Button, ButtonRow, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, TableWrap, Tag, UserStatusBadge, VisuallyHidden, When } from "@/components/ui";
 import { GuardianRelationship, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { Permission } from "@/lib/policies/permissions";
@@ -32,10 +32,18 @@ import { ticked } from "@/lib/selection";
 import {
   PAGE_LIMIT,
   activeDirectoryFilters,
+  countPeople,
+  directoryQuery,
   listPeople,
   parseDirectoryFilters,
+  peopleFirstIndex,
+  peopleHasNext,
+  peopleHasPrevious,
+  peopleLastIndex,
+  peoplePageCount,
 } from "@/lib/services/peopleQuery";
 import { applyDirectoryFilters, resetDirectoryFilters } from "@/app/actions/filters";
+import { StateFields } from "@/components/ui/StateFields";
 import { readScreenState } from "@/lib/web/filterState";
 import { csrfToken, requireContext } from "@/lib/web/session";
 import { guard } from "@/lib/web/interrupt";
@@ -84,7 +92,16 @@ export default async function PeoplePage() {
   const filters = parseDirectoryFilters(state);
   const { search, roles: chosenRoles } = filters;
 
-  const rows = await listPeople(prisma, principal, filters);
+  const [rows, total] = await Promise.all([
+    listPeople(prisma, principal, filters),
+    countPeople(prisma, principal, filters),
+  ]);
+  const peoplePage = {
+    rows,
+    total,
+    page: filters.page,
+    pageSize: PAGE_LIMIT,
+  };
   const personIds = rows.map((row) => row.user.id);
   const [schoolRows, regionRows] = personIds.length
     ? await Promise.all([
@@ -311,7 +328,14 @@ export default async function PeoplePage() {
                   label="Search by name or email"
                   placeholder="Name or email"
                   defaultValue={search}
+                  submitOnClear
                 />
+                {/* The search box owns `q` and the role menu owns `role`.
+                    Everything else was set in the drawer. The clear control
+                    submits this form, and a form that submitted only those
+                    two would drop the school, the status and the region on
+                    its way to showing everybody again. */}
+                <StateFields state={state} omit={["q", "role", "page"]} />
                 <FilterMenu
                   name="role"
                   options={roleOptions}
@@ -326,20 +350,11 @@ export default async function PeoplePage() {
               canManage ? (
                 <>
                   <CreateUserButton />
-                  {/* Bulk import is not built. A disabled control says the
-                      feature exists and is unavailable; a working-looking
-                      button that did nothing, or a missing one, would each say
-                      something untrue. It is a `type="button"`, so being inside
-                      no form is not what keeps it from submitting — being
-                      disabled is. */}
-                  <Button
-                    className="is-disabled"
-                    type="button"
-                    disabled
-                    title="Bulk import is not built yet — create users one at a time below"
-                  >
+                  {/* The directory does not grow a second importer. Upload
+                      opens the screen that already reads a people file. */}
+                  <LinkButton href="/import">
                     <span aria-hidden="true">↥</span> Upload Users
-                  </Button>
+                  </LinkButton>
                 </>
               ) : undefined
             }
@@ -513,13 +528,8 @@ export default async function PeoplePage() {
             </tbody>
           </TableWrap>
 
-          {rows.length === PAGE_LIMIT && (
-            <p className="hint">
-              Showing the first {rows.length} people. Narrow the search to see the rest.
-            </p>
-          )}
         </>
-      ) : (
+      ) : total === 0 ? (
         <Card>
           <EmptyState
             heading="Nobody matches"
@@ -527,6 +537,36 @@ export default async function PeoplePage() {
             glyph="◍"
           />
         </Card>
+      ) : null}
+
+      {total > 0 && (
+        <nav className="pagination" aria-label="Pagination">
+          <p className="count">
+            Showing {peopleFirstIndex(peoplePage)}–{peopleLastIndex(peoplePage)} of {total}
+          </p>
+          <ButtonRow as="form" action={applyDirectoryFilters}>
+            <StateFields state={new URLSearchParams(directoryQuery(filters))} omit={["page"]} />
+            {peopleHasPrevious(peoplePage) && (
+              <Button
+                size="small"
+                type="submit"
+                name="page"
+                value={filters.page - 1}
+                rel="prev"
+              >
+                Previous
+              </Button>
+            )}
+            <span className="count">
+              Page {filters.page} of {peoplePageCount(peoplePage)}
+            </span>
+            {peopleHasNext(peoplePage) && (
+              <Button size="small" type="submit" name="page" value={filters.page + 1} rel="next">
+                Next
+              </Button>
+            )}
+          </ButtonRow>
+        </nav>
       )}
     </PeopleOverlays>
   );

@@ -54,10 +54,9 @@ export function statePath(account: Account): string {
 /**
  * Routes every signed-in viewer can open, whatever their role.
  *
- * `/sessions/new` is deliberately absent: a student holds `session.book` in
- * code, but the seeded organization's `who_can_book` setting removes it, and
- * the floor rule means configuration can only take permissions away. That the
- * page answers 403 for them is the rule working, not a missing permission.
+ * Booking is not in this list. A student may request a session; a parent may
+ * not. Both hold `session.book` in code, and `who_can_book` is what removes it
+ * from the parent.
  */
 export const SHARED_ROUTES = [
   "/",
@@ -68,14 +67,20 @@ export const SHARED_ROUTES = [
   "/help",
 ] as const;
 
+/** The booking screen. Students and staff, not parents. */
+export const BOOKING_ROUTE = "/sessions/new";
+
 /** Routes an administrator can open and a student cannot. */
 export const ADMIN_ONLY_ROUTES = [
-  "/sessions/new",
   "/people",
   "/groups",
   "/locations",
   "/audit",
   "/import",
+  "/reminders",
+  "/inbox",
 ] as const;
 
-export const ALL_ADMIN_ROUTES = [...SHARED_ROUTES, ...ADMIN_ONLY_ROUTES];
+export const STUDENT_ROUTES = [...SHARED_ROUTES, BOOKING_ROUTE] as const;
+
+export const ALL_ADMIN_ROUTES = [...SHARED_ROUTES, BOOKING_ROUTE, ...ADMIN_ONLY_ROUTES];

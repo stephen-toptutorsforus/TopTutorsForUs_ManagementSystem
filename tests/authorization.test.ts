@@ -270,14 +270,19 @@ describe("per-object policy", () => {
     expect(canCorrectActualTimes(instructor, completed).allowed).toBe(false);
   });
 
-  it("binds an instructor to the cancellation window but not an administrator", () => {
-    const org = anOrganization({ booking: { cancellation_window_hours: 24 } });
+  it("holds a student to the cancellation window and not the instructor", () => {
+    const org = anOrganization({ booking: { cancellation_window_hours: 4 } });
     const soon = aSession({ instructorId: 9n, start: new Date(Date.now() + 3 * 3_600_000) });
+    const later = aSession({ instructorId: 9n, start: new Date(Date.now() + 5 * 3_600_000) });
+    const student = principalWith([Role.STUDENT], { userId: 4n });
 
-    expect(
-      canCancel(principalWith([Role.INSTRUCTOR], { userId: 9n }), soon, org).allowed,
-    ).toBe(false);
+    expect(canCancel(principalWith([Role.INSTRUCTOR], { userId: 9n }), soon, org).allowed).toBe(
+      true,
+    );
     expect(canCancel(principalWith([Role.ADMIN]), soon, org).allowed).toBe(true);
+    expect(canCancel(student, soon, org, undefined, true).allowed).toBe(false);
+    expect(canCancel(student, later, org, undefined, true).allowed).toBe(true);
+    expect(canCancel(student, later, org).allowed).toBe(false);
   });
 
   it("permits a cancellation far enough ahead of the window", () => {

@@ -139,7 +139,8 @@ test.describe("as an administrator", () => {
       return create !== undefined && create.closest("form") === null;
     });
     expect(outside, "Create User must not be inside the GET form").toBe(true);
-    await expect(page.getByRole("button", { name: /Upload Users/ })).toBeDisabled();
+    const upload = page.getByRole("link", { name: /Upload Users/ });
+    await expect(upload).toHaveAttribute("href", "/import");
   });
 
   test("the session grid keeps every filter and the chosen columns", async ({ page }) => {

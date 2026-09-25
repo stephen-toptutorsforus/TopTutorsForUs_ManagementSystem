@@ -18,6 +18,7 @@ import { TimeGridView } from "@/components/calendar/TimeGridView";
 import { Button, Card, Choice, ChoiceGroup, EmptyState, Field, FilterControl, FilterSection, Hint, LinkButton, OptionSelect, PageHeader, PageToolbar, SearchField, SearchInput, StatusBadge, TableWrap, VisuallyHidden, WhenTime } from "@/components/ui";
 import { Role } from "@/generated/prisma/enums";
 import {
+  CALENDAR_INITIAL_STATUSES,
   CalendarView,
   MONTH_CELL_LIMIT,
   activeCalendarFilters,
@@ -103,6 +104,11 @@ function monthOf(day: CivilDate): string {
  * switch on a shared component is a decision somebody has to re-derive before
  * they can rule it out.)
  */
+/** The same words on the overflow control and on the day it opens. */
+function sessionCountLabel(count: number): string {
+  return count === 1 ? "1 session" : `${count} sessions`;
+}
+
 function EventLink({ row, zone }: { row: SessionRow; zone: string }) {
   const session = row.session;
   // What the session *is*, which for a scheduled one whose hour has gone by is
@@ -181,7 +187,12 @@ export default async function CalendarPage() {
   const view = parseView(state.get("view"));
   const anchor = parseAnchor(state.get("date"), today);
   const window = buildWindow(view, anchor);
-  const filters = parseFilters(state);
+  const parsed = parseFilters(state);
+  // An absent status is the five the calendar opens with, not every status.
+  // The session grid still reads an absent status as everything.
+  const filters = state.has("status")
+    ? parsed
+    : { ...parsed, statuses: [...CALENDAR_INITIAL_STATUSES] };
 
   /**
    * The range, as hidden fields.
@@ -240,7 +251,7 @@ export default async function CalendarPage() {
       peeks[row.session.ref] = peekOf(
         row,
         deliveryMeta(row.session.deliveryType).label,
-        availableActions(principal, row.session, organization),
+        availableActions(principal, row.session, organization, row.viewerInvolved),
         zone,
         canStartMeeting(principal, row.session).allowed,
       );
@@ -389,7 +400,14 @@ export default async function CalendarPage() {
                   label="Search session titles"
                   placeholder="Session title"
                   defaultValue={filters.search}
+                  submitOnClear
                 />
+                {/* The search box owns `q`, the status menu owns `status`,
+                    and the range fields above own `view` and `date`. The
+                    clear control submits this form, and a form that submitted
+                    only those would drop the instructor, the student and the
+                    school on its way to showing every title again. */}
+                <StateFields state={state} omit={["q", "status", "view", "date"]} />
 
                 <FilterMenu
                   name="status"
@@ -430,7 +448,15 @@ export default async function CalendarPage() {
                 <span aria-hidden="true">‹</span>
                 <VisuallyHidden>Previous {view}</VisuallyHidden>
               </GoTo>
-              <h2 className="cal-heading">{window.heading}</h2>
+              <h2 className="cal-heading">
+                {window.heading}
+                {view === CalendarView.DAY && (
+                  <span className="count">
+                    {" "}
+                    {sessionCountLabel((buckets.get(window.anchor) ?? []).length)}
+                  </span>
+                )}
+              </h2>
               <GoTo className="btn btn-small" date={window.following}>
                 <span aria-hidden="true">›</span>
                 <VisuallyHidden>Next {view}</VisuallyHidden>
@@ -526,7 +552,10 @@ export default async function CalendarPage() {
                 {rows.length > MONTH_CELL_LIMIT && (
                   <GoTo className="cal-more" view={CalendarView.DAY} date={day}>
                     +{rows.length - MONTH_CELL_LIMIT} more
-                    <VisuallyHidden> on {longDate(day)}</VisuallyHidden>
+                    <VisuallyHidden>
+                      {" "}
+                      — {sessionCountLabel(rows.length)} on {longDate(day)}
+                    </VisuallyHidden>
                   </GoTo>
                 )}
               </div>

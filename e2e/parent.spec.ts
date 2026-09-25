@@ -20,7 +20,7 @@
 
 import { type APIRequestContext, expect, test } from "@playwright/test";
 
-import { SHARED_ROUTES, statePath } from "./accounts";
+import { BOOKING_ROUTE, SHARED_ROUTES, statePath } from "./accounts";
 
 /** In the recurring group with Yusuf, and not Delphine's child. */
 const NOT_HERS = "Wren Calloway";
@@ -39,13 +39,19 @@ test.describe("as a parent", () => {
   test.use({ storageState: statePath("parent") });
 
   test("opens the screens every signed-in person can open", async ({ page }) => {
-    // A parent holds the same permissions as a student, so the shared routes
-    // are the shared routes. Asserted rather than assumed, because the account
-    // is new and an empty seed would make every other test here vacuous.
+    // The screens every signed-in person can open. Booking is not one of them
+    // for a parent: the shipped who_can_book list leaves them out.
     for (const route of SHARED_ROUTES) {
       const response = await page.goto(route);
       expect(response?.status(), route).toBe(200);
     }
+  });
+
+  test("cannot open Booking, and is not offered it", async ({ page }) => {
+    const response = await page.goto(BOOKING_ROUTE);
+    expect(response?.status()).toBe(403);
+    await page.goto("/");
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Booking" })).toHaveCount(0);
   });
 
   test("sees their own child's sessions on the calendar", async ({ page }) => {

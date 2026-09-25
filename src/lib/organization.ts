@@ -38,17 +38,28 @@ export const MAX_SERIES_HORIZON_DAYS = 365;
  */
 export const DEFAULT_SETTINGS: JsonObject = {
   booking: {
-    who_can_book: ["admin", "regional_admin", "instructor"],
+    // Students may request a session. Parents may not book. A student request
+    // is not a booking until somebody accepts it — see `require_approval`.
+    who_can_book: ["admin", "regional_admin", "instructor", "student"],
     who_can_create_historical: ["admin"],
-    who_can_edit: ["admin", "regional_admin"],
-    who_can_cancel: ["admin", "regional_admin", "instructor"],
+    // Instructors keep edit, including a session that has already started.
+    // Students and parents are not on this list: they cancel or reschedule,
+    // and that is a different permission.
+    who_can_edit: ["admin", "regional_admin", "instructor"],
+    who_can_cancel: ["admin", "regional_admin", "instructor", "student", "parent"],
     who_can_delete: ["admin"],
     instructor_finder_enabled: true,
     direct_booking_enabled: true,
     assigned_users_only: true,
-    lead_time_minutes: 60,
-    max_future_days: 180,
-    cancellation_window_hours: 24,
+    // Staff may book from now. A student request needs twelve hours' notice.
+    // Both may look a year ahead. The student figure is read only for a
+    // student or parent; staff keep `lead_time_minutes`.
+    lead_time_minutes: 0,
+    student_lead_time_minutes: 12 * 60,
+    max_future_days: 365,
+    // How close to the start a student or parent may still cancel or move it.
+    // Instructors and administrators are not held to it.
+    cancellation_window_hours: 4,
     billable_cancellation_charges: true,
     // Whether money is part of this tenant's vocabulary at all.
     //
@@ -74,10 +85,14 @@ export const DEFAULT_SETTINGS: JsonObject = {
     billable_default: true,
     // When true, a student or parent booking arrives as a request for an
     // instructor or administrator to decide.
-    require_approval: false,
-    require_credits: false,
+    // A student booking arrives as a request. Staff bookings do not.
+    require_approval: true,
+    // A student request needs one credit per session. Staff are not asked.
+    // Nothing here takes a payment; the number is a balance on the person.
+    require_credits: true,
     auto_cancel_unpaid: false,
-    selectable_durations_minutes: [15, 30, 45, 60, 90, 120],
+    // Through 3 hours 30 minutes, which is also the upper bound below.
+    selectable_durations_minutes: [15, 30, 45, 60, 90, 120, 150, 180, 210],
     // The list above is what the picker offers; these are the outer bounds a
     // session may occupy, shown beside it so the offered set does not read as
     // the only thing the platform will ever allow.

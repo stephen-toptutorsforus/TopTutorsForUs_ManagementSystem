@@ -13,7 +13,7 @@
  */
 
 import { ImportForm } from "@/components/imports/ImportForm";
-import { Card, PageHeader } from "@/components/ui";
+import { AnchorButton, Card, PageHeader } from "@/components/ui";
 import { Permission } from "@/lib/policies/permissions";
 import { guard } from "@/lib/web/interrupt";
 import { csrfToken, requireContext } from "@/lib/web/session";
@@ -46,6 +46,11 @@ export default async function ImportPage() {
         </p>
         <p className="hint">
           Imported people arrive with no password and cannot sign in until they are invited.
+        </p>
+        <p>
+          <AnchorButton href="/import/people-template.csv">
+            Download the people template
+          </AnchorButton>
         </p>
       </Card>
 

@@ -72,6 +72,11 @@ import {
 import { newRef } from "@/lib/ref";
 import { organizationOffDays } from "@/lib/availability";
 import { assertEligible } from "@/lib/services/instructorEligibility";
+import {
+  assertStudentCredits,
+  captureBooking,
+  sweepCredits,
+} from "@/lib/services/localNotices";
 import { publishOccurrence } from "@/lib/services/sharedSession";
 import {
   type CivilDate,
@@ -324,6 +329,8 @@ export async function plan(
         "falls outside the booking horizon",
     );
   }
+
+  await assertStudentCredits(db, organization, principal, expansion.occurrences.length);
 
   const sessions: PlannedSession[] = [];
   for (const occurrence of expansion.occurrences) {
@@ -622,6 +629,9 @@ async function writePlan(
     await publishOccurrence(db, occurrence.id, { schoolId: request.schoolId ?? null });
   }
 
+  await captureBooking(db, created, new Date());
+  await sweepCredits(db, organization.id, new Date());
+
   return { series, created };
 }
 
@@ -786,6 +796,19 @@ function validateRequest(
   validateTiming(organization, principal, request, now);
 }
 
+/**
+ * A student or parent asking for a session, rather than staff booking one.
+ *
+ * Staff includes an instructor, anyone who can see every session, and anyone
+ * who can approve a request. A person who is both a parent and an instructor
+ * books as staff.
+ */
+function usesStudentLead(principal: Principal): boolean {
+  if (principal.roles.has(Role.INSTRUCTOR)) return false;
+  if (principal.has(P.SESSION_VIEW_ANY) || principal.has(P.SESSION_APPROVE_REQUEST)) return false;
+  return principal.roles.has(Role.STUDENT) || principal.roles.has(Role.PARENT);
+}
+
 /** Booking lead time and future horizon, both tenant-configured. */
 function validateTiming(
   organization: BookingOrganization,
@@ -806,7 +829,9 @@ function validateTiming(
     return;
   }
 
-  const lead = settingNumber(reader, ["booking", "lead_time_minutes"], 0);
+  const lead = usesStudentLead(principal)
+    ? settingNumber(reader, ["booking", "student_lead_time_minutes"], 12 * 60)
+    : settingNumber(reader, ["booking", "lead_time_minutes"], 0);
   if (lead && firstStart.getTime() - moment.getTime() < lead * 60_000) {
     throw new ValidationError(`sessions must be booked at least ${lead} minutes ahead`);
   }

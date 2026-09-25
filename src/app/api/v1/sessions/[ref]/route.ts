@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { NotFound, payloadFor, statusFor } from "@/lib/errors";
-import { availableActions, canView } from "@/lib/policies/sessions";
+import { availableActions, canView, isInvolved } from "@/lib/policies/sessions";
 import { decorate, visibleSessions } from "@/lib/services/sessionQuery";
 import { toSessionOut } from "@/lib/web/api";
 import { NO_STORE_HEADERS } from "@/lib/web/caching";
@@ -57,7 +57,16 @@ export async function GET(
     return Response.json(
       toSessionOut(row!, {
         seriesRef: series?.ref ?? null,
-        actions: availableActions(principal, occurrence, organization),
+        actions: availableActions(
+          principal,
+          occurrence,
+          organization,
+          isInvolved(
+            principal,
+            participants.map((row) => row.userId),
+            guardianOf.map((row) => row.studentId),
+          ),
+        ),
         organization,
       }),
     );

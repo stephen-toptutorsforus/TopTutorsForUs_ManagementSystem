@@ -194,10 +194,10 @@ export function PageToolbar({
  * which of two fields they are typing in. A default for either would be a
  * worse answer than the page's own.
  *
- * No submit button beside it. Enter still searches. The clear control on a
- * search box does not: emptying the field used to submit the form and reload
- * the list. With scripting off, Enter is also what applies the filter menu's
- * ticks.
+ * No submit button beside it. Enter still searches. The clear control does
+ * too when `submitOnClear` is set: emptying the field submits the form, and
+ * the list is the one for no search text. With scripting off, Enter is also
+ * what applies the filter menu's ticks.
  */
 export function SearchField({
   label,
@@ -205,6 +205,7 @@ export function SearchField({
   defaultValue,
   name = "q",
   id = "q",
+  submitOnClear = false,
 }: {
   /** The accessible name — "Search by name or email", not "Search". */
   label: string;
@@ -213,6 +214,8 @@ export function SearchField({
   defaultValue?: string;
   name?: string;
   id?: string;
+  /** The clear control reloads the list with the search text removed. */
+  submitOnClear?: boolean;
 }) {
   return (
     <Field
@@ -232,6 +235,7 @@ export function SearchField({
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        submitOnClear={submitOnClear}
       />
     </Field>
   );

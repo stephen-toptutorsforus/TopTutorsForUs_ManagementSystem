@@ -115,6 +115,25 @@ export function owns(principal: Principal, session: SessionLike): boolean {
 }
 
 /**
+ * A student on the session, or a parent of one.
+ *
+ * Not the instructor test. `owns` answers who is teaching; this answers who
+ * the session was booked for, which is who the cancellation window applies to.
+ */
+export function isInvolved(
+  principal: Principal,
+  participantUserIds: Iterable<bigint>,
+  guardianOfIds: Iterable<bigint> = [],
+): boolean {
+  const ids = new Set(participantUserIds);
+  if (ids.has(principal.userId)) return true;
+  for (const childId of guardianOfIds) {
+    if (ids.has(childId)) return true;
+  }
+  return false;
+}
+
+/**
  * Who may follow the host start URL.
  *
  * Students and parents may join; they must not start. The instructor of
@@ -192,14 +211,27 @@ export function canEdit(principal: Principal, session: SessionLike): Decision {
  * Who may do it is the same question as for editing. When it may be done is
  * not, and that is the part this adds.
  */
-export function canReschedule(principal: Principal, session: SessionLike): Decision {
+export function canReschedule(
+  principal: Principal,
+  session: SessionLike,
+  organization: ConfigurableOrganization | null = null,
+  now?: Date,
+  involved = false,
+): Decision {
   if (elsewhere(principal, session)) return deny("no such session");
   if (!statusAllows(session, "reschedule")) {
     return deny(`a ${statusWords(session.status)} session cannot be rescheduled`);
   }
   if (principal.has(P.SESSION_EDIT_ANY)) return ALLOW;
-  if (principal.has(P.SESSION_EDIT_OWN) && owns(principal, session)) return ALLOW;
-  return deny("you may not reschedule this session");
+  const teachingIt = principal.has(P.SESSION_EDIT_OWN) && owns(principal, session);
+  const asking =
+    involved &&
+    principal.has(P.SESSION_CANCEL_OWN) &&
+    !principal.roles.has(Role.INSTRUCTOR) &&
+    !principal.has(P.SESSION_EDIT_ANY);
+  if (!teachingIt && !asking) return deny("you may not reschedule this session");
+  if (exemptFromNotice(principal)) return ALLOW;
+  return noticeWindow(session, organization, now);
 }
 
 /**
@@ -217,32 +249,29 @@ export function canEditSeries(principal: Principal, session: SessionLike): Decis
 }
 
 /**
- * Cancellation, including the tenant's notice window.
+ * Instructors and administrators are not held to the participant notice.
  *
- * Administrators are exempt from the window — it exists to protect an
- * instructor's time from late changes by participants, not to stop staff fixing
- * a mistake.
+ * The window protects a teacher's time from a late change by a student or a
+ * parent. It is not a reason to stop the instructor, or an administrator,
+ * correcting a session that has already started.
  */
-export function canCancel(
-  principal: Principal,
+function exemptFromNotice(principal: Principal): boolean {
+  return (
+    principal.has(P.SESSION_CANCEL_ANY) ||
+    principal.has(P.SESSION_EDIT_ANY) ||
+    principal.roles.has(Role.INSTRUCTOR)
+  );
+}
+
+function noticeWindow(
   session: SessionLike,
   organization: ConfigurableOrganization | null,
   now?: Date,
 ): Decision {
-  if (elsewhere(principal, session)) return deny("no such session");
-  if (!statusAllows(session, "cancel")) {
-    return deny(`a ${statusWords(session.status)} session cannot be cancelled`);
-  }
-
-  if (principal.has(P.SESSION_CANCEL_ANY)) return ALLOW;
-  if (!(principal.has(P.SESSION_CANCEL_OWN) && owns(principal, session))) {
-    return deny("you may not cancel this session");
-  }
-
   const window = settingNumber(
     settingsReader(organization),
     ["booking", "cancellation_window_hours"],
-    24,
+    4,
   );
   if (window <= 0) return ALLOW;
 
@@ -252,6 +281,28 @@ export function canCancel(
     return deny(`cancellations close ${window} hours before the session starts`);
   }
   return ALLOW;
+}
+
+export function canCancel(
+  principal: Principal,
+  session: SessionLike,
+  organization: ConfigurableOrganization | null,
+  now?: Date,
+  involved = false,
+): Decision {
+  if (elsewhere(principal, session)) return deny("no such session");
+  if (!statusAllows(session, "cancel")) {
+    return deny(`a ${statusWords(session.status)} session cannot be cancelled`);
+  }
+
+  if (principal.has(P.SESSION_CANCEL_ANY)) return ALLOW;
+  const teachingIt = principal.has(P.SESSION_CANCEL_OWN) && owns(principal, session);
+  const asking = principal.has(P.SESSION_CANCEL_OWN) && involved && !teachingIt;
+  if (!teachingIt && !asking) {
+    return deny("you may not cancel this session");
+  }
+  if (exemptFromNotice(principal)) return ALLOW;
+  return noticeWindow(session, organization, now);
 }
 
 export function canDelete(principal: Principal, session: SessionLike): Decision {
@@ -340,15 +391,20 @@ export function availableActions(
   principal: Principal,
   session: SessionLike,
   organization: ConfigurableOrganization | null,
+  involved = false,
 ): string[] {
   const actions: string[] = [];
   for (const action of ["approve", "reject"]) {
     if (canDecideRequest(principal, session, action).allowed) actions.push(action);
   }
   if (canEdit(principal, session).allowed) actions.push("edit");
-  if (canReschedule(principal, session).allowed) actions.push("reschedule");
+  if (canReschedule(principal, session, organization, undefined, involved).allowed) {
+    actions.push("reschedule");
+  }
   if (canEditSeries(principal, session).allowed) actions.push("edit_series");
-  if (canCancel(principal, session, organization).allowed) actions.push("cancel");
+  if (canCancel(principal, session, organization, undefined, involved).allowed) {
+    actions.push("cancel");
+  }
   if (canChangeStatus(principal, session, "complete").allowed) actions.push("complete");
   if (canChangeStatus(principal, session, "mark_missed").allowed) actions.push("mark_missed");
   if (canChangeStatus(principal, session, "restore").allowed) actions.push("restore");

@@ -30,7 +30,7 @@ import {
 } from "@/lib/organization";
 import { rosterFor } from "@/lib/policies/roster";
 import { visibleSessions } from "@/lib/services/sessionQuery";
-import { availableActions } from "@/lib/policies/sessions";
+import { availableActions, isInvolved } from "@/lib/policies/sessions";
 import { durationWords } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import {
@@ -66,15 +66,9 @@ export default async function EditSessionPage({
   // cross-tenant disclosure.
   if (session === null) notFound();
 
-  const actions = availableActions(principal, session, organization);
-  // Nothing to do here is not the same as nothing to see: the detail page is
-  // still readable, so somebody with no action on this session is refused the
-  // editing screen rather than shown an empty one with a heading.
-  if (actions.length === 0) notFound();
-
   const zone = session.timezone;
 
-  const [participantRows, instructor] = await Promise.all([
+  const [participantRows, instructor, guardianOf] = await Promise.all([
     prisma.sessionParticipant.findMany({
       where: { sessionId: session.id },
       orderBy: [{ role: "asc" }, { id: "asc" }],
@@ -86,7 +80,29 @@ export default async function EditSessionPage({
           select: { firstName: true, lastName: true },
         })
       : null,
+    prisma.guardianStudent.findMany({
+      where: {
+        guardianId: principal.userId,
+        organizationId: principal.organizationId,
+      },
+      select: { studentId: true },
+    }),
   ]);
+
+  const actions = availableActions(
+    principal,
+    session,
+    organization,
+    isInvolved(
+      principal,
+      participantRows.map((row) => row.userId),
+      guardianOf.map((row) => row.studentId),
+    ),
+  );
+  // Nothing to do here is not the same as nothing to see: the detail page is
+  // still readable, so somebody with no action on this session is refused the
+  // editing screen rather than shown an empty one with a heading.
+  if (actions.length === 0) notFound();
 
   // This screen is reachable by anybody with *an* action on the session, and
   // `session.cancel_own` is one — so a student can open their own session here.

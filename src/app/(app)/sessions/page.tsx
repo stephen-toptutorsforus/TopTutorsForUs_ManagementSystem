@@ -332,7 +332,13 @@ export default async function SessionsPage() {
                   label="Search session titles"
                   placeholder="Session title"
                   defaultValue={filters.search}
+                  submitOnClear
                 />
+                {/* The search box owns `q` and the status menu owns `status`.
+                    Page is omitted so clearing the search returns to the
+                    first page. Everything else was set in the drawer, and a
+                    form that submitted only the toolbar would drop it. */}
+                <StateFields state={new URLSearchParams(query)} omit={["q", "status", "page"]} />
 
                 {/* The same control the calendar and the directory use, in the
                     same place, applying the same way. It kept its own Apply

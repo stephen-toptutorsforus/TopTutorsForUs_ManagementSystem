@@ -67,11 +67,10 @@ and 27,090 recurrence rules — with zero mismatches. See [tools/](tools/).
 
 ### Not built, and deliberately so
 
-Phases 2 to 5 of [the brief](docs/brief.md): tenant configuration screens,
-notifications, progress forms and reporting, credits and invoicing, and the
-classroom integrations. The seams are where the brief says they should be —
-a delivery type, a payment column, a notification preference — and none of them
-is filled in with something that would look implemented.
+What is still empty is listed in [docs/product.md](docs/product.md).
+Reminders and credit warnings are captured on this machine: nothing is
+sent, and nothing is charged. Progress forms, invoicing, and the advanced
+classroom stay empty rather than looking implemented.
 
 ## Requirements
 

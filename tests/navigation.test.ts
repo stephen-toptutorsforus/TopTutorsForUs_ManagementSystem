@@ -19,10 +19,11 @@ import { describe, expect, it } from "vitest";
 
 import { Role } from "@/generated/prisma/enums";
 import { type Navigation, type RenderedEntry, navigation, titleFor } from "@/lib/navigation";
+import { DEFAULT_SETTINGS, type SettingsReader, settingsReader } from "@/lib/organization";
 import { resolve } from "@/lib/policies/permissions";
 import { Principal } from "@/lib/policies/principal";
 
-function principalWith(roles: Role[]): Principal {
+function principalWith(roles: Role[], reader?: SettingsReader): Principal {
   const roleSet = new Set(roles);
   return new Principal({
     userId: 1n,
@@ -31,13 +32,14 @@ function principalWith(roles: Role[]): Principal {
     organizationRef: "org_test",
     displayName: "Test Person",
     roles: roleSet,
-    permissions: resolve(roleSet),
+    permissions: resolve(roleSet, reader),
     regionIds: new Set(),
     timezone: "America/New_York",
   });
 }
 
 const navFor = (...roles: Role[]): Navigation => navigation(principalWith(roles));
+const shipped = settingsReader({ settings: DEFAULT_SETTINGS });
 
 /** Every openable label, group children included, in the order they render. */
 function labels(nav: Navigation): string[] {
@@ -91,6 +93,13 @@ describe("what the sidebar offers", () => {
     expect(shown).not.toContain("My Availability");
   });
 
+  it("lets a student book and keeps a parent out of it", () => {
+    // The code grant includes both. The shipped who_can_book list is what
+    // takes Booking away from a parent.
+    expect(labels(navigation(principalWith([Role.STUDENT], shipped)))).toContain("Booking");
+    expect(labels(navigation(principalWith([Role.PARENT], shipped)))).not.toContain("Booking");
+  });
+
   it("offers a student and a parent neither", () => {
     // They hold `AVAILABILITY_VIEW_ANY` so that they can read an instructor's
     // hours while booking, and the booking form is where they do it. A sidebar
@@ -114,7 +123,12 @@ describe("what the sidebar offers", () => {
   });
 
   it("files the audit trail under Administration, and shows it to nobody else", () => {
-    expect(section(navFor(Role.ADMIN), "Administration")).toEqual(["Audit trail", "Import"]);
+    expect(section(navFor(Role.ADMIN), "Administration")).toEqual([
+      "Audit trail",
+      "Import",
+      "Reminders",
+      "Inbox",
+    ]);
     for (const role of [Role.INSTRUCTOR, Role.STUDENT, Role.PARENT, Role.PAYER]) {
       expect(labels(navFor(role)), role).not.toContain("Audit trail");
     }
@@ -135,7 +149,10 @@ describe("what the sidebar offers", () => {
     ]) {
       expect(labels(navFor(role)), role).not.toContain("Import");
     }
-    expect(section(navFor(Role.REGIONAL_ADMIN), "Administration")).toEqual(["Audit trail"]);
+    expect(section(navFor(Role.REGIONAL_ADMIN), "Administration")).toEqual([
+      "Audit trail",
+      "Inbox",
+    ]);
   });
 
   it("drops a section with nothing openable in it", () => {

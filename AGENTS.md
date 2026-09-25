@@ -4,10 +4,10 @@ Multi-tenant tutoring operations: people and roles, instructor availability,
 standalone and recurring session booking, a calendar, attendance, an audit
 trail. Next.js · TypeScript · Prisma · PostgreSQL.
 
-[`docs/brief.md`](docs/brief.md) is the founding brief — the domain model,
-the required workflows, the five phases, the definition of done. It says what
-to build; this file says how to build it here. Read it before starting a
-module, and when a decision looks like it needs inventing, check there first.
+[`docs/product.md`](docs/product.md) is the product: what is built, how
+schools, roles, and Zoom booking work, and what is still empty. This file
+says how to build it here. Read the product file before starting a module,
+and when a decision looks like it needs inventing, check there first.
 Behavioural parity is with Pearl's *workflows*, never its source, branding,
 text or visual assets.
 
@@ -186,5 +186,15 @@ invalidate them weekly. They sign in by reusing `scripts/mint-session.ts`, and
 they run as three people, because two tenants are what make an isolation bug
 visible.
 
-Nothing in Phases 2–5 of [`docs/brief.md`](docs/brief.md) is built, which is
-deliberate — see the standing instruction about seams above.
+What is still unbuilt is listed in [`docs/product.md`](docs/product.md).
+Leave those seams empty — see the standing instruction above.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

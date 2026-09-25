@@ -44,6 +44,7 @@ import {
   canDecideRequest,
   canEdit,
   canEditSeries,
+  isInvolved,
   canMarkAttendance,
   canOverrideConflicts,
   canReschedule,
@@ -51,6 +52,7 @@ import {
 } from "@/lib/policies/sessions";
 import type { Principal } from "@/lib/policies/principal";
 import { EditScope, occurrencesInScope } from "@/lib/services/booking";
+import { captureReschedule, retireReminders } from "@/lib/services/localNotices";
 import { publishOccurrence } from "@/lib/services/sharedSession";
 import type { BookingOrganization } from "@/lib/services/booking";
 import type { RequestMeta } from "@/lib/services/people";
@@ -87,6 +89,26 @@ export const CANCELLABLE_STATUSES: SessionStatus[] = (
   Object.keys(ACTIONS_BY_STATUS) as SessionStatus[]
 ).filter((status) => ACTIONS_BY_STATUS[status].has("cancel"));
 
+/** Whether this person is on the session, or guards somebody who is. */
+async function viewerInvolved(db: Db, principal: Principal, sessionId: bigint): Promise<boolean> {
+  const participants = await db.sessionParticipant.findMany({
+    where: { sessionId },
+    select: { userId: true },
+  });
+  const ids = participants.map((row) => row.userId);
+  if (ids.includes(principal.userId)) return true;
+  if (ids.length === 0) return false;
+  const links = await db.guardianStudent.findMany({
+    where: {
+      guardianId: principal.userId,
+      organizationId: principal.organizationId,
+      studentId: { in: ids },
+    },
+    select: { studentId: true },
+  });
+  return isInvolved(principal, ids, links.map((link) => link.studentId));
+}
+
 /** A new civil date and time, in a stated zone. */
 export interface RescheduleRequest {
   startDate: CivilDate;
@@ -117,7 +139,15 @@ export async function reschedule(
 
   // Not `canEdit`. An in-progress session admits editing and refuses moving,
   // and checking the wrong one let a lesson be moved while it was happening.
-  requireDecision(canReschedule(principal, occurrence));
+  requireDecision(
+    canReschedule(
+      principal,
+      occurrence,
+      organization,
+      undefined,
+      await viewerInvolved(db, principal, occurrence.id),
+    ),
+  );
   if (scope !== EditScope.THIS) requireDecision(canEditSeries(principal, occurrence));
 
   const zone = request.timezone || occurrence.timezone;
@@ -202,6 +232,11 @@ export async function reschedule(
       note: `scope: ${scope}`,
       ...options.requestMeta,
     });
+  }
+
+  const movedAt = new Date();
+  for (const session of changed) {
+    await captureReschedule(db, session, movedAt);
   }
 
   return changed;
@@ -321,7 +356,15 @@ export async function cancel(
   },
 ): Promise<Occurrence[]> {
   const scope = options.scope ?? EditScope.THIS;
-  requireDecision(canCancel(principal, occurrence, organization));
+  requireDecision(
+    canCancel(
+      principal,
+      occurrence,
+      organization,
+      undefined,
+      await viewerInvolved(db, principal, occurrence.id),
+    ),
+  );
   if (scope !== EditScope.THIS) requireDecision(canEditSeries(principal, occurrence));
 
   const valid = settingStrings(settingsReader(organization), ["reason_codes", "cancellation"]);
@@ -349,6 +392,7 @@ export async function cancel(
     });
     cancelled.push(updated);
     await publishOccurrence(db, updated.id);
+    await retireReminders(db, updated.id, moment);
 
     await record(db, principal, {
       category: AuditCategory.SESSION,

@@ -1,17 +1,20 @@
 "use client";
 
 /**
- * A search box that applies only when Enter is pressed.
+ * A search box. Enter applies what was typed.
  *
  * `type="search"` draws a control that empties the field. In Chromium that
- * control, and Escape, fire a `search` event and then submit the form, so
- * clearing the box reloads the list underneath it. Enter is the search. The
- * flag is set on keydown, which happens before the search event, so the two
- * can be told apart.
+ * control, and Escape, fire a `search` event and then submit the form.
+ * Enter is told apart from those by a flag set on keydown, which happens
+ * before the search event.
+ *
+ * `submitOnClear` lets that following submit through once the field is
+ * empty, so the list underneath is the unfiltered one. A picker and a
+ * filter drawer leave it off: one lives inside another form, and the other
+ * applies on its own button.
  *
  * The listener is native. React's `onSearch` prop is stored on the element
- * and never called for this event, which is how the clear control kept
- * submitting.
+ * and never called for this event.
  *
  * The blocker is removed shortly afterwards if nothing submitted. A browser
  * that clears the field without submitting must not swallow the Enter that
@@ -23,12 +26,19 @@ import { useEffect, useRef } from "react";
 export function SearchInput({
   onKeyDown,
   onSearch,
+  submitOnClear = false,
   ...props
-}: React.ComponentProps<"input">) {
+}: Omit<React.ComponentProps<"input">, "onSearch"> & {
+  /** The clear control applies an empty search and reloads the list. */
+  submitOnClear?: boolean;
+  onSearch?: (event: React.SyntheticEvent<HTMLInputElement>) => void;
+}) {
   const fromEnter = useRef(false);
   const onSearchRef = useRef(onSearch);
   const nodeRef = useRef<HTMLInputElement>(null);
+  const submitOnClearRef = useRef(submitOnClear);
   onSearchRef.current = onSearch;
+  submitOnClearRef.current = submitOnClear;
 
   useEffect(() => {
     const input = nodeRef.current;
@@ -38,6 +48,13 @@ export function SearchInput({
       onSearchRef.current?.(event as unknown as React.SyntheticEvent<HTMLInputElement>);
       if (fromEnter.current) {
         fromEnter.current = false;
+        return;
+      }
+      // The clear control has already emptied the field. It fires `search`
+      // and does not submit, so the list would stay on the old text. Submit
+      // the form that owns the box.
+      if (submitOnClearRef.current && input.value === "") {
+        input.form?.requestSubmit();
         return;
       }
       const form = input.form;

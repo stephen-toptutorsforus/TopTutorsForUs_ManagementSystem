@@ -25,11 +25,15 @@ import { readableQuery } from "@/lib/urlState";
 import type { Db } from "@/lib/services/people";
 
 /**
- * How many people one page of the directory holds. A ceiling rather than paging
- * for now, but an explicit one — a silent truncation would read as "this is
- * everybody".
+ * How many people one page of the directory holds.
+ *
+ * A page, not a ceiling: the next page is asked for rather than the rest of
+ * the roster being told to narrow the search. Bounded like the session grid
+ * so a huge page number cannot become an offset Postgres refuses.
  */
 export const PAGE_LIMIT = 200;
+
+const MAX_PAGE = 1_000_000;
 
 /** One link to another person, named for what it is from this row's side. */
 export interface Connection {
@@ -44,11 +48,7 @@ export interface PersonRow {
   readonly connections: readonly Connection[];
   readonly groups: readonly string[];
   readonly lastLoginAt: Date | null;
-  /**
-   * Credits are Phase 4. The column exists because the directory is where they
-   * will be read, but there is no ledger yet and this stays null rather than
-   * showing a zero that would look like a balance.
-   */
+  /** Credits the person can spend on a student request. Not a payment. */
   readonly credits: number | null;
   readonly roleNames: readonly string[];
   readonly initials: string;
@@ -127,12 +127,19 @@ export interface DirectoryFilters {
   regionRef: string | null;
   districtRef: string | null;
   schoolRef: string | null;
+  /** Where you are in the answer. Not a filter — see `activeDirectoryFilters`. */
+  page: number;
 }
 
 /** A trimmed, bounded `ref` from the query, or null. */
 function parseRef(raw: string | null): string | null {
   const value = (raw ?? "").trim().slice(0, 24);
   return value === "" ? null : value;
+}
+
+function parsePage(raw: string | null): number {
+  const requested = Number.parseInt(raw ?? "1", 10);
+  return Number.isFinite(requested) ? Math.min(MAX_PAGE, Math.max(1, requested)) : 1;
 }
 
 export function parseDirectoryFilters(params: URLSearchParams): DirectoryFilters {
@@ -143,6 +150,7 @@ export function parseDirectoryFilters(params: URLSearchParams): DirectoryFilters
     regionRef: parseRef(params.get("region")),
     districtRef: parseRef(params.get("district")),
     schoolRef: parseRef(params.get("school")),
+    page: parsePage(params.get("page")),
   };
 }
 
@@ -184,6 +192,9 @@ export function directoryQuery(filters: DirectoryFilters): string {
   if (filters.regionRef) params.append("region", filters.regionRef);
   if (filters.districtRef) params.append("district", filters.districtRef);
   if (filters.schoolRef) params.append("school", filters.schoolRef);
+  // Page one is what an absent page already means. Writing it down would make
+  // every unfiltered directory look filtered.
+  if (filters.page > 1) params.append("page", String(filters.page));
   return readableQuery(params);
 }
 
@@ -195,6 +206,7 @@ export const NO_DIRECTORY_FILTERS: DirectoryFilters = {
   regionRef: null,
   districtRef: null,
   schoolRef: null,
+  page: 1,
 };
 
 /**
@@ -218,14 +230,37 @@ export function activeDirectoryFilters(filters: DirectoryFilters): number {
   ].filter(Boolean).length;
 }
 
+export interface PeoplePage {
+  rows: PersonRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export function peoplePageCount(page: PeoplePage): number {
+  return Math.max(1, Math.ceil(page.total / page.pageSize));
+}
+
+export function peopleHasPrevious(page: PeoplePage): boolean {
+  return page.page > 1;
+}
+
+export function peopleHasNext(page: PeoplePage): boolean {
+  return page.page < peoplePageCount(page);
+}
+
+export function peopleFirstIndex(page: PeoplePage): number {
+  return page.total === 0 ? 0 : (page.page - 1) * page.pageSize + 1;
+}
+
+export function peopleLastIndex(page: PeoplePage): number {
+  return Math.min(page.page * page.pageSize, page.total);
+}
+
 export type ListPeopleOptions = Partial<DirectoryFilters>;
 
-/** The directory, one finished row per person. */
-export async function listPeople(
-  db: Db,
-  principal: Principal,
-  options: ListPeopleOptions = {},
-): Promise<PersonRow[]> {
+/** The same narrowing the directory and its count both use. */
+function peopleWhere(principal: Principal, options: ListPeopleOptions): Prisma.UserWhereInput {
   const search = (options.search ?? "").trim();
   const roles = options.roles ?? [];
   const statuses = options.statuses ?? [];
@@ -284,10 +319,31 @@ export async function listPeople(
     where.schools = { some: { school: { ref: options.schoolRef } } };
   }
 
+  return where;
+}
+
+/** How many people the directory would list, before the page is cut. */
+export async function countPeople(
+  db: Db,
+  principal: Principal,
+  options: ListPeopleOptions = {},
+): Promise<number> {
+  return db.user.count({ where: peopleWhere(principal, options) });
+}
+
+/** The directory, one finished row per person. */
+export async function listPeople(
+  db: Db,
+  principal: Principal,
+  options: ListPeopleOptions = {},
+): Promise<PersonRow[]> {
+  const where = peopleWhere(principal, options);
+  const page = options.page ?? 1;
   const people = await db.user.findMany({
     where,
     include: { roles: true },
-    orderBy: { lastName: "asc" },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
+    skip: (page - 1) * PAGE_LIMIT,
     take: PAGE_LIMIT,
   });
   if (people.length === 0) return [];
@@ -378,7 +434,7 @@ export async function listPeople(
     connections: connections.get(person.id) ?? [],
     groups: groups.get(person.id) ?? [],
     lastLoginAt: person.lastLoginAt,
-    credits: null,
+    credits: person.creditBalance,
     roleNames: person.roles.map((grant) => titleCase(grant.role.toLowerCase())),
     initials: initialsOf(person),
   }));

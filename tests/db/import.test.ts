@@ -20,7 +20,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { Role, SessionStatus, UserStatus } from "@/generated/prisma/enums";
 import { Forbidden, NotFound } from "@/lib/errors";
 import { loadPrincipal } from "@/lib/policies/principal";
-import { commitImport, previewImport } from "@/lib/services/import";
+import { commitImport, peopleTemplateCsv, previewImport } from "@/lib/services/import";
 
 import {
   TEST_DATABASE_URL,
@@ -109,6 +109,44 @@ describeDb("importing another system's records", () => {
       await expect(
         previewImport(db, org, principal, { people: PEOPLE }),
       ).rejects.toBeInstanceOf(Forbidden);
+    });
+  });
+
+  describe("the people template", () => {
+    it("writes three fictional people from the template", async () => {
+      const before = await db.user.count({ where: { organizationId: org.id } });
+      const preview = await previewImport(db, org, await asAdmin(), {
+        people: peopleTemplateCsv(),
+      });
+      expect(preview.files[0]!.counts).toMatchObject({ seen: 3, written: 3 });
+
+      const committed = await commitImport(db, org, await asAdmin(), preview.batchRef);
+      expect(committed.committed).toBe(true);
+      expect(committed.files[0]!.counts.written).toBe(3);
+      expect(await db.user.count({ where: { organizationId: org.id } })).toBe(before + 3);
+    });
+
+    it("keeps the good rows of a mixed file and reports the rest", async () => {
+      const mixed = [
+        "Name,Email / Username,Roles,Status",
+        "Ada North,ada.north@example.test,Student,Invited",
+        "Nobody Recognised,nobody@example.test,Janitor,Active",
+        "Nico Tutor,nico.tutor@example.test,Instructor,Active",
+      ].join("\n");
+      const preview = await previewImport(db, org, await asAdmin(), { people: mixed });
+      expect(preview.files[0]!.counts).toMatchObject({ seen: 3, written: 2 });
+      expect(preview.files[0]!.reasons.map((reason) => reason.code)).toContain("no_role");
+
+      const committed = await commitImport(db, org, await asAdmin(), preview.batchRef);
+      expect(committed.files[0]!.counts.written).toBe(2);
+      const written = await db.user.findMany({
+        where: { organizationId: org.id, email: { in: ["ada.north@example.test", "nico.tutor@example.test", "nobody@example.test"] } },
+        select: { email: true },
+      });
+      expect(written.map((row) => row.email).sort()).toEqual([
+        "ada.north@example.test",
+        "nico.tutor@example.test",
+      ]);
     });
   });
 

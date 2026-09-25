@@ -216,6 +216,7 @@ model Organization {
   auditEvents            AuditEvent[]
   importBatches          ImportBatch[]
   importRecords          ImportRecord[]
+  capturedMessages       CapturedMessage[]
 
   @@map("organization")
 }
@@ -277,6 +278,8 @@ model User {
   timezone       String?    @db.VarChar(64)
   grade          String?    @db.VarChar(32)
   lastLoginAt    DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  /// Credits a student may spend on a request. Not money, and not a payment.
+  creditBalance  Int        @default(0) @map("credit_balance")
   archivedAt     DateTime?  @map("archived_at") @db.Timestamptz(6)
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -308,6 +311,7 @@ model User {
   participations     SessionParticipant[] @relation("ParticipantUser")
   attendanceMarked   SessionParticipant[] @relation("AttendanceMarkedBy")
   importsStarted     ImportBatch[]        @relation("ImportCreatedBy")
+  capturedMessages   CapturedMessage[]
 
   @@index([organizationId])
   @@index([organizationId, status], map: "ix_user_org_status")
@@ -959,7 +963,8 @@ model SessionOccurrence {
   cancelledBy  User?          @relation("SessionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   createdBy    User?          @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  participants SessionParticipant[]
+  participants     SessionParticipant[]
+  capturedMessages CapturedMessage[]
 
   @@unique([seriesId, seriesIndex], map: "uq_session_series_index")
   @@index([organizationId])
@@ -1019,6 +1024,33 @@ model SessionParticipant {
 /// status fields and nothing else. Note bodies, message text, addresses and
 /// meeting URLs never enter it — an audit trail that becomes a second,
 /// less-protected copy of the data it exists to protect is worse than none.
+/// A message this product would have sent, kept here instead of leaving the building.
+///
+/// No email provider and no SMS provider. The address is the person's own
+/// `.test` address or phone, and the body never carries a meeting link.
+model CapturedMessage {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  sessionId      BigInt?   @map("session_id")
+  userId         BigInt    @map("user_id")
+  channel        String    @db.VarChar(16)
+  kind           String    @db.VarChar(32)
+  offsetMinutes  Int       @default(0) @map("offset_minutes")
+  address        String    @db.VarChar(320)
+  body           String    @db.VarChar(500)
+  dueAt          DateTime  @map("due_at") @db.Timestamptz(6)
+  retiredAt      DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session      SessionOccurrence? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "ix_captured_message_org")
+  @@index([sessionId], map: "ix_captured_message_session")
+  @@map("captured_message")
+}
+
 model AuditEvent {
   id             BigInt        @id @default(autoincrement())
   ref            String        @unique @db.VarChar(24)

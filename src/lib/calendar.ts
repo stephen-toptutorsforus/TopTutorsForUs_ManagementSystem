@@ -45,6 +45,38 @@ const STEP: Record<CalendarView, string> = {
 export const MONTH_CELL_LIMIT = 4;
 
 /**
+ * Statuses a calendar shows before anybody has filtered.
+ *
+ * Five, not every status the menu offers. Rescheduled and cancelled stay
+ * available in the menu and start unticked, which is how an inspected Pearl
+ * calendar opens. The session grid is unchanged: there, every box still starts
+ * ticked.
+ */
+export const CALENDAR_INITIAL_STATUSES: readonly SessionStatus[] = [
+  SessionStatus.SCHEDULED,
+  SessionStatus.COMPLETED,
+  SessionStatus.REQUESTED,
+  SessionStatus.REJECTED,
+  SessionStatus.MISSED,
+];
+
+function sameStatuses(left: readonly SessionStatus[], right: readonly SessionStatus[]): boolean {
+  if (left.length !== right.length) return false;
+  const held = new Set(left);
+  return right.every((status) => held.has(status));
+}
+
+/**
+ * The resting calendar: nothing stored, or exactly the five it opens with.
+ *
+ * A full menu of seven is not this. Writing that selection down is what keeps
+ * it from snapping back to these five on the next render.
+ */
+export function calendarStatusIsDefault(statuses: readonly SessionStatus[]): boolean {
+  return statuses.length === 0 || sameStatuses(statuses, CALENDAR_INITIAL_STATUSES);
+}
+
+/**
  * Statuses read back from one parameter or several.
  *
  * The forms submit a checkbox per status, so `status=a&status=b` arrives from
@@ -307,7 +339,7 @@ export type CalendarFilters = Pick<
 export function activeCalendarFilters(filters: CalendarFilters): number {
   return [
     filters.search !== "",
-    narrowsByStatus(filters.statuses),
+    !calendarStatusIsDefault(filters.statuses),
     filters.instructorRef !== null,
     filters.studentRef !== null,
     filters.schoolRef !== null,
@@ -342,7 +374,7 @@ export function queryString(
     params.append("date", options.anchor);
   }
   if (filters.search) params.append("q", filters.search);
-  if (narrowsByStatus(filters.statuses)) {
+  if (!calendarStatusIsDefault(filters.statuses)) {
     params.append("status", writeStatuses(filters.statuses));
   }
   // Who, after what. Written only when set, like everything else here — an

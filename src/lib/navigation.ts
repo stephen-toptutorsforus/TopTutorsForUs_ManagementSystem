@@ -168,6 +168,20 @@ const NAV_MAIN: readonly NavSpec[] = [
         icon: "↥",
         permissions: [P.DATA_IMPORT],
       },
+      {
+        kind: "item",
+        label: "Reminders",
+        href: "/reminders",
+        icon: "✉",
+        permissions: [P.ORG_CONFIGURE],
+      },
+      {
+        kind: "item",
+        label: "Inbox",
+        href: "/inbox",
+        icon: "✉",
+        permissions: [P.AUDIT_VIEW],
+      },
     ],
   },
 ];

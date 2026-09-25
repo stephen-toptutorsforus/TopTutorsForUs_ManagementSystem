@@ -4,10 +4,10 @@ Multi-tenant tutoring operations: people and roles, instructor availability,
 standalone and recurring session booking, a calendar, attendance, an audit
 trail. Next.js · TypeScript · Prisma · PostgreSQL.
 
-[`docs/brief.md`](docs/brief.md) is the founding brief — the domain model,
-the required workflows, the five phases, the definition of done. It says what
-to build; this file says how to build it here. Read it before starting a
-module, and when a decision looks like it needs inventing, check there first.
+[`docs/product.md`](docs/product.md) is the product: what is built, how
+schools, roles, and Zoom booking work, and what is still empty. This file
+says how to build it here. Read the product file before starting a module,
+and when a decision looks like it needs inventing, check there first.
 Behavioural parity is with Pearl's *workflows*, never its source, branding,
 text or visual assets.
 
@@ -900,5 +900,5 @@ so `pickFreeTime` steps to the next weekday and asks again, up to a week, and
 names the dates it tried when it gives up. The failure it replaced pointed at a
 missing button.
 
-Nothing in Phases 2–5 of [`docs/brief.md`](docs/brief.md) is built, which is
-deliberate — see the standing instruction about seams above.
+What is still unbuilt is listed in [`docs/product.md`](docs/product.md).
+Leave those seams empty — see the standing instruction above.

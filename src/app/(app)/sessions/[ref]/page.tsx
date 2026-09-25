@@ -34,7 +34,7 @@ import { rosterFor } from "@/lib/policies/roster";
 import { scoped } from "@/lib/policies/scoping";
 import { visibleSessions } from "@/lib/services/sessionQuery";
 import { meetingFromConfig } from "@/lib/meetings";
-import { availableActions, canStartMeeting } from "@/lib/policies/sessions";
+import { availableActions, canStartMeeting, isInvolved } from "@/lib/policies/sessions";
 import { deliveryMeta, durationWords, studentList } from "@/lib/presentation";
 import { Moment } from "@/lib/rendering";
 import {
@@ -119,7 +119,23 @@ export default async function SessionDetailPage({
         : [],
     ]);
 
-  const actions = availableActions(principal, session, organization);
+  const guardianOf = await prisma.guardianStudent.findMany({
+    where: {
+      guardianId: principal.userId,
+      organizationId: principal.organizationId,
+    },
+    select: { studentId: true },
+  });
+  const actions = availableActions(
+    principal,
+    session,
+    organization,
+    isInvolved(
+      principal,
+      participantRows.map((row) => row.userId),
+      guardianOf.map((row) => row.studentId),
+    ),
+  );
   const billing = billingEnabled(organization);
   const scheduled = scheduledDurationMinutes(session);
   const actual = actualDurationMinutes(session);

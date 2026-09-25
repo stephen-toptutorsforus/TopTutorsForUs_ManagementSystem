@@ -497,9 +497,9 @@ describeDb("the directory", () => {
     expect(surnames(rows).has("Fischer")).toBe(false);
   });
 
-  it("shows nothing rather than a zero credit balance", async () => {
+  it("shows a zero credit balance as a balance", async () => {
     const rows = await listPeople(db, principal);
-    for (const row of rows) expect(row.credits).toBeNull();
+    for (const row of rows) expect(row.credits).toBe(0);
   });
 
   it("names both sides of a relationship", async () => {

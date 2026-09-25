@@ -11,7 +11,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { ADMIN_ONLY_ROUTES, ALL_ADMIN_ROUTES, SHARED_ROUTES, statePath } from "./accounts";
+import { ADMIN_ONLY_ROUTES, ALL_ADMIN_ROUTES, STUDENT_ROUTES, statePath } from "./accounts";
 
 /**
  * The shell is the proof a page rendered rather than merely returned 200.
@@ -45,7 +45,7 @@ test.describe("an administrator", () => {
 test.describe("a student", () => {
   test.use({ storageState: statePath("student") });
 
-  for (const route of SHARED_ROUTES) {
+  for (const route of STUDENT_ROUTES) {
     test(`opens ${route}`, async ({ page }) => {
       const response = await page.goto(route);
       expect(response?.status(), `${route} should answer 200`).toBe(200);

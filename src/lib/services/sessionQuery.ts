@@ -306,6 +306,14 @@ export interface SessionRow {
    * second query.
    */
   attendanceRecorded: boolean;
+  /**
+   * This viewer is a participant, or the guardian of one.
+   *
+   * Staff who can see the whole register are not marked: their actions come
+   * from a permission, and this flag is only how a student or parent reaches
+   * cancel and reschedule.
+   */
+  viewerInvolved: boolean;
   seriesPosition: string | null;
 }
 
@@ -607,6 +615,9 @@ export async function decorate(
       attendanceRecorded: (attendance.get(occurrence.id) ?? []).some(
         (status) => status !== AttendanceStatus.UNMARKED,
       ),
+      viewerInvolved:
+        !roster.maySeeAll(occurrence) &&
+        (onSession.get(occurrence.id) ?? []).some((row) => roster.mayName(occurrence, row.userId)),
       seriesPosition:
         occurrence.seriesId !== null &&
         occurrence.seriesIndex !== null &&
